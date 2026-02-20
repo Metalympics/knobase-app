@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
+import { Suspense } from "react";
+import { Footer } from "@/components/footer";
+import { PostHogProvider } from "@/components/analytics/posthog-provider";
+import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,6 +22,8 @@ export const metadata: Metadata = {
   description: "Your AI-powered knowledge base",
 };
 
+const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -24,10 +31,34 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_ID}', { send_page_view: true });
+              `}
+            </Script>
+          </>
+        )}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white`}
       >
-        {children}
+        <PostHogProvider>
+          <Suspense>
+            <PageViewTracker />
+          </Suspense>
+          {children}
+          <Footer />
+        </PostHogProvider>
       </body>
     </html>
   );
