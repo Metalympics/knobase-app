@@ -1,0 +1,41 @@
+{
+  "name": "knobase",
+  "displayName": "Knobase Knowledge Base",
+  "version": "1.0.0",
+  "description": "Connect OpenClaw to your Knobase workspace for AI-powered knowledge management",
+  "mcp": {
+    "endpoint": "http://localhost:3000/api/mcp",
+    "transport": "http",
+    "authentication": {
+      "type": "bearer",
+      "envKey": "MCP_API_KEY"
+    }
+  },
+  "tools": [
+    "list_documents",
+    "read_document",
+    "write_document",
+    "search_documents",
+    "delete_document",
+    "list_agents"
+  ],
+  "resources": [
+    "workspace://info",
+    "document://{id}"
+  ],
+  "prompts": {
+    "system": "You have access to a Knobase workspace via MCP. You can list, read, write, search, and delete documents. The workspace uses markdown for content. An AI agent named Claw assists with writing and editing.",
+    "examples": [
+      "Show me my recent documents",
+      "Create a new document about {topic}",
+      "Search my knowledge base for {query}",
+      "Read my document titled {title}",
+      "Have Claw improve my {document} document"
+    ]
+  },
+  "settings": {
+    "syncEnabled": true,
+    "syncInterval": 10000,
+    "autoContext": true
+  }
+}

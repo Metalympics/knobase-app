@@ -1,0 +1,17 @@
+{
+  "name": "@knobase/sdk",
+  "version": "1.0.0",
+  "description": "Official JavaScript/TypeScript SDK for the Knobase API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["knobase", "sdk", "api", "documents", "knowledge-base"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

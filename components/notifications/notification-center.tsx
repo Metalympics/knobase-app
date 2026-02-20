@@ -1,0 +1,286 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  Archive,
+  Settings,
+  X,
+  MessageSquare,
+  Bot,
+  UserPlus,
+  Edit3,
+} from "lucide-react";
+import {
+  listNotifications,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  archiveNotification,
+  archiveAll,
+  onNotification,
+  type Notification,
+  type NotificationType,
+} from "@/lib/notifications/store";
+
+interface NotificationCenterProps {
+  onNavigate?: (documentId: string) => void;
+  onOpenSettings?: () => void;
+}
+
+const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
+  mention: <span className="text-[10px] font-bold">@</span>,
+  comment: <MessageSquare className="h-3 w-3" />,
+  share: <UserPlus className="h-3 w-3" />,
+  "agent-suggestion": <Bot className="h-3 w-3" />,
+  "doc-edit": <Edit3 className="h-3 w-3" />,
+  "member-joined": <UserPlus className="h-3 w-3" />,
+  "role-changed": <Edit3 className="h-3 w-3" />,
+};
+
+function timeAgo(timestamp: string): string {
+  const seconds = Math.floor(
+    (Date.now() - new Date(timestamp).getTime()) / 1000
+  );
+  if (seconds < 60) return "now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+export function NotificationCenter({
+  onNavigate,
+  onOpenSettings,
+}: NotificationCenterProps) {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>(listNotifications);
+  const [unreadCount, setUnreadCount] = useState(getUnreadCount);
+  const [toast, setToast] = useState<Notification | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const refresh = useCallback(() => {
+    setNotifications(listNotifications());
+    setUnreadCount(getUnreadCount());
+  }, []);
+
+  useEffect(() => {
+    const unsub = onNotification((notif) => {
+      refresh();
+      setToast(notif);
+      setTimeout(() => setToast(null), 4000);
+    });
+    return unsub;
+  }, [refresh]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const handleMarkRead = useCallback(
+    (id: string) => {
+      markAsRead(id);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const handleMarkAllRead = useCallback(() => {
+    markAllAsRead();
+    refresh();
+  }, [refresh]);
+
+  const handleArchive = useCallback(
+    (id: string) => {
+      archiveNotification(id);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const handleArchiveAll = useCallback(() => {
+    archiveAll();
+    refresh();
+  }, [refresh]);
+
+  return (
+    <>
+      <div ref={ref} className="relative">
+        <button
+          onClick={() => {
+            setOpen(!open);
+            if (!open) refresh();
+          }}
+          className="relative rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+        >
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-purple-500 px-1 text-[9px] font-bold text-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.97 }}
+              transition={{ duration: 0.12 }}
+              className="absolute right-0 top-full z-50 mt-1 w-80 rounded-xl border border-neutral-200 bg-white shadow-xl"
+            >
+              <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+                <h3 className="text-sm font-semibold text-neutral-900">
+                  Notifications
+                </h3>
+                <div className="flex items-center gap-1">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={handleMarkAllRead}
+                      className="rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                      title="Mark all as read"
+                      aria-label="Mark all as read"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={handleArchiveAll}
+                    className="rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                    title="Archive all"
+                    aria-label="Archive all"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                  </button>
+                  {onOpenSettings && (
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        onOpenSettings();
+                      }}
+                      className="rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                      title="Notification settings"
+                      aria-label="Notification settings"
+                    >
+                      <Settings className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <Bell className="mx-auto mb-2 h-6 w-6 text-neutral-200" />
+                    <p className="text-xs text-neutral-400">
+                      No notifications
+                    </p>
+                  </div>
+                ) : (
+                  notifications.slice(0, 20).map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-neutral-50 ${
+                        !notif.read ? "bg-purple-50/40" : ""
+                      }`}
+                    >
+                      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500">
+                        {TYPE_ICONS[notif.type]}
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleMarkRead(notif.id);
+                          if (notif.documentId) {
+                            onNavigate?.(notif.documentId);
+                            setOpen(false);
+                          }
+                        }}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="text-xs leading-relaxed text-neutral-700">
+                          {notif.actorName && (
+                            <span className="font-medium">
+                              {notif.actorName}{" "}
+                            </span>
+                          )}
+                          {notif.message}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-neutral-400">
+                          {timeAgo(notif.timestamp)}
+                        </p>
+                      </button>
+                      <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        {!notif.read && (
+                          <button
+                            onClick={() => handleMarkRead(notif.id)}
+                            className="rounded p-1 text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500"
+                            title="Mark as read"
+                            aria-label="Mark as read"
+                          >
+                            <Check className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleArchive(notif.id)}
+                          className="rounded p-1 text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500"
+                          title="Archive"
+                          aria-label="Archive"
+                        >
+                          <Archive className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Toast notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, x: 20 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 right-4 z-[60] flex items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-lg"
+          >
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+              {TYPE_ICONS[toast.type]}
+            </div>
+            <div className="min-w-0 max-w-xs">
+              <p className="text-xs text-neutral-700">
+                {toast.actorName && (
+                  <span className="font-medium">{toast.actorName} </span>
+                )}
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="shrink-0 rounded p-0.5 text-neutral-400 hover:text-neutral-600"
+              aria-label="Dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
