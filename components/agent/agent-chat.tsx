@@ -38,7 +38,7 @@ export function AgentChat({
     {
       id: "welcome",
       role: "agent",
-      content: `Hey! I'm ${agent.name}. I can help you write, edit, or think through ideas. Try asking me to improve your document, summarize it, or just chat.`,
+      content: `Hey! I'm ${agent.name}, your workspace mascot. 🐾\n\nKnobase doesn't run AI natively—I'm just here to help you navigate.\n\nFor real AI power, connect an external agent via MCP (Settings → Integration). Then your AI can read and write documents directly!`,
       timestamp: new Date().toISOString(),
     },
   ]);
@@ -230,11 +230,11 @@ export function AgentChat({
         />
         <div className="flex-1">
           <div className="text-sm font-semibold text-neutral-900">{agent.name}</div>
-          <div className="text-[11px] text-neutral-400">AI Teammate</div>
+          <div className="text-[11px] text-neutral-400">Workspace Mascot</div>
         </div>
-        <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5">
-          <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          <span className="text-[10px] font-medium text-emerald-600">Online</span>
+        <div className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          <span className="text-[10px] font-medium text-amber-600">Demo Mode</span>
         </div>
       </div>
 
@@ -365,7 +365,7 @@ export function AgentChat({
           </button>
         </div>
         <div className="mt-1.5 text-center text-[10px] text-neutral-300">
-          {agent.name} uses AI to respond • Reasoning always visible
+          Demo mode • Connect external agent for real AI
         </div>
       </div>
     </motion.div>

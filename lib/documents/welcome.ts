@@ -2,35 +2,51 @@ export const WELCOME_TITLE = "Welcome to Knobase";
 
 export const WELCOME_CONTENT = `# Welcome to Knobase
 
-Your AI-powered knowledge base is ready. Here's a quick guide to get you started.
+Your open-source AI-native workspace is ready. Here's how to get started.
 
-## Getting started
+## What is Knobase?
 
-- **Create documents** using the + button in the sidebar, or press \`⌘K\` to search existing ones
+Knobase is **not** an AI service. It's a workspace where your AI agents can collaborate with you.
+
+Think of it as: **Google Docs + MCP Server for AI Agents**
+
+## Quick Start
+
+- **Create documents** using the + button in the sidebar, or press \`⌘K\` to search
 - **Write in Markdown** with our rich editor — headings, lists, code blocks, tables, and more
 - **Use slash commands** by typing \`/\` to insert blocks like images, dividers, and embeds
 
-## Your AI assistant
+## Connect Your AI
 
-Claw is your built-in AI agent. Click the chat bubble in the bottom-right corner to:
+Knobase doesn't run AI natively. Instead, you bring your own AI via **MCP** (Model Context Protocol):
 
-- Ask questions about your documents
-- Get writing suggestions
-- Summarize or restructure content
-- Generate ideas and outlines
+1. Go to **Settings → Integration**
+2. Connect your OpenClaw instance or any MCP-compatible agent
+3. Your AI agent can now read and write documents in your workspace
 
-## Organize your knowledge
+### Why this approach?
+
+- **You control your AI** — Use OpenAI, Anthropic, local models, or any provider
+- **No vendor lock-in** — Switch AI providers anytime
+- **Privacy** — Your documents stay in your workspace, not sent to our AI
+- **Extensible** — Any MCP-compatible tool can integrate
+
+## Organize Your Knowledge
 
 - **Tags** — Add tags to categorize documents
-- **Collections** — Group related documents together
-- **Graph View** — Visualize connections between your documents
+- **Real-time collaboration** — Multiple users can edit simultaneously
+- **Version history** — Track changes and restore previous versions
 - **Search** — Press \`⌘K\` for instant full-text search
 
-## Collaborate
+## Meet Claw 🐾
 
-Share documents with teammates, leave comments, and track changes with version history.
+You'll see Claw in the bottom-right corner — but they're just a friendly mascot, not an AI. 
+
+For real AI power, connect an external agent!
 
 ---
 
 *This is your first document — feel free to edit or delete it. Happy writing!*
+
+**Need help?** Visit [docs.knobase.ai](https://docs.knobase.ai) or check the [MCP documentation](https://docs.knobase.ai/mcp-integration)
 `;

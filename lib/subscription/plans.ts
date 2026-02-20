@@ -1,17 +1,25 @@
 import type { PlanDefinition, PlanTier, PlanLimits } from "./types";
 
+/**
+ * Knobase Subscription Plans
+ * 
+ * IMPORTANT: Knobase does NOT provide AI services natively.
+ * Plans are based on workspace resources (documents, agents, members).
+ * AI capabilities come from external agents connected via MCP (OpenClaw, etc.).
+ */
+
 export const PLANS: Record<PlanTier, PlanDefinition> = {
   free: {
     tier: "free",
     name: "Free",
-    description: "For individuals getting started",
+    description: "For individuals getting started with AI collaboration",
     priceMonthly: 0,
     stripePriceId: null,
     limits: {
       maxDocuments: 50,
-      maxAgents: 1,
+      maxAgents: 1,        // 1 external agent slot
       maxWorkspaceMembers: 1,
-      aiRequestsPerMonth: 100,
+      aiRequestsPerMonth: Infinity, // Not applicable - external agents handle AI
       customAgents: false,
       prioritySupport: false,
       apiAccess: false,
@@ -19,11 +27,12 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
     },
     features: [
       "Up to 50 documents",
-      "1 AI agent (Claw)",
-      "Basic search",
-      "Markdown editor",
+      "1 external agent slot",
+      "Connect your own AI via OpenClaw",
+      "Real-time collaboration",
       "Version history",
-      "100 AI requests/month",
+      "Markdown editor",
+      "MCP server access",
     ],
   },
   pro: {
@@ -34,9 +43,9 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
     stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID ?? null,
     limits: {
       maxDocuments: Infinity,
-      maxAgents: 5,
+      maxAgents: 5,        // 5 external agent slots
       maxWorkspaceMembers: 10,
-      aiRequestsPerMonth: 5000,
+      aiRequestsPerMonth: Infinity, // Not applicable - external agents handle AI
       customAgents: true,
       prioritySupport: false,
       apiAccess: true,
@@ -44,13 +53,13 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
     },
     features: [
       "Unlimited documents",
-      "Up to 5 AI agents",
-      "Custom agents from Marketplace",
-      "API access",
+      "Up to 5 external agents",
+      "Bring your own AI (any provider)",
+      "OpenClaw native integration",
+      "API access (REST + MCP)",
       "10 workspace members",
-      "5,000 AI requests/month",
-      "Priority search",
-      "OpenClaw integration",
+      "Agent marketplace access",
+      "Priority sync",
     ],
   },
   enterprise: {
@@ -63,7 +72,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       maxDocuments: Infinity,
       maxAgents: Infinity,
       maxWorkspaceMembers: Infinity,
-      aiRequestsPerMonth: Infinity,
+      aiRequestsPerMonth: Infinity, // Not applicable - external agents handle AI
       customAgents: true,
       prioritySupport: true,
       apiAccess: true,
@@ -71,13 +80,13 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
     },
     features: [
       "Everything in Pro",
-      "Unlimited AI agents",
+      "Unlimited external agents",
       "Unlimited workspace members",
-      "Unlimited AI requests",
-      "Advanced analytics",
+      "Advanced workspace analytics",
       "Priority support",
-      "Custom integrations",
+      "Custom MCP integrations",
       "SSO (coming soon)",
+      "Audit logs",
     ],
   },
 };
@@ -89,3 +98,17 @@ export function getPlanLimits(tier: PlanTier): PlanLimits {
 export function getPlan(tier: PlanTier): PlanDefinition {
   return PLANS[tier];
 }
+
+/**
+ * Note on AI:
+ * 
+ * Knobase does NOT run AI natively. The "AI agent slots" in plans refer to
+ * how many external agents you can connect via MCP (OpenClaw, Claude Desktop, etc.).
+ * 
+ * Your AI usage depends on:
+ * - Your OpenClaw configuration
+ * - Your own AI provider credentials (OpenAI, Anthropic, etc.)
+ * - How you set up your agents
+ * 
+ * Knobase just provides the workspace where those agents work.
+ */

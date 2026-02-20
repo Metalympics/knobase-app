@@ -629,15 +629,23 @@ function SettingsPageInner() {
 
                 <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3">
                   <h3 className="text-sm font-medium text-neutral-800">
-                    .env.local
+                    MCP Server Configuration
                   </h3>
                   <p className="mt-1 text-xs text-neutral-500">
-                    Add these to your environment for server-side key validation:
+                    Use this key to authenticate external agents (OpenClaw, etc.):
                   </p>
                   <pre className="mt-2 rounded-md bg-neutral-900 p-3 text-xs leading-relaxed text-neutral-300">
 {`MCP_API_KEY=${mcpApiKey || "your-api-key-here"}
-OPENAI_API_KEY=your-openai-key`}
+
+# Knobase does NOT require AI API keys
+# Connect external agents via MCP instead`}
                   </pre>
+                  <div className="mt-3 rounded-md bg-purple-50 px-3 py-2">
+                    <p className="text-xs text-purple-700">
+                      <strong>Note:</strong> Knobase is an agent-friendly workspace, not an AI service.
+                      Bring your own AI via OpenClaw MCP integration.
+                    </p>
+                  </div>
                 </div>
               </motion.div>
             )}

@@ -2,6 +2,18 @@ import { agentChat, agentRead, agentSuggestEdit, agentSummarize } from "./bridge
 import { getDefaultAgent, addSuggestion } from "./store";
 import type { AgentResponse, AgentSuggestion } from "./types";
 
+/**
+ * Agent Actions - Demo Mode
+ * 
+ * IMPORTANT: These functions provide UI demo functionality only.
+ * Knobase does NOT run AI natively.
+ * 
+ * For real AI interactions:
+ * - Connect an external agent via MCP (Settings → Integration)
+ * - External agents read/write through the MCP server at /api/mcp
+ * - Use OpenClaw or any MCP-compatible agent framework
+ */
+
 export async function readDocument(
   documentId: string,
   content: string
@@ -24,7 +36,7 @@ export async function suggestEdit(
     originalContent: currentContent,
     suggestedContent: response.content,
     reasoning: response.reasoning ?? "",
-    model: response.model ?? "unknown",
+    model: "demo-mode",
     status: "pending",
     createdAt: new Date().toISOString(),
   };
