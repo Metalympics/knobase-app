@@ -47,6 +47,7 @@ import {
   shouldAutoSave,
   markAutoSaved,
   type Version,
+  type VersionAuthor,
 } from "@/lib/history/versions";
 import { getCommentCount } from "@/lib/comments/store";
 import type { Template } from "@/lib/templates/defaults";
@@ -190,7 +191,12 @@ export default function KnowledgePage() {
   useEffect(() => {
     if (!activeId || !liveContent) return;
     if (shouldAutoSave(activeId)) {
-      saveVersion(activeId, liveContent);
+      const author: VersionAuthor = {
+        type: 'human',
+        id: 'local-user',
+        name: 'You',
+      };
+      saveVersion(activeId, liveContent, author, undefined, 'auto-save');
       markAutoSaved(activeId);
     }
   }, [activeId, liveContent]);
@@ -303,6 +309,15 @@ export default function KnowledgePage() {
       if (!activeId || !editor) return;
       editor.commands.setContent(content);
       saveContent(activeId, content);
+      
+      // Save a version for the restore action
+      const author: VersionAuthor = {
+        type: 'human',
+        id: 'local-user',
+        name: 'You',
+      };
+      saveVersion(activeId, content, author, undefined, 'restore');
+      
       setRightPanel("none");
       setDiffVersions(null);
     },
@@ -312,7 +327,12 @@ export default function KnowledgePage() {
   const handleSaveVersion = useCallback(() => {
     if (!activeId) return;
     const content = liveContent || activeDoc?.content || "";
-    saveVersion(activeId, content, "You");
+    const author: VersionAuthor = {
+      type: 'human',
+      id: 'local-user',
+      name: 'You',
+    };
+    saveVersion(activeId, content, author, undefined, 'edit');
   }, [activeId, liveContent, activeDoc?.content]);
 
   if (!workspaceName) {

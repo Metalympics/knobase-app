@@ -9,12 +9,16 @@ import {
   X,
   GitCompare,
   Pencil,
+  Bot,
 } from "lucide-react";
 import {
   getVersions,
   nameVersion,
   deleteVersion,
   type Version,
+  isVersionAuthor,
+  getAuthorDisplayName,
+  migrateVersions,
 } from "@/lib/history/versions";
 
 interface VersionTimelineProps {
@@ -36,13 +40,62 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function AuthorAvatar({ version }: { version: Version }) {
+  const author = version.author;
+  const isAgent = isVersionAuthor(author) && author.type === 'agent';
+  const displayName = getAuthorDisplayName(author);
+  const color = isVersionAuthor(author) && author.color ? author.color : '#6b7280';
+  
+  if (isAgent) {
+    return (
+      <div 
+        className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ring-2 ring-white"
+        style={{ backgroundColor: color }}
+      >
+        <Bot className="h-3.5 w-3.5 text-white" />
+      </div>
+    );
+  }
+  
+  return (
+    <div 
+      className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-neutral-600 ring-2 ring-white"
+    >
+      {displayName.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+function ChangeTypeBadge({ changeType }: { changeType?: string }) {
+  if (!changeType) return null;
+  
+  const badges = {
+    'edit': { label: 'Edit', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+    'ai-task': { label: 'AI Task', color: 'bg-purple-50 text-purple-600 border-purple-200' },
+    'restore': { label: 'Restore', color: 'bg-amber-50 text-amber-600 border-amber-200' },
+    'auto-save': { label: 'Auto', color: 'bg-neutral-50 text-neutral-500 border-neutral-200' },
+  };
+  
+  const badge = badges[changeType as keyof typeof badges];
+  if (!badge) return null;
+  
+  return (
+    <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${badge.color}`}>
+      {badge.label}
+    </span>
+  );
+}
+
 export function VersionTimeline({
   documentId,
   onRestore,
   onCompare,
   onClose,
 }: VersionTimelineProps) {
-  const [versions, setVersions] = useState(() => getVersions(documentId));
+  const [versions, setVersions] = useState(() => {
+    migrateVersions(documentId);
+    return getVersions(documentId);
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [compareMode, setCompareMode] = useState(false);
@@ -135,7 +188,11 @@ export function VersionTimeline({
         ) : (
           <div className="relative py-2">
             <div className="absolute left-7 top-0 bottom-0 w-px bg-[#e5e5e5]" />
-            {versions.map((version, i) => (
+            {versions.map((version, i) => {
+              const isAgent = isVersionAuthor(version.author) && version.author.type === 'agent';
+              const displayName = getAuthorDisplayName(version.author);
+              
+              return (
               <div key={version.id} className="relative flex gap-3 px-4 py-2">
                 {compareMode ? (
                   <button
@@ -147,13 +204,9 @@ export function VersionTimeline({
                     }`}
                   />
                 ) : (
-                  <div
-                    className={`z-10 mt-1 h-3 w-3 shrink-0 rounded-full ${
-                      version.name
-                        ? "bg-amber-400 ring-2 ring-amber-100"
-                        : "border-2 border-neutral-300 bg-white"
-                    }`}
-                  />
+                  <div className="mt-0.5">
+                    <AuthorAvatar version={version} />
+                  </div>
                 )}
 
                 <div className="min-w-0 flex-1">
@@ -171,12 +224,15 @@ export function VersionTimeline({
                         placeholder="Name this version..."
                       />
                     ) : (
-                      <span className="text-xs font-medium text-neutral-900">
-                        {version.name ?? formatTime(version.timestamp)}
-                      </span>
-                    )}
-                    {version.name && (
-                      <Star className="h-3 w-3 text-amber-400" />
+                      <>
+                        <span className="text-xs font-medium text-neutral-900">
+                          {version.name ?? formatTime(version.timestamp)}
+                        </span>
+                        {version.name && (
+                          <Star className="h-3 w-3 text-amber-400" />
+                        )}
+                        <ChangeTypeBadge changeType={version.changeType} />
+                      </>
                     )}
                   </div>
                   {version.name && (
@@ -184,8 +240,13 @@ export function VersionTimeline({
                       {formatTime(version.timestamp)}
                     </div>
                   )}
-                  <div className="text-[10px] text-neutral-400">
-                    {version.author}
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className={isAgent ? "font-medium text-purple-600" : "text-neutral-400"}>
+                      {isAgent ? `Agent: ${displayName}` : displayName}
+                    </span>
+                    {isAgent && (
+                      <Bot className="h-3 w-3 text-purple-600" />
+                    )}
                   </div>
 
                   {!compareMode && (
@@ -215,7 +276,7 @@ export function VersionTimeline({
                   )}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>

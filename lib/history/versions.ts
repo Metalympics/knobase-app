@@ -1,12 +1,23 @@
 const LS_PREFIX = "knobase-app:versions:";
 
+export type ChangeType = 'edit' | 'ai-task' | 'restore' | 'auto-save';
+
+export interface VersionAuthor {
+  type: 'human' | 'agent';
+  id: string;
+  name: string;
+  color?: string;
+}
+
 export interface Version {
   id: string;
   documentId: string;
   timestamp: string;
   name?: string;
   content: string;
-  author: string;
+  author: string | VersionAuthor;
+  changeType?: ChangeType;
+  taskId?: string;
 }
 
 function readVersions(documentId: string): Version[] {
@@ -31,11 +42,52 @@ export function getVersions(documentId: string): Version[] {
   );
 }
 
+// Helper to check if author is in new format
+export function isVersionAuthor(author: string | VersionAuthor): author is VersionAuthor {
+  return typeof author === 'object' && author !== null && 'type' in author;
+}
+
+// Helper to get display name from author
+export function getAuthorDisplayName(author: string | VersionAuthor): string {
+  if (isVersionAuthor(author)) {
+    return author.name;
+  }
+  return author;
+}
+
+// Migration function for existing versions
+export function migrateVersions(documentId: string): void {
+  const versions = readVersions(documentId);
+  let needsMigration = false;
+  
+  const migratedVersions = versions.map(version => {
+    if (typeof version.author === 'string') {
+      needsMigration = true;
+      return {
+        ...version,
+        author: {
+          type: 'human' as const,
+          id: 'default-user',
+          name: version.author,
+        },
+        changeType: version.changeType ?? ('edit' as ChangeType),
+      };
+    }
+    return version;
+  });
+  
+  if (needsMigration) {
+    writeVersions(documentId, migratedVersions);
+  }
+}
+
 export function saveVersion(
   documentId: string,
   content: string,
-  author: string = "You",
-  name?: string
+  author: string | VersionAuthor = "You",
+  name?: string,
+  changeType?: ChangeType,
+  taskId?: string
 ): Version {
   const versions = readVersions(documentId);
   const version: Version = {
@@ -45,6 +97,8 @@ export function saveVersion(
     content,
     author,
     ...(name ? { name } : {}),
+    ...(changeType ? { changeType } : {}),
+    ...(taskId ? { taskId } : {}),
   };
   versions.push(version);
   writeVersions(documentId, versions);

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { AgentTask, TaskStatus } from './task-types';
+import { saveVersion, type VersionAuthor } from '@/lib/history/versions';
 
 interface TaskStore {
   tasks: AgentTask[];
@@ -22,17 +23,41 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   },
 
   updateTask: (id: string, updates: Partial<AgentTask>) => {
-    set((state) => ({
-      tasks: state.tasks.map((task) =>
-        task.id === id
-          ? {
-              ...task,
-              ...updates,
-              updatedAt: new Date(),
-            }
-          : task
-      ),
-    }));
+    set((state) => {
+      const task = state.tasks.find(t => t.id === id);
+      const updatedTask = task ? { ...task, ...updates, updatedAt: new Date() } : null;
+      
+      // If task is being completed successfully and has a result, save a version
+      if (
+        updatedTask &&
+        updates.status === 'completed' &&
+        task?.status !== 'completed' &&
+        updatedTask.result &&
+        updatedTask.documentId
+      ) {
+        const author: VersionAuthor = {
+          type: 'agent',
+          id: `${updatedTask.agent.provider}-${updatedTask.agent.model}`,
+          name: updatedTask.agent.model,
+          color: '#9333ea', // purple-600
+        };
+        
+        saveVersion(
+          updatedTask.documentId,
+          updatedTask.result,
+          author,
+          undefined,
+          'ai-task',
+          updatedTask.id
+        );
+      }
+      
+      return {
+        tasks: state.tasks.map((task) =>
+          task.id === id ? updatedTask || task : task
+        ),
+      };
+    });
   },
 
   getTasksByDocument: (documentId: string) => {
