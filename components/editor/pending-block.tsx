@@ -36,24 +36,27 @@ export function PendingBlock({ task, onCancel }: PendingBlockProps) {
     }
   };
 
+  // Arbitrary color assignment - agents are collaborators like humans
+  // Just colors to distinguish concurrent tasks, no provider branding
   const getAvatarGradient = () => {
-    const model = task.agent.model.toLowerCase();
-    if (model.includes("gpt") || model.includes("openai")) {
-      return "from-emerald-400 to-teal-500";
-    } else if (model.includes("claude")) {
-      return "from-amber-400 to-orange-500";
-    } else if (model.includes("gemini")) {
-      return "from-blue-400 to-indigo-500";
-    }
-    return "from-purple-400 to-pink-500";
+    const gradients = [
+      "from-indigo-400 to-purple-500",
+      "from-blue-400 to-cyan-500",
+      "from-emerald-400 to-lime-500",
+      "from-yellow-400 to-amber-500",
+      "from-rose-400 to-pink-500",
+      "from-violet-400 to-fuchsia-500",
+      "from-cyan-400 to-indigo-500",
+      "from-lime-400 to-emerald-500",
+    ];
+    // Use task ID to consistently assign same color to same task
+    const index = task.id.charCodeAt(0) % gradients.length;
+    return gradients[index];
   };
 
   const getAvatarInitials = () => {
-    const model = task.agent.model.toLowerCase();
-    if (model.includes("gpt") || model.includes("openai")) return "AI";
-    if (model.includes("claude")) return "C";
-    if (model.includes("gemini")) return "G";
-    return "AI";
+    // Generic initials - agents are collaborators, not branded by provider
+    return "A";
   };
 
   const isInProgress = task.status === "queued" || task.status === "running";
@@ -103,7 +106,7 @@ export function PendingBlock({ task, onCancel }: PendingBlockProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-medium text-neutral-900">
-              {task.agent.model}
+              Agent
             </span>
             <span className="text-neutral-300">•</span>
             <div className="flex items-center gap-1.5">
