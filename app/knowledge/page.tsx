@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Editor } from "@tiptap/react";
 import {
+  Check,
   Clock,
   MessageSquare,
   Info,
   Network,
   Save,
   Search,
-  Share2,
   Tag,
+  UserPlus,
 } from "lucide-react";
 import { Sidebar } from "@/components/editor/sidebar";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
@@ -34,6 +35,7 @@ import {
 import type { Agent } from "@/lib/agents/types";
 
 import { GlobalSearch } from "@/components/search/GlobalSearch";
+import { PageSearch } from "@/components/search/PageSearch";
 import { GraphView } from "@/components/navigation/graph-view";
 import { VersionTimeline } from "@/components/history/version-timeline";
 import { DiffView } from "@/components/history/diff-view";
@@ -69,11 +71,15 @@ function getWorkspaceName(): string | null {
 type RightPanel = "none" | "comments" | "history" | "metadata" | "activity";
 
 export default function KnowledgePage() {
-  const [workspaceName] = useState(() => {
-    const name = getWorkspaceName();
-    if (!name) redirect("/onboarding");
-    return name;
-  });
+  const router = useRouter();
+
+  const [workspaceName] = useState(() => getWorkspaceName() ?? "");
+
+  useEffect(() => {
+    if (!getWorkspaceName()) {
+      router.replace("/onboarding");
+    }
+  }, [router]);
 
   const [editor, setEditor] = useState<Editor | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -85,10 +91,16 @@ export default function KnowledgePage() {
   const [openClawStatus, setOpenClawStatus] =
     useState<OpenClawConnectionStatus>("disconnected");
   const titleRef = useRef<HTMLInputElement>(null);
+  const flushRef = useRef<(() => void) | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "dirty" | "saved">(
+    "idle"
+  );
 
   // Panel states
   const [rightPanel, setRightPanel] = useState<RightPanel>("none");
   const [showSearch, setShowSearch] = useState(false);
+  const [showPageSearch, setShowPageSearch] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
@@ -134,17 +146,45 @@ export default function KnowledgePage() {
     }
   }, [activeId, rightPanel]);
 
-  // Cmd+K search shortcut
+  useEffect(() => {
+    setShowPageSearch(false);
+  }, [activeId]);
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        setShowSearch(true);
+        flushRef.current?.();
+        setSaveStatus("saved");
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          setShowPageSearch(false);
+          setShowSearch(true);
+        } else {
+          setShowSearch(false);
+          setShowPageSearch((prev) => !prev);
+        }
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      flushRef.current?.();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  useEffect(() => {
+    setSaveStatus("idle");
+  }, [activeId]);
 
   // Auto-save versions
   useEffect(() => {
@@ -202,9 +242,22 @@ export default function KnowledgePage() {
           );
         }
       }
+      setSaveStatus("saved");
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
     },
     [activeId, activeDoc?.title, saveContent, openClawStatus]
   );
+
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    if (dirty) {
+      if (savedTimerRef.current) {
+        clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = null;
+      }
+      setSaveStatus("dirty");
+    }
+  }, []);
 
   const handleTitleSubmit = useCallback(() => {
     if (activeId && titleRef.current) {
@@ -262,6 +315,14 @@ export default function KnowledgePage() {
     saveVersion(activeId, content, "You");
   }, [activeId, liveContent, activeDoc?.content]);
 
+  if (!workspaceName) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-white">
       {guestMode && (
@@ -312,6 +373,18 @@ export default function KnowledgePage() {
                 {activeDoc?.title || "Untitled"}
               </button>
             )}
+            {saveStatus === "dirty" && (
+              <span className="flex items-center gap-1.5 text-xs text-neutral-400">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
+                Saving...
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="flex items-center gap-1 text-xs text-neutral-400">
+                <Check className="h-3 w-3 text-emerald-500" />
+                Saved
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -323,22 +396,22 @@ export default function KnowledgePage() {
               />
             )}
             <button
-              onClick={() => setShowSearch(true)}
+              onClick={() => setShowPageSearch((prev) => !prev)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-              title="Search (⌘K)"
+              title="Find in document (⌘F)"
             >
               <Search className="h-3.5 w-3.5" />
               <kbd className="hidden rounded border border-[#e5e5e5] px-1 py-0.5 text-[9px] sm:inline">
-                ⌘K
+                ⌘F
               </kbd>
             </button>
             {activeId && workspace && (
               <button
                 onClick={() => setShowShare(true)}
-                className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                title="Share"
+                className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
               >
-                <Share2 className="h-4 w-4" />
+                <UserPlus className="h-3.5 w-3.5" />
+                Invite
               </button>
             )}
             <button
@@ -405,13 +478,19 @@ export default function KnowledgePage() {
               status={status}
               isSynced={isSynced}
               currentUserId={user.id}
-              agent={agent}
+              agent={openClawStatus === "connected" ? agent : null}
             />
           </div>
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-16 py-10">
+          <div className="relative flex-1 overflow-y-auto px-16 py-10">
+            {showPageSearch && editor && (
+              <PageSearch
+                editor={editor}
+                onClose={() => setShowPageSearch(false)}
+              />
+            )}
             <div className="mx-auto max-w-2xl">
               {activeId && (
                 <>
@@ -438,6 +517,8 @@ export default function KnowledgePage() {
                     user={user}
                     initialContent={activeDoc?.content ?? ""}
                     onContentChange={handleContentChange}
+                    onDirtyChange={handleDirtyChange}
+                    flushRef={flushRef}
                   />
                   <BacklinksPanel
                     documentId={activeId}
@@ -548,6 +629,14 @@ export default function KnowledgePage() {
           documentTitle={activeDoc?.title ?? "Untitled"}
           workspaceId={workspace.id}
           onClose={() => setShowShare(false)}
+          openClawStatus={openClawStatus}
+          onAgentConnect={(endpoint, apiKey) => {
+            openClawBridge.configure(endpoint, apiKey);
+            openClawBridge.connect();
+          }}
+          onAgentDisconnect={() => {
+            openClawBridge.disconnect();
+          }}
         />
       )}
 

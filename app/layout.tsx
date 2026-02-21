@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { Suspense } from "react";
-import { Footer } from "@/components/footer";
 import { PostHogProvider } from "@/components/analytics/posthog-provider";
 import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 import "./globals.css";
@@ -51,13 +50,13 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white`}
+        suppressHydrationWarning
       >
         <PostHogProvider>
           <Suspense>
             <PageViewTracker />
           </Suspense>
           {children}
-          <Footer />
         </PostHogProvider>
       </body>
     </html>

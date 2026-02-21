@@ -22,6 +22,7 @@ import type { Awareness } from "y-protocols/awareness";
 import { SlashCommandMenu } from "./slash-command";
 import { TableBlock } from "./blocks/TableBlock";
 import { TaskListBlock } from "./blocks/TaskListBlock";
+import { SearchExtension } from "@/lib/search/search-extension";
 
 interface TiptapEditorProps {
   onEditorReady?: (editor: Editor) => void;
@@ -30,6 +31,8 @@ interface TiptapEditorProps {
   user?: { id: string; name: string; color: string };
   initialContent?: string;
   onContentChange?: (markdown: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  flushRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export function TiptapEditor({
@@ -39,6 +42,8 @@ export function TiptapEditor({
   user,
   initialContent,
   onContentChange,
+  onDirtyChange,
+  flushRef,
 }: TiptapEditorProps) {
   const [slashMenu, setSlashMenu] = useState({
     isOpen: false,
@@ -47,8 +52,21 @@ export function TiptapEditor({
   });
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
+  const latestContentRef = useRef<string | null>(null);
+  const editorInstanceRef = useRef<Editor | null>(null);
+  const onContentChangeRef = useRef(onContentChange);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+
+  useEffect(() => {
+    onContentChangeRef.current = onContentChange;
+  }, [onContentChange]);
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -92,6 +110,7 @@ export function TiptapEditor({
         multicolor: true,
       }),
       Typography,
+      SearchExtension,
       ...(ydoc
         ? [
             Collaboration.configure({ document: ydoc }),
@@ -147,19 +166,32 @@ export function TiptapEditor({
         );
       }
 
-      if (onContentChange) {
+      if (onContentChangeRef.current) {
+        const storage = ed.storage as unknown as Record<
+          string,
+          Record<string, () => string>
+        >;
+        latestContentRef.current = storage.markdown?.getMarkdown?.() ?? "";
+
+        if (!isDirtyRef.current) {
+          isDirtyRef.current = true;
+          onDirtyChangeRef.current?.(true);
+        }
+
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = setTimeout(() => {
-          const storage = ed.storage as unknown as Record<
-            string,
-            Record<string, () => string>
-          >;
-          const md = storage.markdown?.getMarkdown?.() ?? "";
-          onContentChange(md);
+          onContentChangeRef.current?.(latestContentRef.current ?? "");
+          isDirtyRef.current = false;
+          onDirtyChangeRef.current?.(false);
+          saveTimeoutRef.current = null;
         }, 500);
       }
     },
   }, [ydoc, awareness]);
+
+  useEffect(() => {
+    editorInstanceRef.current = editor ?? null;
+  }, [editor]);
 
   useEffect(() => {
     if (editor && onEditorReady) {
@@ -167,9 +199,47 @@ export function TiptapEditor({
     }
   }, [editor, onEditorReady]);
 
+  const flush = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (!isDirtyRef.current) return;
+
+    let md: string | null = null;
+    const ed = editorInstanceRef.current;
+    if (ed && !ed.isDestroyed) {
+      try {
+        const storage = ed.storage as unknown as Record<
+          string,
+          Record<string, () => string>
+        >;
+        md = storage.markdown?.getMarkdown?.() ?? "";
+      } catch {
+        /* editor may be transitioning, fall back to cached content */
+      }
+    }
+
+    onContentChangeRef.current?.(md ?? latestContentRef.current ?? "");
+    isDirtyRef.current = false;
+    onDirtyChangeRef.current?.(false);
+  }, []);
+
+  useEffect(() => {
+    if (flushRef) flushRef.current = flush;
+    return () => {
+      if (flushRef) flushRef.current = null;
+    };
+  }, [flush, flushRef]);
+
   useEffect(() => {
     return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      if (isDirtyRef.current && latestContentRef.current !== null) {
+        onContentChangeRef.current?.(latestContentRef.current);
+      }
     };
   }, []);
 

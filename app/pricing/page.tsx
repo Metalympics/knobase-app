@@ -2,38 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { ArrowLeft, Check, Crown, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, Check, Minus } from "lucide-react";
 import { PLANS } from "@/lib/subscription/plans";
-import { getSubscription, updateSubscriptionTier } from "@/lib/subscription/store";
-import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
+import {
+  getSubscription,
+  updateSubscriptionTier,
+} from "@/lib/subscription/store";
+import {
+  getActiveWorkspaceId,
+  getOrCreateDefaultWorkspace,
+} from "@/lib/workspaces/store";
 import type { PlanTier } from "@/lib/subscription/types";
 
 const VISIBLE_TIERS: PlanTier[] = ["free", "pro"];
-
-const TIER_ICONS: Record<string, React.ReactNode> = {
-  free: <Zap className="h-5 w-5" />,
-  pro: <Crown className="h-5 w-5" />,
-};
-
-const TIER_COLORS: Record<string, { bg: string; border: string; text: string; badge: string; button: string; buttonHover: string }> = {
-  free: {
-    bg: "bg-white",
-    border: "border-neutral-200",
-    text: "text-neutral-600",
-    badge: "bg-neutral-100 text-neutral-600",
-    button: "bg-neutral-900 text-white",
-    buttonHover: "hover:bg-neutral-800",
-  },
-  pro: {
-    bg: "bg-gradient-to-b from-purple-50/50 to-white",
-    border: "border-purple-300 ring-1 ring-purple-100",
-    text: "text-purple-700",
-    badge: "bg-purple-100 text-purple-700",
-    button: "bg-purple-600 text-white",
-    buttonHover: "hover:bg-purple-700",
-  },
-};
 
 export default function PricingPage() {
   const router = useRouter();
@@ -77,7 +58,7 @@ export default function PricingPage() {
       updateSubscriptionTier(workspaceId, tier);
       setCurrentTier(tier);
       setSuccessMessage(
-        tier === "pro" ? "Upgraded to Pro!" : "Downgraded to Free"
+        tier === "pro" ? "Upgraded to Pro." : "Downgraded to Free."
       );
     } finally {
       setLoading(null);
@@ -85,146 +66,198 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
-      <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center gap-4 px-6 py-4">
+    <div className="min-h-screen bg-white">
+      <header className="border-b border-[#e5e5e5]">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-6 py-3">
           <button
             onClick={() => router.push("/knowledge")}
             className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div>
-            <h1 className="text-lg font-semibold text-neutral-900">
-              Choose your plan
-            </h1>
-            <p className="text-sm text-neutral-500">
-              Scale your knowledge base as you grow
-            </p>
-          </div>
+          <span className="text-sm font-medium text-neutral-900">
+            Plans & Billing
+          </span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-12">
+      <main className="mx-auto max-w-2xl px-6 py-10">
+        <div className="mb-8">
+          <h1 className="text-lg font-semibold text-neutral-900">
+            Choose your plan
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Scale your knowledge base as you grow.
+          </p>
+        </div>
+
         {successMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
-          >
-            <Check className="h-4 w-4" />
+          <div className="mb-6 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2.5 text-sm text-emerald-700">
+            <Check className="h-3.5 w-3.5 shrink-0" />
             {successMessage}
-          </motion.div>
+          </div>
         )}
 
-        <div className="grid gap-8 md:grid-cols-2">
-          {VISIBLE_TIERS.map((tier, i) => {
+        <div className="space-y-4">
+          {VISIBLE_TIERS.map((tier) => {
             const plan = PLANS[tier];
-            const colors = TIER_COLORS[tier];
             const isCurrent = tier === currentTier;
-            const isPopular = tier === "pro";
 
             return (
-              <motion.div
+              <div
                 key={tier}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className={`relative flex flex-col rounded-2xl border ${colors.border} ${colors.bg} p-8`}
+                className={`rounded-lg border bg-white ${
+                  isCurrent
+                    ? "border-neutral-900"
+                    : "border-[#e5e5e5]"
+                }`}
               >
-                {isPopular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="flex items-center gap-1 rounded-full bg-purple-600 px-3 py-1 text-[11px] font-semibold text-white shadow-md">
-                      <Sparkles className="h-3 w-3" />
-                      Recommended
-                    </span>
+                <div className="flex items-center justify-between border-b border-[#e5e5e5] px-5 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-semibold text-neutral-900">
+                          {plan.name}
+                        </h2>
+                        {isCurrent && (
+                          <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-medium text-white">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        {plan.description}
+                      </p>
+                    </div>
                   </div>
-                )}
-
-                <div className="flex items-center gap-3">
-                  <div className={`rounded-lg p-2 ${colors.badge}`}>
-                    {TIER_ICONS[tier]}
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-neutral-900">
-                      {plan.name}
-                    </h2>
-                    <p className="text-sm text-neutral-500">
-                      {plan.description}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex items-baseline gap-1">
-                  {plan.priceMonthly === 0 ? (
-                    <span className="text-4xl font-bold text-neutral-900">
-                      Free
-                    </span>
-                  ) : (
-                    <>
-                      <span className="text-4xl font-bold text-neutral-900">
-                        ${plan.priceMonthly}
+                  <div className="text-right">
+                    {plan.priceMonthly === 0 ? (
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Free
                       </span>
-                      <span className="text-sm text-neutral-500">/month</span>
-                    </>
-                  )}
+                    ) : (
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-sm font-semibold text-neutral-900">
+                          ${plan.priceMonthly}
+                        </span>
+                        <span className="text-xs text-neutral-400">
+                          /mo
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mt-8 flex-1">
-                  <ul className="space-y-3">
+                <div className="px-5 py-4">
+                  <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                     {plan.features.map((feature) => (
                       <li
                         key={feature}
-                        className="flex items-start gap-2.5 text-sm text-neutral-600"
+                        className="flex items-start gap-2 text-[13px] text-neutral-600"
                       >
-                        <Check className={`mt-0.5 h-4 w-4 shrink-0 ${colors.text}`} />
+                        <Check className="mt-0.5 h-3 w-3 shrink-0 text-neutral-400" />
                         {feature}
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <button
-                  onClick={() => handleSelectPlan(tier)}
-                  disabled={isCurrent || loading !== null}
-                  className={`mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all ${
-                    isCurrent
-                      ? "cursor-default border-2 border-neutral-300 bg-neutral-100 text-neutral-500"
-                      : `${colors.button} ${colors.buttonHover} shadow-sm`
-                  } disabled:opacity-70`}
-                >
-                  {loading === tier ? (
-                    <span className="flex items-center gap-2">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      Processing...
+                <div className="border-t border-[#e5e5e5] px-5 py-3">
+                  {isCurrent ? (
+                    <span className="text-xs text-neutral-400">
+                      This is your current plan.
                     </span>
-                  ) : isCurrent ? (
-                    "Current Plan"
-                  ) : tier === "free" ? (
-                    "Downgrade to Free"
                   ) : (
-                    "Upgrade to Pro"
+                    <button
+                      onClick={() => handleSelectPlan(tier)}
+                      disabled={loading !== null}
+                      className="flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-4 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50"
+                    >
+                      {loading === tier ? (
+                        <>
+                          <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-white/30 border-t-white" />
+                          Processing...
+                        </>
+                      ) : tier === "free" ? (
+                        "Downgrade to Free"
+                      ) : (
+                        "Upgrade to Pro"
+                      )}
+                    </button>
                   )}
-                </button>
-
-                {isCurrent && tier === "pro" && (
-                  <p className="mt-3 text-center text-xs text-purple-500">
-                    You&apos;re on Pro — enjoy unlimited documents!
-                  </p>
-                )}
-              </motion.div>
+                </div>
+              </div>
             );
           })}
         </div>
 
-        <div className="mt-12 text-center">
-          <p className="text-sm text-neutral-400">
-            All plans include end-to-end encryption, real-time collaboration, and version history.
-          </p>
-          <p className="mt-2 text-xs text-neutral-400">
-            No credit card required — instant upgrade with mock billing.
-          </p>
+        {/* Comparison */}
+        <div className="mt-10">
+          <h2 className="text-sm font-semibold text-neutral-900">
+            Plan comparison
+          </h2>
+          <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e5e5]">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-[#e5e5e5] bg-[#fafafa]">
+                  <th className="px-4 py-2.5 text-xs font-medium text-neutral-500">
+                    Feature
+                  </th>
+                  {VISIBLE_TIERS.map((tier) => (
+                    <th
+                      key={tier}
+                      className="px-4 py-2.5 text-xs font-medium text-neutral-500"
+                    >
+                      {PLANS[tier].name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e5e5e5]">
+                {[
+                  { label: "Documents", free: "50", pro: "Unlimited" },
+                  { label: "Agent slots", free: "1", pro: "5" },
+                  { label: "Workspace members", free: "1", pro: "10" },
+                  { label: "Real-time collaboration", free: true, pro: true },
+                  { label: "Version history", free: true, pro: true },
+                  { label: "MCP server", free: true, pro: true },
+                  { label: "API access", free: false, pro: true },
+                  { label: "Agent marketplace", free: false, pro: true },
+                  { label: "Custom agents", free: false, pro: true },
+                  { label: "Priority sync", free: false, pro: true },
+                ].map((row) => (
+                  <tr key={row.label}>
+                    <td className="px-4 py-2 text-[13px] text-neutral-700">
+                      {row.label}
+                    </td>
+                    {(["free", "pro"] as const).map((tier) => {
+                      const val = row[tier];
+                      return (
+                        <td
+                          key={tier}
+                          className="px-4 py-2 text-[13px] text-neutral-600"
+                        >
+                          {val === true ? (
+                            <Check className="h-3.5 w-3.5 text-neutral-900" />
+                          ) : val === false ? (
+                            <Minus className="h-3.5 w-3.5 text-neutral-300" />
+                          ) : (
+                            val
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        <p className="mt-8 text-xs text-neutral-400">
+          All plans include end-to-end encryption and version history.
+          No credit card required for the free plan.
+        </p>
       </main>
     </div>
   );

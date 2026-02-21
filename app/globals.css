@@ -351,6 +351,22 @@
 }
 
 /* Collaboration cursor styles */
+/* In-document search highlights */
+.search-highlight {
+  background-color: #fde68a;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.search-highlight-active {
+  background-color: #fb923c;
+  color: #fff;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 .collaboration-cursor__caret {
   position: relative;
   margin-left: -1px;

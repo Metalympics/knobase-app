@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { FileText, Plus, Search, Settings, Trash2, Store, Activity, Crown, AlertTriangle } from "lucide-react";
 import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
@@ -31,7 +32,7 @@ export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, o
   const isAtLimit = docLimit?.isAtLimit ?? false;
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa]">
+    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa] [&_a]:cursor-pointer [&_button]:cursor-pointer">
       <div className="flex items-center gap-2 border-b border-[#e5e5e5] px-4 py-3">
         {workspace ? (
           <WorkspaceSwitcher
@@ -64,7 +65,7 @@ export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, o
           <Search className="h-4 w-4" />
           Search
           <kbd className="ml-auto rounded border border-[#e5e5e5] px-1 py-0.5 text-[9px] text-neutral-400">
-            ⌘K
+            ⇧⌘F
           </kbd>
         </button>
         {onShowActivity && (
@@ -206,6 +207,20 @@ export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, o
             ) : null}
           </>
         )}
+      </div>
+
+      <div className="flex items-center gap-3 border-t border-[#e5e5e5] px-4 py-2.5">
+        <Link href="https://www.knobase.com" target="_blank" className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500">
+          Knobase
+        </Link>
+        <span className="text-neutral-200">·</span>
+        <Link href="/tos" className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500">
+          Terms
+        </Link>
+        <span className="text-neutral-200">·</span>
+        <Link href="/privacy" className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500">
+          Privacy
+        </Link>
       </div>
     </aside>
   );

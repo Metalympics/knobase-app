@@ -14,6 +14,7 @@ function readAll(): Document[] {
 }
 
 function writeAll(docs: Document[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(DOCS_KEY, JSON.stringify(docs));
 }
 
