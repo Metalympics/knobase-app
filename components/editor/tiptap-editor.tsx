@@ -247,6 +247,16 @@ export function TiptapEditor({
     setSlashMenu((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
+  const closeAgentSelector = useCallback(() => {
+    if (editor) {
+      const storage = editor.storage as { inlineAgent?: { showAgentSelector?: boolean } };
+      if (storage.inlineAgent) {
+        storage.inlineAgent.showAgentSelector = false;
+      }
+    }
+    setAgentSelector((prev) => ({ ...prev, isOpen: false }));
+  }, [editor]);
+
   if (!editor) return null;
 
   return (
@@ -260,6 +270,15 @@ export function TiptapEditor({
         position={slashMenu.position}
         onClose={closeSlashMenu}
         query={slashMenu.query}
+      />
+      <AgentSelector
+        editor={editor}
+        isOpen={agentSelector.isOpen}
+        position={agentSelector.position}
+        query={agentSelector.query}
+        documentId={documentId}
+        documentTitle={documentTitle}
+        onClose={closeAgentSelector}
       />
     </div>
   );

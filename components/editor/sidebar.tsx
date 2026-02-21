@@ -6,6 +6,7 @@ import { FileText, Plus, Search, Settings, Trash2, Store, Activity, Crown, Alert
 import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 import { CollectionSidebar } from "@/components/collections/collection-sidebar";
+import { TaskStatusPanel } from "@/components/sidebar/task-status-panel";
 import type { Workspace } from "@/lib/workspaces/types";
 import { getDocumentLimitInfo, getSubscription } from "@/lib/subscription/store";
 
@@ -20,9 +21,10 @@ interface SidebarProps {
   workspace?: Workspace | null;
   onWorkspaceSwitch?: (ws: Workspace) => void;
   onShowActivity?: () => void;
+  onNavigateToTask?: (documentId: string, selection?: { from: number; to: number }) => void;
 }
 
-export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, onDelete, onSearch, workspace, onWorkspaceSwitch, onShowActivity }: SidebarProps) {
+export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, onDelete, onSearch, workspace, onWorkspaceSwitch, onShowActivity, onNavigateToTask }: SidebarProps) {
   const router = useRouter();
   const docLimit = workspace ? getDocumentLimitInfo(workspace.id) : null;
   const currentTier = workspace ? getSubscription(workspace.id).tier : "free";
@@ -106,6 +108,9 @@ export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, o
         onSelectDocument={onSelect}
         documents={documents.map((d) => ({ id: d.id, title: d.title }))}
       />
+
+      {/* Agent Tasks */}
+      <TaskStatusPanel onNavigateToTask={onNavigateToTask} />
 
       <div className="flex items-center justify-between px-4 pt-4 pb-1">
         <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
