@@ -9,6 +9,7 @@ import { InlineAgentNodeView } from "./inline-agent-view";
 import type { MentionableUser, HumanMention, AIMention } from "@/lib/mentions/types";
 import { notifyMentionedUser } from "@/lib/mentions/store";
 import { getCurrentUserId } from "@/lib/workspaces/store";
+import type { Agent } from "@/lib/agents/store";
 
 export interface InlineAgentOptions {
   HTMLAttributes: Record<string, string>;
@@ -261,7 +262,7 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
 
 export function createInlineAgentTask(
   editor: Editor,
-  agentModel: string,
+  agent: Agent,
   prompt: string,
   documentId: string,
   documentTitle: string
@@ -276,7 +277,8 @@ export function createInlineAgentTask(
     documentId,
     documentTitle,
     agent: {
-      model: agentModel,
+      name: agent.name,
+      model: agent.id,
       provider: "demo",
     },
     createdAt: new Date(),

@@ -55,8 +55,8 @@ export function PendingBlock({ task, onCancel }: PendingBlockProps) {
   };
 
   const getAvatarInitials = () => {
-    // Generic initials - agents are collaborators, not branded by provider
-    return "A";
+    // Use first letter of agent name
+    return task.agent.name.charAt(0).toUpperCase();
   };
 
   const isInProgress = task.status === "queued" || task.status === "running";
@@ -106,7 +106,7 @@ export function PendingBlock({ task, onCancel }: PendingBlockProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-medium text-neutral-900">
-              Agent
+              {task.agent.name}
             </span>
             <span className="text-neutral-300">•</span>
             <div className="flex items-center gap-1.5">

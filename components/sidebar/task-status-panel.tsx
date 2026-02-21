@@ -238,6 +238,10 @@ export function TaskStatusPanel({ onNavigateToTask }: TaskStatusPanelProps) {
                           {task.type}
                         </span>
                         <span className="text-[9px] text-neutral-400">
+                          {task.agent.name}
+                        </span>
+                        <span className="text-[9px] text-neutral-300">•</span>
+                        <span className="text-[9px] text-neutral-300">
                           {task.agent.model}
                         </span>
                       </div>

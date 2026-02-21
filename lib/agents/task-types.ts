@@ -18,6 +18,7 @@ export interface TextSelection {
 }
 
 export interface AgentInfo {
+  name: string;
   model: string;
   provider: string;
   temperature?: number;

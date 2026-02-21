@@ -1,12 +1,14 @@
 import type { Agent, AgentSuggestion } from "./types";
 
+export type { Agent };
+
 const LS_PREFIX = "knobase-app:";
 const AGENTS_KEY = `${LS_PREFIX}agents`;
 const SUGGESTIONS_KEY = `${LS_PREFIX}agent-suggestions`;
 
 const DEFAULT_AGENT: Agent = {
   id: "claw-default",
-  name: "Claw",
+  name: "Assistant",
   avatar: "🐾",
   color: "#8B5CF6",
   status: "online",
@@ -89,6 +91,26 @@ export function deleteAgent(id: string): boolean {
   if (filtered.length === agents.length) return false;
   writeAgents(filtered);
   return true;
+}
+
+export function updateAgentName(id: string, name: string): Agent | null {
+  return updateAgent(id, { name });
+}
+
+export function inviteAgent(
+  name: string,
+  options?: {
+    avatar?: string;
+    color?: string;
+    personality?: string;
+  }
+): Agent {
+  return createAgent({
+    name,
+    avatar: options?.avatar ?? "🤖",
+    color: options?.color ?? "#8B5CF6",
+    personality: options?.personality,
+  });
 }
 
 // Suggestions store

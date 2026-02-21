@@ -38,7 +38,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         const author: VersionAuthor = {
           type: 'agent',
           id: `${updatedTask.agent.provider}-${updatedTask.agent.model}`,
-          name: updatedTask.agent.model,
+          name: updatedTask.agent.name,
           color: '#9333ea', // purple-600
         };
         

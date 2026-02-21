@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Editor } from "@tiptap/react";
-import { Bot, Sparkles, Zap, User } from "lucide-react";
+import { Bot, Sparkles, Zap, User, Edit2 } from "lucide-react";
 import { createInlineAgentTask, insertHumanMention } from "./inline-agent";
 import { searchWorkspaceUsers } from "@/lib/mentions/store";
 import { getInitial } from "@/lib/mentions/store";
 import type { MentionableUser } from "@/lib/mentions/types";
+import { listAgents, createAgent, updateAgentName, type Agent } from "@/lib/agents/store";
 
 interface AgentOption {
   id: string;
@@ -14,26 +15,27 @@ interface AgentOption {
   provider: string;
   icon: React.ReactNode;
   description: string;
+  agent?: Agent;
 }
 
-const AGENT_OPTIONS: AgentOption[] = [
+const BASE_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = [
   {
     id: "gpt-4",
-    model: "GPT-4",
+    model: "gpt-4",
     provider: "OpenAI",
     icon: <Sparkles className="h-4 w-4" />,
     description: "Advanced reasoning and generation",
   },
   {
     id: "claude-3",
-    model: "Claude 3",
+    model: "claude-3",
     provider: "Anthropic",
     icon: <Bot className="h-4 w-4" />,
     description: "Long context understanding",
   },
   {
     id: "gemini-pro",
-    model: "Gemini Pro",
+    model: "gemini-pro",
     provider: "Google",
     icon: <Zap className="h-4 w-4" />,
     description: "Fast and efficient",
@@ -58,6 +60,33 @@ interface AgentSelectorProps {
   workspaceId: string;
 }
 
+function getOrCreateAgentForModel(model: string, provider: string): Agent {
+  const agents = listAgents();
+  
+  // Find existing agent with this model
+  let agent = agents.find((a) => a.name.toLowerCase().includes(model.toLowerCase()));
+  
+  if (!agent) {
+    // Create a new agent with a default name based on the model
+    const defaultName = model === "gpt-4" ? "GPT-4" : 
+                       model === "claude-3" ? "Claude" : 
+                       model === "gemini-pro" ? "Gemini" : 
+                       "Assistant";
+    
+    agent = createAgent({
+      name: defaultName,
+      avatar: model === "gpt-4" ? "✨" : 
+              model === "claude-3" ? "🤖" : 
+              model === "gemini-pro" ? "⚡" : "🐾",
+      color: model === "gpt-4" ? "#10a37f" : 
+             model === "claude-3" ? "#8B5CF6" : 
+             model === "gemini-pro" ? "#4285f4" : "#8B5CF6",
+    });
+  }
+  
+  return agent;
+}
+
 export function AgentSelector({
   editor,
   isOpen,
@@ -70,13 +99,23 @@ export function AgentSelector({
 }: AgentSelectorProps) {
   const [selected, setSelected] = useState<SelectedItem>({ type: 'ai', index: 0 });
   const [prompt, setPrompt] = useState("");
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Enhance agent options with stored agent data
+  const AGENT_OPTIONS: AgentOption[] = BASE_AGENT_OPTIONS.map(base => ({
+    ...base,
+    agent: getOrCreateAgentForModel(base.model, base.provider),
+  }));
 
   // Filter AI agents
   const filteredAgents = AGENT_OPTIONS.filter((agent) => {
     const q = query.toLowerCase();
     return (
+      agent.agent!.name.toLowerCase().includes(q) ||
       agent.model.toLowerCase().includes(q) ||
       agent.provider.toLowerCase().includes(q)
     );
@@ -88,20 +127,35 @@ export function AgentSelector({
   const hasResults = filteredAgents.length > 0 || filteredUsers.length > 0;
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
+    if (isOpen && inputRef.current && !editingAgentId) {
       inputRef.current.focus();
     }
-  }, [isOpen]);
+  }, [isOpen, editingAgentId]);
+
+  useEffect(() => {
+    if (editingAgentId && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [editingAgentId]);
+
+  const handleSaveName = useCallback((agentId: string) => {
+    if (editName.trim()) {
+      updateAgentName(agentId, editName.trim());
+    }
+    setEditingAgentId(null);
+    setEditName("");
+  }, [editName]);
 
   const executeCommand = useCallback(
     (selection: SelectedItem) => {
       if (selection.type === 'ai') {
-        const agent = filteredAgents[selection.index];
-        if (!agent || !prompt.trim()) return;
+        const agentOption = filteredAgents[selection.index];
+        if (!agentOption || !prompt.trim()) return;
 
         createInlineAgentTask(
           editor,
-          agent.model,
+          agentOption.agent!,
           prompt.trim(),
           documentId,
           documentTitle
@@ -129,6 +183,18 @@ export function AgentSelector({
     if (!isOpen) return;
 
     function handleKeyDown(e: KeyboardEvent) {
+      if (editingAgentId) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleSaveName(editingAgentId);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          setEditingAgentId(null);
+          setEditName("");
+        }
+        return;
+      }
+
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSelected(prev => {
@@ -176,7 +242,7 @@ export function AgentSelector({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, selected, filteredAgents.length, filteredUsers.length, executeCommand, prompt, onClose]);
+  }, [isOpen, selected, filteredAgents.length, filteredUsers.length, executeCommand, prompt, onClose, editingAgentId, handleSaveName]);
 
   useEffect(() => {
     if (menuRef.current) {
@@ -204,29 +270,60 @@ export function AgentSelector({
               AI Agents
             </div>
             <div className="space-y-1 max-h-48 overflow-y-auto">
-              {filteredAgents.map((agent, index) => (
-                <button
-                  key={agent.id}
+              {filteredAgents.map((agentOption, index) => (
+                <div
+                  key={agentOption.id}
                   data-active={isAISelected(index)}
                   className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm rounded-md transition-colors ${
                     isAISelected(index)
                       ? "bg-neutral-100 text-neutral-900"
                       : "text-neutral-600 hover:bg-neutral-50"
                   }`}
-                  onClick={() => {
-                    setSelected({ type: 'ai', index });
-                    if (inputRef.current) inputRef.current.focus();
-                  }}
                   onMouseEnter={() => setSelected({ type: 'ai', index })}
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#e5e5e5] bg-white">
-                    {agent.icon}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-neutral-900">{agent.model}</div>
-                    <div className="text-xs text-neutral-400">{agent.description}</div>
-                  </div>
-                </button>
+                  <button
+                    className="flex items-center gap-3 flex-1 min-w-0"
+                    onClick={() => {
+                      setSelected({ type: 'ai', index });
+                      if (inputRef.current) inputRef.current.focus();
+                    }}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#e5e5e5] bg-white">
+                      {agentOption.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {editingAgentId === agentOption.agent!.id ? (
+                        <input
+                          ref={nameInputRef}
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onBlur={() => handleSaveName(agentOption.agent!.id)}
+                          className="w-full px-1 py-0.5 text-sm font-medium border border-blue-500 rounded focus:outline-none"
+                        />
+                      ) : (
+                        <>
+                          <div className="font-medium text-neutral-900">{agentOption.agent!.name}</div>
+                          <div className="text-xs text-neutral-400">{agentOption.model}</div>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                  {!editingAgentId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingAgentId(agentOption.agent!.id);
+                        setEditName(agentOption.agent!.name);
+                      }}
+                      className="p-1 hover:bg-neutral-200 rounded text-neutral-400 hover:text-neutral-600"
+                      title="Rename agent"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -273,7 +370,7 @@ export function AgentSelector({
         )}
 
         {/* Prompt input for AI agents */}
-        {selected.type === 'ai' && (
+        {selected.type === 'ai' && !editingAgentId && (
           <div className="border-t border-[#e5e5e5] pt-2">
             <input
               ref={inputRef}
