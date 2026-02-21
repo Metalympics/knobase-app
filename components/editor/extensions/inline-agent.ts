@@ -6,6 +6,9 @@ import type { Editor } from "@tiptap/react";
 import type { AgentTask } from "@/lib/agents/task-types";
 import { useTaskStore } from "@/lib/agents/task-store";
 import { InlineAgentNodeView } from "./inline-agent-view";
+import type { MentionableUser, HumanMention, AIMention } from "@/lib/mentions/types";
+import { notifyMentionedUser } from "@/lib/mentions/store";
+import { getCurrentUserId } from "@/lib/workspaces/store";
 
 export interface InlineAgentOptions {
   HTMLAttributes: Record<string, string>;
@@ -25,6 +28,7 @@ declare module "@tiptap/core" {
     inlineAgent: {
       insertInlineAgent: (taskId: string) => ReturnType;
       updateInlineAgent: (taskId: string, updates: Partial<AgentTask>) => ReturnType;
+      insertMention: (mention: HumanMention | AIMention) => ReturnType;
     };
   }
   
@@ -59,6 +63,22 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
           }
           return {
             "data-task-id": attributes.taskId,
+          };
+        },
+      },
+      mention: {
+        default: null,
+        parseHTML: (element) => {
+          const mentionData = element.getAttribute("data-mention");
+          return mentionData ? JSON.parse(mentionData) : null;
+        },
+        renderHTML: (attributes) => {
+          if (!attributes.mention) {
+            return {};
+          }
+          return {
+            "data-mention": JSON.stringify(attributes.mention),
+            "data-mention-type": attributes.mention.type,
           };
         },
       },
@@ -112,6 +132,17 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
             }
           });
           return updated;
+        },
+      insertMention:
+        (mention: HumanMention | AIMention) =>
+        ({ commands }) => {
+          return commands.insertContent({
+            type: this.name,
+            attrs: { 
+              taskId: mention.type === 'ai' ? mention.taskId : null,
+              mention: mention,
+            },
+          });
         },
     };
   },
@@ -296,4 +327,46 @@ async function simulateTaskExecution(
     result: `Demo result for: ${prompt}`,
     completedAt: new Date(),
   });
+}
+
+export function insertHumanMention(
+  editor: Editor,
+  user: MentionableUser,
+  documentId: string,
+  documentTitle: string,
+  workspaceId: string
+): void {
+  const mention: HumanMention = {
+    type: 'human',
+    id: crypto.randomUUID(),
+    userId: user.userId,
+    name: user.displayName,
+    color: user.color,
+    avatar: user.avatar,
+  };
+
+  const { from } = editor.state.selection;
+  const textBefore = editor.state.doc.textBetween(
+    Math.max(0, from - 20),
+    from,
+    ""
+  );
+  const mentionMatch = textBefore.match(/@([a-zA-Z0-9_-]*)$/);
+  
+  if (mentionMatch) {
+    const mentionPos = from - mentionMatch[0].length;
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: mentionPos, to: from })
+      .insertMention(mention)
+      .run();
+  }
+
+  // Get current user's name for the notification
+  const currentUserId = getCurrentUserId();
+  const authorName = "You"; // This could be fetched from workspace members
+  
+  // Create notification for the mentioned user
+  notifyMentionedUser(mention, documentId, documentTitle, authorName);
 }

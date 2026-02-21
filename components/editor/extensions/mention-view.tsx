@@ -7,13 +7,10 @@ import { useTaskStore } from "@/lib/agents/task-store";
 import type { Mention } from "@/lib/mentions/types";
 import { getInitial } from "@/lib/mentions/store";
 
-export function InlineAgentNodeView({ node, deleteNode }: NodeViewProps) {
-  const taskId = node.attrs.taskId as string | null;
-  const mention = node.attrs.mention as Mention | null;
-  const { tasks, cancelTask } = useTaskStore();
+export function MentionNodeView({ node }: NodeViewProps) {
+  const mention = node.attrs.mention as Mention;
 
-  // If it's a human mention, render the mention inline
-  if (mention && mention.type === 'human') {
+  if (mention.type === 'human') {
     return (
       <NodeViewWrapper className="inline mention-node">
         <span
@@ -32,24 +29,29 @@ export function InlineAgentNodeView({ node, deleteNode }: NodeViewProps) {
     );
   }
 
-  // Otherwise, it's an AI task - show pending block
+  // AI mention - show pending block
+  return <AITaskMention taskId={mention.taskId} />;
+}
+
+function AITaskMention({ taskId }: { taskId?: string }) {
+  const { tasks, cancelTask } = useTaskStore();
+
   const task = useMemo(() => {
     if (!taskId) return null;
     return tasks.find((t) => t.id === taskId);
   }, [tasks, taskId]);
 
-  const handleCancel = (id: string) => {
-    cancelTask(id);
-    deleteNode();
-  };
-
   if (!task) {
     return (
       <NodeViewWrapper className="inline-agent-node">
-        <span className="text-neutral-400">Loading...</span>
+        <span className="text-neutral-400">Loading AI task...</span>
       </NodeViewWrapper>
     );
   }
+
+  const handleCancel = (id: string) => {
+    cancelTask(id);
+  };
 
   return (
     <NodeViewWrapper className="inline-agent-node">

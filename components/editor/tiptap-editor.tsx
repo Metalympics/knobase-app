@@ -23,6 +23,8 @@ import { SlashCommandMenu } from "./slash-command";
 import { TableBlock } from "./blocks/TableBlock";
 import { TaskListBlock } from "./blocks/TaskListBlock";
 import { SearchExtension } from "@/lib/search/search-extension";
+import { InlineAgent } from "./extensions/inline-agent";
+import { AgentSelector } from "./extensions/agent-selector";
 
 interface TiptapEditorProps {
   onEditorReady?: (editor: Editor) => void;
@@ -33,6 +35,9 @@ interface TiptapEditorProps {
   onContentChange?: (markdown: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
   flushRef?: React.MutableRefObject<(() => void) | null>;
+  documentId?: string;
+  documentTitle?: string;
+  workspaceId?: string;
 }
 
 export function TiptapEditor({
@@ -44,8 +49,16 @@ export function TiptapEditor({
   onContentChange,
   onDirtyChange,
   flushRef,
+  documentId = "",
+  documentTitle = "Untitled",
+  workspaceId = "",
 }: TiptapEditorProps) {
   const [slashMenu, setSlashMenu] = useState({
+    isOpen: false,
+    position: { top: 0, left: 0 },
+    query: "",
+  });
+  const [agentSelector, setAgentSelector] = useState({
     isOpen: false,
     position: { top: 0, left: 0 },
     query: "",
@@ -76,7 +89,7 @@ export function TiptapEditor({
       Placeholder.configure({
         placeholder: ({ node }) => {
           if (node.type.name === "heading") return "Heading";
-          return 'Type "/" for commands...';
+          return 'Type "/" for commands or "@" to mention...';
         },
       }),
       Markdown.configure({
@@ -111,6 +124,11 @@ export function TiptapEditor({
       }),
       Typography,
       SearchExtension,
+      InlineAgent.configure({
+        HTMLAttributes: {
+          class: "inline-agent-node",
+        },
+      }),
       ...(ydoc
         ? [
             Collaboration.configure({ document: ydoc }),
@@ -133,7 +151,7 @@ export function TiptapEditor({
         class: "tiptap-editor outline-none",
       },
       handleKeyDown: (_view, event) => {
-        if (slashMenu.isOpen) {
+        if (slashMenu.isOpen || agentSelector.isOpen) {
           if (
             ["ArrowUp", "ArrowDown", "Enter", "Escape"].includes(event.key)
           ) {
@@ -198,6 +216,27 @@ export function TiptapEditor({
       onEditorReady(editor);
     }
   }, [editor, onEditorReady]);
+
+  // Monitor editor storage for agent selector state
+  useEffect(() => {
+    if (!editor) return;
+    
+    const updateAgentSelector = () => {
+      const storage = editor.storage as { inlineAgent?: { showAgentSelector?: boolean; position?: { top: number; left: number }; query?: string } };
+      if (storage.inlineAgent) {
+        setAgentSelector({
+          isOpen: storage.inlineAgent.showAgentSelector || false,
+          position: storage.inlineAgent.position || { top: 0, left: 0 },
+          query: storage.inlineAgent.query || "",
+        });
+      }
+    };
+
+    editor.on("update", updateAgentSelector);
+    return () => {
+      editor.off("update", updateAgentSelector);
+    };
+  }, [editor]);
 
   const flush = useCallback(() => {
     if (saveTimeoutRef.current) {
@@ -278,6 +317,7 @@ export function TiptapEditor({
         query={agentSelector.query}
         documentId={documentId}
         documentTitle={documentTitle}
+        workspaceId={workspaceId}
         onClose={closeAgentSelector}
       />
     </div>

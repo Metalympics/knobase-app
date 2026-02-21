@@ -519,6 +519,9 @@ export default function KnowledgePage() {
                     onContentChange={handleContentChange}
                     onDirtyChange={handleDirtyChange}
                     flushRef={flushRef}
+                    documentId={activeId}
+                    documentTitle={activeDoc?.title ?? "Untitled"}
+                    workspaceId={workspace?.id ?? ""}
                   />
                   <BacklinksPanel
                     documentId={activeId}
