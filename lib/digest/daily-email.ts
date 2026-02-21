@@ -1,5 +1,8 @@
 import { listDocuments } from "@/lib/documents/store";
-import { listNotifications, type Notification } from "@/lib/notifications/store";
+import {
+  listNotifications,
+  type Notification,
+} from "@/lib/notifications/store";
 
 export interface DailyDigest {
   date: string;
@@ -18,17 +21,14 @@ export function generateDailyDigest(): DailyDigest {
   const docs = listDocuments();
 
   const recentNotifs = notifications.filter(
-    (n) => new Date(n.timestamp) > oneDayAgo
+    (n) => new Date(n.timestamp) > oneDayAgo,
   );
 
-  const newDocs = docs.filter(
-    (d) => new Date(d.createdAt) > oneDayAgo
-  ).length;
+  const newDocs = docs.filter((d) => new Date(d.createdAt) > oneDayAgo).length;
 
   const editedDocs = docs.filter(
     (d) =>
-      new Date(d.updatedAt) > oneDayAgo &&
-      new Date(d.createdAt) <= oneDayAgo
+      new Date(d.updatedAt) > oneDayAgo && new Date(d.createdAt) <= oneDayAgo,
   ).length;
 
   const topComments = recentNotifs
@@ -43,7 +43,7 @@ export function generateDailyDigest(): DailyDigest {
     ...new Set(
       recentNotifs
         .map((n) => n.actorName)
-        .filter((name): name is string => !!name)
+        .filter((name): name is string => !!name),
     ),
   ];
 
@@ -54,11 +54,11 @@ export function generateDailyDigest(): DailyDigest {
     parts.push(`${editedDocs} document${editedDocs > 1 ? "s" : ""} updated`);
   if (topComments.length > 0)
     parts.push(
-      `${topComments.length} comment${topComments.length > 1 ? "s" : ""}`
+      `${topComments.length} comment${topComments.length > 1 ? "s" : ""}`,
     );
   if (agentInsights.length > 0)
     parts.push(
-      `${agentInsights.length} agent insight${agentInsights.length > 1 ? "s" : ""}`
+      `${agentInsights.length} agent insight${agentInsights.length > 1 ? "s" : ""}`,
     );
 
   return {
@@ -68,7 +68,8 @@ export function generateDailyDigest(): DailyDigest {
     topComments,
     agentInsights,
     activeMembers,
-    summary: parts.length > 0 ? parts.join(", ") : "No activity in the last 24 hours",
+    summary:
+      parts.length > 0 ? parts.join(", ") : "No activity in the last 24 hours",
   };
 }
 
@@ -85,6 +86,7 @@ export function getLastDigest(): DailyDigest | null {
 }
 
 export function saveDigest(digest: DailyDigest): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(DIGEST_KEY, JSON.stringify(digest));
 }
 

@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Editor } from "@tiptap/react";
 import {
@@ -11,7 +17,6 @@ import {
   Network,
   Save,
   Search,
-  Tag,
   UserPlus,
 } from "lucide-react";
 import { Sidebar } from "@/components/editor/sidebar";
@@ -61,7 +66,6 @@ import { TagBadges } from "@/components/tags/tag-manager";
 import { TagManager } from "@/components/tags/tag-manager";
 import { ActivityFeed } from "@/components/activity/activity-feed";
 import { GuestBanner } from "@/components/guest/guest-banner";
-import { isGuestMode } from "@/lib/guest/tokens";
 import { canCreateDocument } from "@/lib/subscription/store";
 
 function getWorkspaceName(): string | null {
@@ -74,20 +78,25 @@ type RightPanel = "none" | "comments" | "history" | "metadata" | "activity";
 export default function KnowledgePage() {
   const router = useRouter();
 
-  const [workspaceName] = useState(() => getWorkspaceName() ?? "");
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    if (!getWorkspaceName()) {
+  // Runs once on the client after hydration. Reading localStorage here keeps
+  // the server render identical to the initial client render (both empty strings),
+  // eliminating the hydration mismatch.
+  useLayoutEffect(() => {
+    setMounted(true);
+    const name = getWorkspaceName();
+    if (!name) {
       router.replace("/onboarding");
+    } else {
+      setWorkspaceName(name);
     }
   }, [router]);
 
   const [editor, setEditor] = useState<Editor | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [agent, setAgent] = useState<Agent | null>(() => {
-    if (typeof window === "undefined") return null;
-    return getDefaultAgent();
-  });
+  const [agent, setAgent] = useState<Agent | null>(() => getDefaultAgent());
   const [liveContent, setLiveContent] = useState("");
   const [openClawStatus, setOpenClawStatus] =
     useState<OpenClawConnectionStatus>("disconnected");
@@ -95,7 +104,7 @@ export default function KnowledgePage() {
   const flushRef = useRef<(() => void) | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "dirty" | "saved">(
-    "idle"
+    "idle",
   );
 
   // Panel states
@@ -111,15 +120,12 @@ export default function KnowledgePage() {
   } | null>(null);
 
   // Phase 5 state
-  const [workspace, setWorkspace] = useState<Workspace | null>(() => {
-    if (typeof window === "undefined") return null;
-    return getOrCreateDefaultWorkspace();
-  });
+  const [workspace, setWorkspace] = useState<Workspace | null>(() =>
+    getOrCreateDefaultWorkspace(),
+  );
   const [showShare, setShowShare] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
-  const [guestMode] = useState(() =>
-    typeof window !== "undefined" ? isGuestMode() : false
-  );
+  const [guestMode] = useState(false);
 
   const {
     documents,
@@ -132,24 +138,10 @@ export default function KnowledgePage() {
     removeDocument,
   } = useDocuments();
 
-  const { provider, ydoc, status, isSynced, user } = useCollaboration(
-    activeId ?? "default-document"
-  );
+  const { provider, ydoc, status, isSynced, isReady, user } =
+    useCollaboration(activeId);
 
-  const [commentCount, setCommentCount] = useState(() =>
-    activeId ? getCommentCount(activeId) : 0
-  );
-
-  useEffect(() => {
-    if (activeId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCommentCount(getCommentCount(activeId));
-    }
-  }, [activeId, rightPanel]);
-
-  useEffect(() => {
-    setShowPageSearch(false);
-  }, [activeId]);
+  const commentCount = activeId ? getCommentCount(activeId) : 0;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -183,8 +175,11 @@ export default function KnowledgePage() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
+  // Reset save status when document changes
   useEffect(() => {
-    setSaveStatus("idle");
+    return () => {
+      setSaveStatus("idle");
+    };
   }, [activeId]);
 
   // Auto-save versions
@@ -192,11 +187,11 @@ export default function KnowledgePage() {
     if (!activeId || !liveContent) return;
     if (shouldAutoSave(activeId)) {
       const author: VersionAuthor = {
-        type: 'human',
-        id: 'local-user',
-        name: 'You',
+        type: "human",
+        id: "local-user",
+        name: "You",
       };
-      saveVersion(activeId, liveContent, author, undefined, 'auto-save');
+      saveVersion(activeId, liveContent, author, undefined, "auto-save");
       markAutoSaved(activeId);
     }
   }, [activeId, liveContent]);
@@ -216,8 +211,7 @@ export default function KnowledgePage() {
 
     const endpoint =
       localStorage.getItem("knobase-app:openclaw-endpoint") ?? "";
-    const apiKey =
-      localStorage.getItem("knobase-app:openclaw-apikey") ?? "";
+    const apiKey = localStorage.getItem("knobase-app:openclaw-apikey") ?? "";
     if (endpoint) {
       openClawBridge.configure(endpoint, apiKey);
       openClawBridge.connect();
@@ -244,7 +238,7 @@ export default function KnowledgePage() {
           syncCurrentDocument(
             activeId,
             markdown,
-            activeDoc?.title ?? "Untitled"
+            activeDoc?.title ?? "Untitled",
           );
         }
       }
@@ -252,7 +246,7 @@ export default function KnowledgePage() {
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
     },
-    [activeId, activeDoc?.title, saveContent, openClawStatus]
+    [activeId, activeDoc?.title, saveContent, openClawStatus],
   );
 
   const handleDirtyChange = useCallback((dirty: boolean) => {
@@ -273,12 +267,9 @@ export default function KnowledgePage() {
     setEditingTitle(false);
   }, [activeId, renameDocument]);
 
-  const togglePanel = useCallback(
-    (panel: RightPanel) => {
-      setRightPanel((prev) => (prev === panel ? "none" : panel));
-    },
-    []
-  );
+  const togglePanel = useCallback((panel: RightPanel) => {
+    setRightPanel((prev) => (prev === panel ? "none" : panel));
+  }, []);
 
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
@@ -296,7 +287,7 @@ export default function KnowledgePage() {
       if (doc) saveContent(doc.id, template.defaultContent);
       setShowTemplatePicker(false);
     },
-    [addDocument, saveContent]
+    [addDocument, saveContent],
   );
 
   const handleBlankDocument = useCallback(() => {
@@ -309,33 +300,33 @@ export default function KnowledgePage() {
       if (!activeId || !editor) return;
       editor.commands.setContent(content);
       saveContent(activeId, content);
-      
+
       // Save a version for the restore action
       const author: VersionAuthor = {
-        type: 'human',
-        id: 'local-user',
-        name: 'You',
+        type: "human",
+        id: "local-user",
+        name: "You",
       };
-      saveVersion(activeId, content, author, undefined, 'restore');
-      
+      saveVersion(activeId, content, author, undefined, "restore");
+
       setRightPanel("none");
       setDiffVersions(null);
     },
-    [activeId, editor, saveContent]
+    [activeId, editor, saveContent],
   );
 
   const handleSaveVersion = useCallback(() => {
     if (!activeId) return;
     const content = liveContent || activeDoc?.content || "";
     const author: VersionAuthor = {
-      type: 'human',
-      id: 'local-user',
-      name: 'You',
+      type: "human",
+      id: "local-user",
+      name: "You",
     };
-    saveVersion(activeId, content, author, undefined, 'edit');
+    saveVersion(activeId, content, author, undefined, "edit");
   }, [activeId, liveContent, activeDoc?.content]);
 
-  if (!workspaceName) {
+  if (!mounted || !workspaceName) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
@@ -489,9 +480,7 @@ export default function KnowledgePage() {
 
             <div className="mx-1 h-4 w-px bg-[#e5e5e5]" />
 
-            <NotificationCenter
-              onNavigate={selectDocument}
-            />
+            <NotificationCenter onNavigate={selectDocument} />
 
             <PresenceBar
               awareness={provider?.awareness ?? null}
@@ -512,7 +501,7 @@ export default function KnowledgePage() {
               />
             )}
             <div className="mx-auto max-w-2xl">
-              {activeId && (
+              {activeId && activeDoc && isReady && (
                 <>
                   <div className="mb-3">
                     <TagBadges
@@ -532,15 +521,15 @@ export default function KnowledgePage() {
                   <TiptapEditor
                     key={activeId}
                     onEditorReady={handleEditorReady}
-                    ydoc={ydoc}
-                    awareness={provider?.awareness}
+                    ydoc={ydoc ?? undefined}
+                    provider={provider}
                     user={user}
-                    initialContent={activeDoc?.content ?? ""}
+                    initialContent={activeDoc.content ?? ""}
                     onContentChange={handleContentChange}
                     onDirtyChange={handleDirtyChange}
                     flushRef={flushRef}
                     documentId={activeId}
-                    documentTitle={activeDoc?.title ?? "Untitled"}
+                    documentTitle={activeDoc.title ?? "Untitled"}
                     workspaceId={workspace?.id ?? ""}
                   />
                   <BacklinksPanel
@@ -620,7 +609,7 @@ export default function KnowledgePage() {
       {showGraph && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
           <GraphView
-            activeId={activeId}
+            activeId={activeId ?? undefined}
             onNavigate={(id) => {
               selectDocument(id);
               setShowGraph(false);
@@ -668,15 +657,26 @@ export default function KnowledgePage() {
           <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 shadow-xl">
             <div className="flex flex-col items-center text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                <svg className="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="h-6 w-6 text-amber-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <h3 className="mt-4 text-lg font-semibold text-neutral-900">
                 50 document limit reached
               </h3>
               <p className="mt-2 text-sm text-neutral-500">
-                The Free plan allows up to 50 documents. Upgrade to Pro for $12/mo to get unlimited documents and up to 5 AI agents.
+                The Free plan allows up to 50 documents. Upgrade to Pro for
+                $12/mo to get unlimited documents and up to 5 AI agents.
               </p>
             </div>
             <div className="mt-6 flex gap-3">

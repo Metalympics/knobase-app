@@ -13,6 +13,7 @@ export function getComments(documentId: string): Comment[] {
 }
 
 function writeComments(documentId: string, comments: Comment[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(`${LS_PREFIX}${documentId}`, JSON.stringify(comments));
 }
 
@@ -20,7 +21,7 @@ export function addComment(
   documentId: string,
   blockId: string,
   text: string,
-  author: string = "You"
+  author: string = "You",
 ): Comment {
   const comments = getComments(documentId);
   const comment: Comment = {
@@ -40,7 +41,7 @@ export function addReply(
   documentId: string,
   commentId: string,
   text: string,
-  author: string = "You"
+  author: string = "You",
 ): Comment | null {
   const comments = getComments(documentId);
   const parent = comments.find((c) => c.id === commentId);

@@ -48,7 +48,7 @@ export function ShareModal({
 }: ShareModalProps) {
   const [tab, setTab] = useState<Tab>("people");
   const [access, setAccess] = useState<DocumentAccess>(() =>
-    getDocumentAccess(documentId)
+    getDocumentAccess(documentId),
   );
   const [email, setEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<WorkspaceRole>("viewer");
@@ -56,19 +56,22 @@ export function ShareModal({
   const [inviteSent, setInviteSent] = useState(false);
   const ws = getWorkspace(workspaceId);
 
-  const [agentEndpoint, setAgentEndpoint] = useState(
-    () => localStorage.getItem("knobase-app:openclaw-endpoint") ?? ""
-  );
-  const [agentApiKey, setAgentApiKey] = useState(
-    () => localStorage.getItem("knobase-app:openclaw-apikey") ?? ""
-  );
+  const [agentEndpoint, setAgentEndpoint] = useState("");
+  const [agentApiKey, setAgentApiKey] = useState("");
+
+  useEffect(() => {
+    setAgentEndpoint(
+      localStorage.getItem("knobase-app:openclaw-endpoint") ?? "",
+    );
+    setAgentApiKey(localStorage.getItem("knobase-app:openclaw-apikey") ?? "");
+  }, []);
 
   const handleAccessChange = useCallback(
     (newAccess: DocumentAccess) => {
       setAccess(newAccess);
       setDocumentAccess(documentId, newAccess);
     },
-    [documentId]
+    [documentId],
   );
 
   const handleInvite = useCallback(() => {
@@ -395,7 +398,9 @@ export function ShareModal({
                 </div>
                 <button
                   onClick={handleAgentConnect}
-                  disabled={!agentEndpoint.trim() || openClawStatus === "connecting"}
+                  disabled={
+                    !agentEndpoint.trim() || openClawStatus === "connecting"
+                  }
                   className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-purple-600 px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-purple-700 disabled:opacity-40"
                 >
                   {openClawStatus === "connecting" ? (

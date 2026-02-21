@@ -1,9 +1,9 @@
 const LS_PREFIX = "knobase-app:versions:";
 
-export type ChangeType = 'edit' | 'ai-task' | 'restore' | 'auto-save';
+export type ChangeType = "edit" | "ai-task" | "restore" | "auto-save";
 
 export interface VersionAuthor {
-  type: 'human' | 'agent';
+  type: "human" | "agent";
   id: string;
   name: string;
   color?: string;
@@ -33,18 +33,21 @@ function readVersions(documentId: string): Version[] {
 function writeVersions(documentId: string, versions: Version[]): void {
   const maxVersions = 50;
   const trimmed = versions.slice(-maxVersions);
+  if (typeof window === "undefined") return;
   localStorage.setItem(`${LS_PREFIX}${documentId}`, JSON.stringify(trimmed));
 }
 
 export function getVersions(documentId: string): Version[] {
   return readVersions(documentId).sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 }
 
 // Helper to check if author is in new format
-export function isVersionAuthor(author: string | VersionAuthor): author is VersionAuthor {
-  return typeof author === 'object' && author !== null && 'type' in author;
+export function isVersionAuthor(
+  author: string | VersionAuthor,
+): author is VersionAuthor {
+  return typeof author === "object" && author !== null && "type" in author;
 }
 
 // Helper to get display name from author
@@ -59,23 +62,23 @@ export function getAuthorDisplayName(author: string | VersionAuthor): string {
 export function migrateVersions(documentId: string): void {
   const versions = readVersions(documentId);
   let needsMigration = false;
-  
-  const migratedVersions = versions.map(version => {
-    if (typeof version.author === 'string') {
+
+  const migratedVersions = versions.map((version) => {
+    if (typeof version.author === "string") {
       needsMigration = true;
       return {
         ...version,
         author: {
-          type: 'human' as const,
-          id: 'default-user',
+          type: "human" as const,
+          id: "default-user",
           name: version.author,
         },
-        changeType: version.changeType ?? ('edit' as ChangeType),
+        changeType: version.changeType ?? ("edit" as ChangeType),
       };
     }
     return version;
   });
-  
+
   if (needsMigration) {
     writeVersions(documentId, migratedVersions);
   }
@@ -87,7 +90,7 @@ export function saveVersion(
   author: string | VersionAuthor = "You",
   name?: string,
   changeType?: ChangeType,
-  taskId?: string
+  taskId?: string,
 ): Version {
   const versions = readVersions(documentId);
   const version: Version = {
@@ -105,7 +108,11 @@ export function saveVersion(
   return version;
 }
 
-export function nameVersion(documentId: string, versionId: string, name: string): void {
+export function nameVersion(
+  documentId: string,
+  versionId: string,
+  name: string,
+): void {
   const versions = readVersions(documentId);
   const v = versions.find((v) => v.id === versionId);
   if (v) {
@@ -114,7 +121,10 @@ export function nameVersion(documentId: string, versionId: string, name: string)
   }
 }
 
-export function getVersion(documentId: string, versionId: string): Version | null {
+export function getVersion(
+  documentId: string,
+  versionId: string,
+): Version | null {
   return readVersions(documentId).find((v) => v.id === versionId) ?? null;
 }
 
@@ -128,7 +138,10 @@ export interface DiffLine {
   text: string;
 }
 
-export function diffVersions(oldContent: string, newContent: string): DiffLine[] {
+export function diffVersions(
+  oldContent: string,
+  newContent: string,
+): DiffLine[] {
   const oldLines = oldContent.split("\n");
   const newLines = newContent.split("\n");
   const result: DiffLine[] = [];
@@ -152,7 +165,10 @@ export function diffVersions(oldContent: string, newContent: string): DiffLine[]
       let foundInNew = newLines.indexOf(oldLines[oi], ni);
       let foundInOld = oldLines.indexOf(newLines[ni], oi);
 
-      if (foundInNew !== -1 && (foundInOld === -1 || foundInNew - ni <= foundInOld - oi)) {
+      if (
+        foundInNew !== -1 &&
+        (foundInOld === -1 || foundInNew - ni <= foundInOld - oi)
+      ) {
         while (ni < foundInNew) {
           result.push({ type: "added", text: newLines[ni] });
           ni++;
@@ -189,6 +205,7 @@ export function shouldAutoSave(documentId: string): boolean {
 }
 
 export function markAutoSaved(documentId: string): void {
+  if (typeof window === "undefined") return;
   try {
     const timers = JSON.parse(localStorage.getItem(AUTO_SAVE_KEY) ?? "{}");
     timers[documentId] = new Date().toISOString();

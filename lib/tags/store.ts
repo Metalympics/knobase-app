@@ -19,6 +19,7 @@ function readAll(): Tag[] {
 }
 
 function writeAll(tags: Tag[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(LS_KEY, JSON.stringify(tags));
 }
 
@@ -31,7 +32,9 @@ export function getTag(id: string): Tag | null {
 }
 
 export function getTagByName(name: string): Tag | null {
-  return readAll().find((t) => t.name.toLowerCase() === name.toLowerCase()) ?? null;
+  return (
+    readAll().find((t) => t.name.toLowerCase() === name.toLowerCase()) ?? null
+  );
 }
 
 const TAG_COLORS = [
@@ -65,7 +68,7 @@ export function createTag(name: string, color?: string): Tag {
 
 export function updateTag(
   id: string,
-  patch: Partial<Pick<Tag, "name" | "color">>
+  patch: Partial<Pick<Tag, "name" | "color">>,
 ): Tag | null {
   const all = readAll();
   const idx = all.findIndex((t) => t.id === id);
@@ -103,13 +106,16 @@ export function getDocumentTags(documentId: string): Tag[] {
     const raw = localStorage.getItem(`${DOC_TAGS_PREFIX}${documentId}`);
     const tagIds: string[] = raw ? JSON.parse(raw) : [];
     const allTags = readAll();
-    return tagIds.map((id) => allTags.find((t) => t.id === id)).filter((t): t is Tag => !!t);
+    return tagIds
+      .map((id) => allTags.find((t) => t.id === id))
+      .filter((t): t is Tag => !!t);
   } catch {
     return [];
   }
 }
 
 export function addTagToDocument(documentId: string, tagId: string): void {
+  if (typeof window === "undefined") return;
   const key = `${DOC_TAGS_PREFIX}${documentId}`;
   const tagIds: string[] = (() => {
     try {
@@ -131,10 +137,8 @@ export function addTagToDocument(documentId: string, tagId: string): void {
   }
 }
 
-export function removeTagFromDocument(
-  documentId: string,
-  tagId: string
-): void {
+export function removeTagFromDocument(documentId: string, tagId: string): void {
+  if (typeof window === "undefined") return;
   const key = `${DOC_TAGS_PREFIX}${documentId}`;
   const tagIds: string[] = (() => {
     try {

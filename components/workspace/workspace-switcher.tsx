@@ -22,8 +22,12 @@ export function WorkspaceSwitcher({
 }: WorkspaceSwitcherProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(listWorkspaces);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setWorkspaces(listWorkspaces());
+  }, []);
 
   const refreshWorkspaces = useCallback(() => {
     setWorkspaces(listWorkspaces());
@@ -45,7 +49,7 @@ export function WorkspaceSwitcher({
       setOpen(false);
       onSwitch?.(ws);
     },
-    [onSwitch]
+    [onSwitch],
   );
 
   const COLORS = [
@@ -68,9 +72,7 @@ export function WorkspaceSwitcher({
           className={`flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold text-white ${
             currentWorkspace.color
               ? ""
-              : COLORS[
-                  currentWorkspace.name.charCodeAt(0) % COLORS.length
-                ]
+              : COLORS[currentWorkspace.name.charCodeAt(0) % COLORS.length]
           }`}
           style={
             currentWorkspace.color
@@ -117,9 +119,7 @@ export function WorkspaceSwitcher({
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white ${
                       ws.color ? "" : COLORS[i % COLORS.length]
                     }`}
-                    style={
-                      ws.color ? { backgroundColor: ws.color } : undefined
-                    }
+                    style={ws.color ? { backgroundColor: ws.color } : undefined}
                   >
                     {ws.icon ?? ws.name.charAt(0).toUpperCase()}
                   </div>

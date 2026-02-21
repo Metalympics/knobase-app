@@ -34,7 +34,7 @@ export function getPermissionsForRole(role: WorkspaceRole): Permission[] {
 
 export function hasPermission(
   workspaceId: string,
-  permission: Permission
+  permission: Permission,
 ): boolean {
   const role = getMyRole(workspaceId);
   if (!role) return false;
@@ -63,7 +63,7 @@ export function canDeleteWorkspace(workspaceId: string): boolean {
 
 export function canInvite(
   workspaceId: string,
-  targetRole: WorkspaceRole
+  targetRole: WorkspaceRole,
 ): boolean {
   if (targetRole === "admin") {
     return hasPermission(workspaceId, "manage_members");
@@ -80,13 +80,17 @@ const LS_PREFIX = "knobase-app:doc-access:";
 
 export function getDocumentAccess(documentId: string): DocumentAccess {
   if (typeof window === "undefined") return "private";
-  return (localStorage.getItem(`${LS_PREFIX}${documentId}`) as DocumentAccess) ?? "shared";
+  return (
+    (localStorage.getItem(`${LS_PREFIX}${documentId}`) as DocumentAccess) ??
+    "shared"
+  );
 }
 
 export function setDocumentAccess(
   documentId: string,
-  access: DocumentAccess
+  access: DocumentAccess,
 ): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(`${LS_PREFIX}${documentId}`, access);
 }
 
@@ -110,18 +114,19 @@ function readGuestTokens(): GuestAccess[] {
 }
 
 function writeGuestTokens(tokens: GuestAccess[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(GUEST_KEY, JSON.stringify(tokens));
 }
 
 export function createGuestToken(
   workspaceId: string,
-  durationHours = 24
+  durationHours = 24,
 ): GuestAccess {
   const token: GuestAccess = {
     token: crypto.randomUUID().replace(/-/g, "").slice(0, 16),
     workspaceId,
     expiresAt: new Date(
-      Date.now() + durationHours * 60 * 60 * 1000
+      Date.now() + durationHours * 60 * 60 * 1000,
     ).toISOString(),
     createdBy: "You",
   };
@@ -131,9 +136,10 @@ export function createGuestToken(
   return token;
 }
 
-export function validateGuestToken(
-  token: string
-): { valid: boolean; workspaceId?: string } {
+export function validateGuestToken(token: string): {
+  valid: boolean;
+  workspaceId?: string;
+} {
   const all = readGuestTokens();
   const entry = all.find((t) => t.token === token);
   if (!entry) return { valid: false };

@@ -27,14 +27,21 @@ function addSyncLog(entry: SyncLogEntry): void {
   const log = getSyncLog();
   log.push(entry);
   if (log.length > 200) log.splice(0, log.length - 200);
+  if (typeof window === "undefined") return;
   localStorage.setItem(SYNC_LOG_KEY, JSON.stringify(log));
 }
 
 export function getRecentSyncLogs(): SyncLogEntry[] {
-  return getSyncLog().sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 50);
+  return getSyncLog()
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    .slice(0, 50);
 }
 
-function docToMarkdown(doc: { title: string; content: string; tags?: string[] }): string {
+function docToMarkdown(doc: {
+  title: string;
+  content: string;
+  tags?: string[];
+}): string {
   const frontmatter: string[] = ["---"];
   frontmatter.push(`title: "${doc.title.replace(/"/g, '\\"')}"`);
   if (doc.tags?.length) {
@@ -48,11 +55,13 @@ function docToMarkdown(doc: { title: string; content: string; tags?: string[] })
 }
 
 function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80) || "untitled";
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80) || "untitled"
+  );
 }
 
 export async function pushDocToGitHub(doc: {
@@ -85,7 +94,7 @@ export async function pushDocToGitHub(doc: {
     try {
       const existing = await fetch(
         `https://api.github.com/repos/${conn.selectedRepo}/contents/${fileName}?ref=${conn.selectedBranch ?? "main"}`,
-        { headers: { Authorization: `Bearer ${conn.accessToken}` } }
+        { headers: { Authorization: `Bearer ${conn.accessToken}` } },
       );
       if (existing.ok) {
         const data = await existing.json();
@@ -109,7 +118,7 @@ export async function pushDocToGitHub(doc: {
           branch: conn.selectedBranch ?? "main",
           ...(sha ? { sha } : {}),
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -139,7 +148,7 @@ export async function pullDocFromGitHub(filePath: string): Promise<{
   try {
     const response = await fetch(
       `https://api.github.com/repos/${conn.selectedRepo}/contents/${filePath}?ref=${conn.selectedBranch ?? "main"}`,
-      { headers: { Authorization: `Bearer ${conn.accessToken}` } }
+      { headers: { Authorization: `Bearer ${conn.accessToken}` } },
     );
     if (!response.ok) return null;
 
@@ -160,7 +169,9 @@ export async function pullDocFromGitHub(filePath: string): Promise<{
 
       const tagsMatch = frontmatter.match(/tags:\s*\[(.+?)\]/);
       if (tagsMatch) {
-        tags = tagsMatch[1].split(",").map((t) => t.trim().replace(/^"|"$/g, ""));
+        tags = tagsMatch[1]
+          .split(",")
+          .map((t) => t.trim().replace(/^"|"$/g, ""));
       }
 
       // Strip the leading "# Title" if present
@@ -193,7 +204,7 @@ export async function pullDocFromGitHub(filePath: string): Promise<{
 export async function createPullRequest(
   title: string,
   body: string,
-  headBranch: string
+  headBranch: string,
 ): Promise<string | null> {
   const conn = getGitHubConnection();
   if (!conn?.accessToken || !conn.selectedRepo) return null;
@@ -213,7 +224,7 @@ export async function createPullRequest(
           head: headBranch,
           base: conn.selectedBranch ?? "main",
         }),
-      }
+      },
     );
 
     if (!response.ok) return null;

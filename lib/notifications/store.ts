@@ -32,6 +32,7 @@ function readAll(): Notification[] {
 }
 
 function writeAll(notifs: Notification[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(LS_KEY, JSON.stringify(notifs));
 }
 
@@ -46,7 +47,7 @@ export function getUnreadCount(): number {
 }
 
 export function addNotification(
-  partial: Omit<Notification, "id" | "read" | "archived" | "timestamp">
+  partial: Omit<Notification, "id" | "read" | "archived" | "timestamp">,
 ): Notification {
   const notif: Notification = {
     ...partial,
@@ -151,7 +152,7 @@ export function getNotificationPreferences(): NotificationPreferences {
 }
 
 export function setNotificationPreferences(
-  prefs: NotificationPreferences
+  prefs: NotificationPreferences,
 ): void {
   localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 }

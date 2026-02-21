@@ -1,4 +1,9 @@
-import type { Workspace, WorkspaceMember, WorkspaceRole, WorkspaceSettings } from "./types";
+import type {
+  Workspace,
+  WorkspaceMember,
+  WorkspaceRole,
+  WorkspaceSettings,
+} from "./types";
 
 const LS_PREFIX = "knobase-app:";
 const WORKSPACES_KEY = `${LS_PREFIX}workspaces`;
@@ -41,13 +46,15 @@ function readAll(): Workspace[] {
 }
 
 function writeAll(workspaces: Workspace[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(WORKSPACES_KEY, JSON.stringify(workspaces));
 }
 
 export function listWorkspaces(): Workspace[] {
   const userId = getCurrentUserId();
   return readAll().filter(
-    (ws) => ws.ownerId === userId || ws.members.some((m) => m.userId === userId)
+    (ws) =>
+      ws.ownerId === userId || ws.members.some((m) => m.userId === userId),
   );
 }
 
@@ -61,6 +68,7 @@ export function getActiveWorkspaceId(): string | null {
 }
 
 export function setActiveWorkspaceId(id: string): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(ACTIVE_WS_KEY, id);
 }
 
@@ -82,7 +90,7 @@ export function getOrCreateDefaultWorkspace(): Workspace {
 
 export function createWorkspace(
   name: string,
-  settings?: Partial<WorkspaceSettings>
+  settings?: Partial<WorkspaceSettings>,
 ): Workspace {
   const userId = getCurrentUserId();
   const displayName =
@@ -121,7 +129,7 @@ export function createWorkspace(
 
 export function updateWorkspace(
   id: string,
-  patch: Partial<Pick<Workspace, "name" | "icon" | "color" | "settings">>
+  patch: Partial<Pick<Workspace, "name" | "icon" | "color" | "settings">>,
 ): Workspace | null {
   const all = readAll();
   const idx = all.findIndex((ws) => ws.id === id);
@@ -147,19 +155,19 @@ export function deleteWorkspace(id: string): boolean {
   if (getActiveWorkspaceId() === id) {
     const remaining = listWorkspaces();
     if (remaining.length > 0) setActiveWorkspaceId(remaining[0].id);
-    else localStorage.removeItem(ACTIVE_WS_KEY);
+    else if (typeof window !== "undefined") {
+      localStorage.removeItem(ACTIVE_WS_KEY);
+    }
   }
   return true;
 }
 
 export function joinWorkspaceByCode(
   code: string,
-  displayName = "Guest"
+  displayName = "Guest",
 ): Workspace | null {
   const all = readAll();
-  const ws = all.find(
-    (w) => w.inviteCode.toUpperCase() === code.toUpperCase()
-  );
+  const ws = all.find((w) => w.inviteCode.toUpperCase() === code.toUpperCase());
   if (!ws) return null;
 
   const userId = getCurrentUserId();
@@ -190,7 +198,7 @@ export function leaveWorkspace(id: string): boolean {
 
 export function addMember(
   workspaceId: string,
-  member: Omit<WorkspaceMember, "joinedAt">
+  member: Omit<WorkspaceMember, "joinedAt">,
 ): boolean {
   const all = readAll();
   const ws = all.find((w) => w.id === workspaceId);
@@ -218,7 +226,7 @@ export function removeMember(workspaceId: string, userId: string): boolean {
 export function changeMemberRole(
   workspaceId: string,
   userId: string,
-  role: WorkspaceRole
+  role: WorkspaceRole,
 ): boolean {
   const all = readAll();
   const ws = all.find((w) => w.id === workspaceId);

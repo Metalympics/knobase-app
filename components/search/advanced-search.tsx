@@ -14,7 +14,11 @@ import {
   FileText,
 } from "lucide-react";
 import { listDocuments, getDocument } from "@/lib/documents/store";
-import { listTags, getDocumentTags, type Tag as TagType } from "@/lib/tags/store";
+import {
+  listTags,
+  getDocumentTags,
+  type Tag as TagType,
+} from "@/lib/tags/store";
 import { listCollections, type Collection } from "@/lib/collections/store";
 import type { DocumentMeta } from "@/lib/documents/types";
 
@@ -67,12 +71,18 @@ const DEFAULT_FILTERS: SearchFilters = {
 export function AdvancedSearch({ onSelect, onClose }: AdvancedSearchProps) {
   const [filters, setFilters] = useState<SearchFilters>({ ...DEFAULT_FILTERS });
   const [showFilters, setShowFilters] = useState(false);
-  const [tags] = useState<TagType[]>(() => listTags());
-  const [collections] = useState<Collection[]>(() => listCollections());
-  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(readSavedSearches);
+  const [tags, setTags] = useState<TagType[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [saveName, setSaveName] = useState("");
+  const [allDocs, setAllDocs] = useState<DocumentMeta[]>([]);
 
-  const allDocs = useMemo(() => listDocuments(), []);
+  useEffect(() => {
+    setTags(listTags());
+    setCollections(listCollections());
+    setSavedSearches(readSavedSearches());
+    setAllDocs(listDocuments());
+  }, []);
 
   const results = useMemo(() => {
     let docs = allDocs;
@@ -106,8 +116,8 @@ export function AdvancedSearch({ onSelect, onClose }: AdvancedSearchProps) {
       const allColls = listCollections();
       const colDocIds = new Set(
         filters.collectionIds.flatMap(
-          (cid) => allColls.find((c) => c.id === cid)?.documentIds ?? []
-        )
+          (cid) => allColls.find((c) => c.id === cid)?.documentIds ?? [],
+        ),
       );
       docs = docs.filter((d) => colDocIds.has(d.id));
     }
@@ -149,7 +159,7 @@ export function AdvancedSearch({ onSelect, onClose }: AdvancedSearchProps) {
       setSavedSearches(filtered);
       writeSavedSearches(filtered);
     },
-    [savedSearches]
+    [savedSearches],
   );
 
   const hasActiveFilters =
@@ -301,9 +311,7 @@ export function AdvancedSearch({ onSelect, onClose }: AdvancedSearchProps) {
                             setFilters((f) => ({
                               ...f,
                               collectionIds: f.collectionIds.includes(col.id)
-                                ? f.collectionIds.filter(
-                                    (id) => id !== col.id
-                                  )
+                                ? f.collectionIds.filter((id) => id !== col.id)
                                 : [...f.collectionIds, col.id],
                             }))
                           }
@@ -408,7 +416,9 @@ export function AdvancedSearch({ onSelect, onClose }: AdvancedSearchProps) {
             <div className="py-10 text-center">
               <FileText className="mx-auto mb-2 h-6 w-6 text-neutral-200" />
               <p className="text-xs text-neutral-400">
-                {filters.query ? "No documents found" : "Start typing to search"}
+                {filters.query
+                  ? "No documents found"
+                  : "Start typing to search"}
               </p>
             </div>
           ) : (

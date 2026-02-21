@@ -109,7 +109,9 @@ function readMarketplace(): MarketplaceAgent[] {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) {
-      localStorage.setItem(LS_KEY, JSON.stringify(SEED_AGENTS));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LS_KEY, JSON.stringify(SEED_AGENTS));
+      }
       return SEED_AGENTS;
     }
     return JSON.parse(raw);
@@ -119,6 +121,7 @@ function readMarketplace(): MarketplaceAgent[] {
 }
 
 function writeMarketplace(agents: MarketplaceAgent[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(LS_KEY, JSON.stringify(agents));
 }
 
@@ -141,11 +144,13 @@ export function searchMarketplace(query: string): MarketplaceAgent[] {
       a.name.toLowerCase().includes(q) ||
       a.description.toLowerCase().includes(q) ||
       a.category.includes(q) ||
-      a.author.toLowerCase().includes(q)
+      a.author.toLowerCase().includes(q),
   );
 }
 
-export function filterByCategory(category: MarketplaceAgent["category"]): MarketplaceAgent[] {
+export function filterByCategory(
+  category: MarketplaceAgent["category"],
+): MarketplaceAgent[] {
   return readMarketplace().filter((a) => a.category === category);
 }
 
@@ -158,7 +163,11 @@ export function incrementDownloads(id: string): void {
   }
 }
 
-export const CATEGORIES: { value: MarketplaceAgent["category"]; label: string; icon: string }[] = [
+export const CATEGORIES: {
+  value: MarketplaceAgent["category"];
+  label: string;
+  icon: string;
+}[] = [
   { value: "research", label: "Research", icon: "🔍" },
   { value: "coding", label: "Coding", icon: "💻" },
   { value: "writing", label: "Writing", icon: "✍️" },

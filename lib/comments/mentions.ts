@@ -18,6 +18,7 @@ function readKnownUsers(): MentionUser[] {
 }
 
 function writeKnownUsers(users: MentionUser[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(LS_KEY, JSON.stringify(users));
 }
 
@@ -35,9 +36,7 @@ export function getKnownUsers(): MentionUser[] {
 
 export function searchUsers(query: string): MentionUser[] {
   const q = query.toLowerCase();
-  return readKnownUsers().filter((u) =>
-    u.name.toLowerCase().includes(q)
-  );
+  return readKnownUsers().filter((u) => u.name.toLowerCase().includes(q));
 }
 
 export function parseMentions(text: string): string[] {
@@ -53,7 +52,7 @@ export function parseMentions(text: string): string[] {
 export function processMentions(
   text: string,
   documentId: string,
-  authorName: string
+  authorName: string,
 ): void {
   const mentionNames = parseMentions(text);
   if (mentionNames.length === 0) return;
@@ -61,9 +60,7 @@ export function processMentions(
   const users = readKnownUsers();
 
   mentionNames.forEach((name) => {
-    const user = users.find(
-      (u) => u.name.toLowerCase() === name.toLowerCase()
-    );
+    const user = users.find((u) => u.name.toLowerCase() === name.toLowerCase());
     if (user) {
       addNotification({
         type: "mention",
@@ -79,6 +76,6 @@ export function processMentions(
 export function renderMentions(text: string): string {
   return text.replace(
     /@(\w+)/g,
-    '<span class="mention font-medium text-purple-600 cursor-pointer hover:underline">@$1</span>'
+    '<span class="mention font-medium text-purple-600 cursor-pointer hover:underline">@$1</span>',
   );
 }

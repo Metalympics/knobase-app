@@ -1,0 +1,30 @@
+diff --git a/dist/y-prosemirror.cjs b/dist/y-prosemirror.cjs
+index de4d1e6609bba2ffbc2a57048023cdf5bad44b18..576411bb6a15a42d46630e403547f469a2e472c7 100644
+--- a/dist/y-prosemirror.cjs
++++ b/dist/y-prosemirror.cjs
+@@ -1873,6 +1873,10 @@ const createDecorations = (
+   createSelection
+ ) => {
+   const ystate = ySyncPluginKey.getState(state);
++  // Guard: ystate may be undefined during Tiptap 3's two-phase editor
++  // initialization (EditorState.create then reconfigure). Return an empty
++  // decoration set until the ySyncPlugin state is available.
++  if (!ystate) return prosemirrorView.DecorationSet.create(state.doc, []);
+   const y = ystate.doc;
+   const decorations = [];
+   if (
+diff --git a/src/plugins/cursor-plugin.js b/src/plugins/cursor-plugin.js
+index fde71ca21d91fa5abb6c345db1991df1fc32865f..7a94ed7d45e0b5c2e7d586df0b3e1d8c5da0ee76 100644
+--- a/src/plugins/cursor-plugin.js
++++ b/src/plugins/cursor-plugin.js
+@@ -73,6 +73,10 @@ export const createDecorations = (
+   createSelection
+ ) => {
+   const ystate = ySyncPluginKey.getState(state)
++  // Guard: ystate may be undefined during Tiptap 3's two-phase editor
++  // initialization (EditorState.create then reconfigure). Return an empty
++  // decoration set until the ySyncPlugin state is available.
++  if (!ystate) return DecorationSet.create(state.doc, [])
+   const y = ystate.doc
+   const decorations = []
+   if (

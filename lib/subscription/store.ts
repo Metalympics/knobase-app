@@ -18,7 +18,11 @@ function readSubscription(workspaceId: string): Subscription | null {
 }
 
 function writeSubscription(sub: Subscription): void {
-  localStorage.setItem(`${SUBSCRIPTION_KEY}:${sub.workspaceId}`, JSON.stringify(sub));
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    `${SUBSCRIPTION_KEY}:${sub.workspaceId}`,
+    JSON.stringify(sub),
+  );
 }
 
 function readUsage(workspaceId: string): UsageRecord | null {
@@ -32,7 +36,11 @@ function readUsage(workspaceId: string): UsageRecord | null {
 }
 
 function writeUsage(usage: UsageRecord): void {
-  localStorage.setItem(`${USAGE_KEY}:${usage.workspaceId}`, JSON.stringify(usage));
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    `${USAGE_KEY}:${usage.workspaceId}`,
+    JSON.stringify(usage),
+  );
 }
 
 export function getSubscription(workspaceId: string): Subscription {
@@ -61,7 +69,11 @@ export function getSubscription(workspaceId: string): Subscription {
   return freeSub;
 }
 
-export function updateSubscriptionTier(workspaceId: string, tier: PlanTier, stripeIds?: { customerId: string; subscriptionId: string }): Subscription {
+export function updateSubscriptionTier(
+  workspaceId: string,
+  tier: PlanTier,
+  stripeIds?: { customerId: string; subscriptionId: string },
+): Subscription {
   const sub = getSubscription(workspaceId);
   const now = new Date();
   const periodEnd = new Date();
@@ -145,7 +157,12 @@ export function canMakeAiRequest(workspaceId: string): boolean {
   return usage.aiRequestsThisMonth < limits.aiRequestsPerMonth;
 }
 
-export function getDocumentLimitInfo(workspaceId: string): { current: number; max: number; percentage: number; isAtLimit: boolean } {
+export function getDocumentLimitInfo(workspaceId: string): {
+  current: number;
+  max: number;
+  percentage: number;
+  isAtLimit: boolean;
+} {
   const sub = getSubscription(workspaceId);
   const limits = getPlanLimits(sub.tier);
   const usage = refreshUsage(workspaceId);
@@ -159,7 +176,11 @@ export function getDocumentLimitInfo(workspaceId: string): { current: number; ma
   };
 }
 
-export function getAgentLimitInfo(workspaceId: string): { current: number; max: number; isAtLimit: boolean } {
+export function getAgentLimitInfo(workspaceId: string): {
+  current: number;
+  max: number;
+  isAtLimit: boolean;
+} {
   const sub = getSubscription(workspaceId);
   const limits = getPlanLimits(sub.tier);
   const usage = refreshUsage(workspaceId);

@@ -13,6 +13,7 @@ function readCustom(): Template[] {
 }
 
 function writeCustom(templates: Template[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(LS_KEY, JSON.stringify(templates));
 }
 
@@ -24,7 +25,9 @@ export function getTemplate(id: string): Template | null {
   return getAllTemplates().find((t) => t.id === id) ?? null;
 }
 
-export function saveCustomTemplate(template: Omit<Template, "id" | "isCustom">): Template {
+export function saveCustomTemplate(
+  template: Omit<Template, "id" | "isCustom">,
+): Template {
   const custom = readCustom();
   const t: Template = {
     ...template,
@@ -41,7 +44,10 @@ export function deleteCustomTemplate(id: string): void {
   writeCustom(custom);
 }
 
-export function updateCustomTemplate(id: string, patch: Partial<Template>): void {
+export function updateCustomTemplate(
+  id: string,
+  patch: Partial<Template>,
+): void {
   const custom = readCustom();
   const idx = custom.findIndex((t) => t.id === id);
   if (idx !== -1) {

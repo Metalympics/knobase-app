@@ -28,6 +28,7 @@ function readTokens(): GuestToken[] {
 }
 
 function writeTokens(tokens: GuestToken[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
 }
 
@@ -35,7 +36,7 @@ export function generateGuestToken(
   workspaceId: string,
   createdBy: string,
   durationHours = 24,
-  label?: string
+  label?: string,
 ): GuestToken {
   const token: GuestToken = {
     token: `guest_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
@@ -43,7 +44,7 @@ export function generateGuestToken(
     createdBy,
     createdAt: new Date().toISOString(),
     expiresAt: new Date(
-      Date.now() + durationHours * 60 * 60 * 1000
+      Date.now() + durationHours * 60 * 60 * 1000,
     ).toISOString(),
     label,
   };
@@ -59,9 +60,10 @@ export function listGuestTokens(workspaceId: string): GuestToken[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export function validateGuestToken(
-  tokenStr: string
-): { valid: boolean; token?: GuestToken } {
+export function validateGuestToken(tokenStr: string): {
+  valid: boolean;
+  token?: GuestToken;
+} {
   const all = readTokens();
   const token = all.find((t) => t.token === tokenStr);
   if (!token) return { valid: false };
@@ -90,7 +92,9 @@ export function startGuestSession(token: GuestToken): GuestSession {
     startedAt: new Date().toISOString(),
     expiresAt: token.expiresAt,
   };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  }
   return session;
 }
 
@@ -101,7 +105,9 @@ export function getGuestSession(): GuestSession | null {
     if (!raw) return null;
     const session: GuestSession = JSON.parse(raw);
     if (new Date(session.expiresAt) < new Date()) {
-      localStorage.removeItem(SESSION_KEY);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(SESSION_KEY);
+      }
       return null;
     }
     return session;
@@ -111,6 +117,7 @@ export function getGuestSession(): GuestSession | null {
 }
 
 export function endGuestSession(): void {
+  if (typeof window === "undefined") return;
   localStorage.removeItem(SESSION_KEY);
 }
 

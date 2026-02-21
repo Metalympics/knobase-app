@@ -50,12 +50,24 @@ function estimateReadingTime(wordCount: number): string {
   return `${mins} min`;
 }
 
-export function DocumentMetadata({ document: doc, onClose }: DocumentMetadataProps) {
-  const [tags, setTags] = useState<string[]>(doc.tags ?? []);
+export function DocumentMetadata({
+  document: doc,
+  onClose,
+}: DocumentMetadataProps) {
+  const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setTags(doc.tags ?? []);
+  }, [doc.tags]);
 
   const wordCount = useMemo(() => countWords(doc.content), [doc.content]);
-  const readingTime = useMemo(() => estimateReadingTime(wordCount), [wordCount]);
+  const readingTime = useMemo(
+    () => estimateReadingTime(wordCount),
+    [wordCount],
+  );
   const charCount = useMemo(() => doc.content.length, [doc.content]);
 
   const addTag = useCallback(() => {
@@ -73,8 +85,24 @@ export function DocumentMetadata({ document: doc, onClose }: DocumentMetadataPro
       setTags(next);
       saveTags(doc.id, next);
     },
-    [tags, doc.id]
+    [tags, doc.id],
   );
+
+  if (!mounted) {
+    return (
+      <div className="flex h-full w-64 flex-col border-l border-[#e5e5e5] bg-[#fafafa]">
+        <div className="flex items-center justify-between border-b border-[#e5e5e5] px-4 py-3">
+          <h3 className="text-sm font-semibold text-neutral-900">Info</h3>
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-neutral-400 hover:bg-neutral-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full w-64 flex-col border-l border-[#e5e5e5] bg-[#fafafa]">

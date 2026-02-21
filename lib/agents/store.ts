@@ -30,6 +30,7 @@ function readAgents(): Agent[] {
 }
 
 function writeAgents(agents: Agent[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(AGENTS_KEY, JSON.stringify(agents));
 }
 
@@ -52,7 +53,7 @@ export function getDefaultAgent(): Agent {
 }
 
 export function createAgent(
-  partial: Partial<Omit<Agent, "id" | "createdAt" | "updatedAt">>
+  partial: Partial<Omit<Agent, "id" | "createdAt" | "updatedAt">>,
 ): Agent {
   const now = new Date().toISOString();
   const agent: Agent = {
@@ -74,7 +75,9 @@ export function createAgent(
 
 export function updateAgent(
   id: string,
-  patch: Partial<Pick<Agent, "name" | "avatar" | "color" | "status" | "personality">>
+  patch: Partial<
+    Pick<Agent, "name" | "avatar" | "color" | "status" | "personality">
+  >,
 ): Agent | null {
   const agents = readAgents();
   const idx = agents.findIndex((a) => a.id === id);
@@ -103,7 +106,7 @@ export function inviteAgent(
     avatar?: string;
     color?: string;
     personality?: string;
-  }
+  },
 ): Agent {
   return createAgent({
     name,
@@ -134,7 +137,9 @@ export function addSuggestion(suggestion: AgentSuggestion): void {
   writeSuggestions(all);
 }
 
-export function getSuggestionsForDocument(documentId: string): AgentSuggestion[] {
+export function getSuggestionsForDocument(
+  documentId: string,
+): AgentSuggestion[] {
   return readSuggestions()
     .filter((s) => s.documentId === documentId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -142,7 +147,7 @@ export function getSuggestionsForDocument(documentId: string): AgentSuggestion[]
 
 export function updateSuggestionStatus(
   id: string,
-  status: "accepted" | "rejected"
+  status: "accepted" | "rejected",
 ): void {
   const all = readSuggestions();
   const idx = all.findIndex((s) => s.id === id);

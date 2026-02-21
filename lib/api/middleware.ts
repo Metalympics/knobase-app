@@ -18,7 +18,9 @@ export interface ApiKey {
 export function generateApiKey(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-  return "kb_" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return (
+    "kb_" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+  );
 }
 
 export function getApiKeys(): ApiKey[] {
@@ -32,10 +34,14 @@ export function getApiKeys(): ApiKey[] {
 }
 
 export function saveApiKeys(keys: ApiKey[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(API_KEYS_KEY, JSON.stringify(keys));
 }
 
-export function createApiKey(name: string, tier: ApiKey["tier"] = "free"): ApiKey {
+export function createApiKey(
+  name: string,
+  tier: ApiKey["tier"] = "free",
+): ApiKey {
   const keys = getApiKeys();
   const apiKey: ApiKey = {
     id: crypto.randomUUID(),
@@ -68,7 +74,10 @@ function getRateLimit(tier: ApiKey["tier"]): number {
   }
 }
 
-function checkRateLimit(keyId: string, tier: ApiKey["tier"]): { allowed: boolean; remaining: number; resetAt: number } {
+function checkRateLimit(
+  keyId: string,
+  tier: ApiKey["tier"],
+): { allowed: boolean; remaining: number; resetAt: number } {
   const now = Date.now();
   const limit = getRateLimit(tier);
   let entry = RATE_LIMIT_MAP.get(keyId);
@@ -108,10 +117,16 @@ export interface AuthenticatedRequest {
   apiKey: ApiKey;
 }
 
-export function authenticate(request: NextRequest): { key: ApiKey | null; error?: string } {
+export function authenticate(request: NextRequest): {
+  key: ApiKey | null;
+  error?: string;
+} {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    return { key: null, error: "Missing or invalid Authorization header. Use: Bearer <api_key>" };
+    return {
+      key: null,
+      error: "Missing or invalid Authorization header. Use: Bearer <api_key>",
+    };
   }
 
   const token = authHeader.slice(7);
@@ -143,7 +158,7 @@ export function withApiAuth(request: NextRequest): ApiMiddlewareResult {
       success: false,
       response: NextResponse.json(
         { error: error ?? "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401, headers: corsHeaders() }
+        { status: 401, headers: corsHeaders() },
       ),
     };
   }
@@ -153,7 +168,11 @@ export function withApiAuth(request: NextRequest): ApiMiddlewareResult {
     return {
       success: false,
       response: NextResponse.json(
-        { error: "Rate limit exceeded", code: "RATE_LIMITED", retryAfter: Math.ceil((rateCheck.resetAt - Date.now()) / 1000) },
+        {
+          error: "Rate limit exceeded",
+          code: "RATE_LIMITED",
+          retryAfter: Math.ceil((rateCheck.resetAt - Date.now()) / 1000),
+        },
         {
           status: 429,
           headers: {
@@ -161,14 +180,18 @@ export function withApiAuth(request: NextRequest): ApiMiddlewareResult {
             "X-RateLimit-Limit": String(getRateLimit(key.tier)),
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": String(Math.ceil(rateCheck.resetAt / 1000)),
-            "Retry-After": String(Math.ceil((rateCheck.resetAt - Date.now()) / 1000)),
+            "Retry-After": String(
+              Math.ceil((rateCheck.resetAt - Date.now()) / 1000),
+            ),
           },
-        }
+        },
       ),
     };
   }
 
-  console.log(`[API] ${request.method} ${request.nextUrl.pathname} key=${key.name} remaining=${rateCheck.remaining}`);
+  console.log(
+    `[API] ${request.method} ${request.nextUrl.pathname} key=${key.name} remaining=${rateCheck.remaining}`,
+  );
 
   return { success: true, apiKey: key };
 }
@@ -177,9 +200,14 @@ export function apiResponse(data: unknown, status = 200): NextResponse {
   return NextResponse.json(data, { status, headers: corsHeaders() });
 }
 
-export function apiError(message: string, code: string, status: number, details?: unknown): NextResponse {
+export function apiError(
+  message: string,
+  code: string,
+  status: number,
+  details?: unknown,
+): NextResponse {
   return NextResponse.json(
     { error: message, code, ...(details ? { details } : {}) },
-    { status, headers: corsHeaders() }
+    { status, headers: corsHeaders() },
   );
 }

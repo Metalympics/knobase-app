@@ -16,12 +16,36 @@ export type WebhookEvent =
   | "agent.suggested"
   | "comment.added";
 
-export const WEBHOOK_EVENTS: { value: WebhookEvent; label: string; description: string }[] = [
-  { value: "document.created", label: "Document Created", description: "When a new document is created" },
-  { value: "document.updated", label: "Document Updated", description: "When a document is edited" },
-  { value: "document.deleted", label: "Document Deleted", description: "When a document is removed" },
-  { value: "agent.suggested", label: "Agent Suggestion", description: "When an AI agent makes a suggestion" },
-  { value: "comment.added", label: "Comment Added", description: "When a comment is posted" },
+export const WEBHOOK_EVENTS: {
+  value: WebhookEvent;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "document.created",
+    label: "Document Created",
+    description: "When a new document is created",
+  },
+  {
+    value: "document.updated",
+    label: "Document Updated",
+    description: "When a document is edited",
+  },
+  {
+    value: "document.deleted",
+    label: "Document Deleted",
+    description: "When a document is removed",
+  },
+  {
+    value: "agent.suggested",
+    label: "Agent Suggestion",
+    description: "When an AI agent makes a suggestion",
+  },
+  {
+    value: "comment.added",
+    label: "Comment Added",
+    description: "When a comment is posted",
+  },
 ];
 
 export interface WebhookDelivery {
@@ -50,6 +74,7 @@ function readWebhooks(): Webhook[] {
 }
 
 function writeWebhooks(hooks: Webhook[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(WEBHOOKS_KEY, JSON.stringify(hooks));
 }
 
@@ -84,7 +109,7 @@ export function createWebhook(partial: {
 
 export function updateWebhook(
   id: string,
-  patch: Partial<Pick<Webhook, "url" | "events" | "secret" | "active">>
+  patch: Partial<Pick<Webhook, "url" | "events" | "secret" | "active">>,
 ): Webhook | null {
   const hooks = readWebhooks();
   const idx = hooks.findIndex((w) => w.id === id);
@@ -105,7 +130,10 @@ export function deleteWebhook(id: string): boolean {
 function generateSecret(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-  return "whsec_" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return (
+    "whsec_" +
+    Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+  );
 }
 
 // Delivery log (client-side)
@@ -120,6 +148,7 @@ function readDeliveries(): WebhookDelivery[] {
 
 function writeDeliveries(deliveries: WebhookDelivery[]): void {
   const trimmed = deliveries.slice(-500);
+  if (typeof window === "undefined") return;
   localStorage.setItem(DELIVERIES_KEY, JSON.stringify(trimmed));
 }
 

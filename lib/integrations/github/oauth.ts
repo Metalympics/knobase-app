@@ -23,15 +23,18 @@ export function getGitHubConnection(): GitHubConnection | null {
 }
 
 export function saveGitHubConnection(connection: GitHubConnection): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(GITHUB_KEY, JSON.stringify(connection));
 }
 
 export function disconnectGitHub(): void {
+  if (typeof window === "undefined") return;
   localStorage.removeItem(GITHUB_KEY);
 }
 
 export function getGitHubOAuthUrl(): string {
-  const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID ?? "your-github-client-id";
+  const clientId =
+    process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID ?? "your-github-client-id";
   const redirectUri = `${typeof window !== "undefined" ? window.location.origin : ""}/api/integrations/github/callback`;
   const scope = "repo,read:user";
   return `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
@@ -64,23 +67,29 @@ export async function fetchGitHubUser(token: string): Promise<{
   return response.json();
 }
 
-export async function listRepos(token: string): Promise<
-  { full_name: string; default_branch: string; private: boolean }[]
-> {
-  const response = await fetch("https://api.github.com/user/repos?per_page=100&sort=updated", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function listRepos(
+  token: string,
+): Promise<{ full_name: string; default_branch: string; private: boolean }[]> {
+  const response = await fetch(
+    "https://api.github.com/user/repos?per_page=100&sort=updated",
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   if (!response.ok) throw new Error("Failed to fetch repos");
   return response.json();
 }
 
 export async function listBranches(
   token: string,
-  repo: string
+  repo: string,
 ): Promise<{ name: string }[]> {
-  const response = await fetch(`https://api.github.com/repos/${repo}/branches`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetch(
+    `https://api.github.com/repos/${repo}/branches`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   if (!response.ok) throw new Error("Failed to fetch branches");
   return response.json();
 }

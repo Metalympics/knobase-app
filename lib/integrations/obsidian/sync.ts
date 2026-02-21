@@ -34,10 +34,12 @@ export function getObsidianConfig(): ObsidianConfig | null {
 }
 
 export function saveObsidianConfig(config: ObsidianConfig): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(OBSIDIAN_KEY, JSON.stringify(config));
 }
 
 export function removeObsidianConfig(): void {
+  if (typeof window === "undefined") return;
   localStorage.removeItem(OBSIDIAN_KEY);
   localStorage.removeItem(SYNC_STATE_KEY);
 }
@@ -53,6 +55,7 @@ function getSyncState(): SyncState {
 }
 
 function saveSyncState(state: SyncState): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(state));
 }
 
@@ -61,16 +64,19 @@ function saveSyncState(state: SyncState): void {
  */
 export function convertWikiLinks(
   content: string,
-  docMap: Map<string, string>
+  docMap: Map<string, string>,
 ): string {
-  return content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => {
-    const displayText = alias ?? target;
-    const docId = docMap.get(target.toLowerCase());
-    if (docId) {
-      return `[${displayText}](/documents/${docId})`;
-    }
-    return `[${displayText}](#)`;
-  });
+  return content.replace(
+    /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (_, target, alias) => {
+      const displayText = alias ?? target;
+      const docId = docMap.get(target.toLowerCase());
+      if (docId) {
+        return `[${displayText}](/documents/${docId})`;
+      }
+      return `[${displayText}](#)`;
+    },
+  );
 }
 
 /**
@@ -78,18 +84,21 @@ export function convertWikiLinks(
  */
 export function convertToWikiLinks(
   content: string,
-  idToTitle: Map<string, string>
+  idToTitle: Map<string, string>,
 ): string {
-  return content.replace(/\[([^\]]+)\]\(\/documents\/([^)]+)\)/g, (_, text, id) => {
-    const title = idToTitle.get(id);
-    if (title && title === text) {
-      return `[[${title}]]`;
-    }
-    if (title) {
-      return `[[${title}|${text}]]`;
-    }
-    return `[[${text}]]`;
-  });
+  return content.replace(
+    /\[([^\]]+)\]\(\/documents\/([^)]+)\)/g,
+    (_, text, id) => {
+      const title = idToTitle.get(id);
+      if (title && title === text) {
+        return `[[${title}]]`;
+      }
+      if (title) {
+        return `[[${title}|${text}]]`;
+      }
+      return `[[${text}]]`;
+    },
+  );
 }
 
 /**
@@ -114,8 +123,16 @@ export function parseFrontmatter(content: string): {
 
     if (value === "true") value = true;
     else if (value === "false") value = false;
-    else if (typeof value === "string" && value.startsWith("[") && value.endsWith("]")) {
-      try { value = JSON.parse(value); } catch { /* keep as string */ }
+    else if (
+      typeof value === "string" &&
+      value.startsWith("[") &&
+      value.endsWith("]")
+    ) {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        /* keep as string */
+      }
     }
 
     metadata[key] = value;
@@ -151,7 +168,11 @@ export function generateFrontmatter(doc: {
 async function hashContent(content: string): Promise<string> {
   const data = new TextEncoder().encode(content);
   const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+  return Array.from(new Uint8Array(hash), (b) =>
+    b.toString(16).padStart(2, "0"),
+  )
+    .join("")
+    .slice(0, 16);
 }
 
 /**
@@ -160,7 +181,7 @@ async function hashContent(content: string): Promise<string> {
 export function processObsidianFile(
   fileName: string,
   content: string,
-  docMap: Map<string, string>
+  docMap: Map<string, string>,
 ): { title: string; content: string; tags: string[] } {
   const { metadata, body } = parseFrontmatter(content);
   const title = (metadata.title as string) ?? fileName.replace(/\.md$/, "");
@@ -182,8 +203,14 @@ export function processObsidianFile(
  * Prepare a Knobase document for export to Obsidian format.
  */
 export function prepareForObsidian(
-  doc: { title: string; content: string; tags?: string[]; createdAt: string; updatedAt: string },
-  idToTitle: Map<string, string>
+  doc: {
+    title: string;
+    content: string;
+    tags?: string[];
+    createdAt: string;
+    updatedAt: string;
+  },
+  idToTitle: Map<string, string>,
 ): string {
   const frontmatter = generateFrontmatter(doc);
   const body = convertToWikiLinks(doc.content, idToTitle);
@@ -196,7 +223,7 @@ export function prepareForObsidian(
 export async function updateFileState(
   path: string,
   localContent: string,
-  remoteContent: string
+  remoteContent: string,
 ): Promise<FileSyncState> {
   const state = getSyncState();
   const localHash = await hashContent(localContent);
@@ -225,11 +252,17 @@ export async function updateFileState(
   return fileState;
 }
 
-export function getSyncFrequencyMs(freq: ObsidianConfig["syncFrequency"]): number | null {
+export function getSyncFrequencyMs(
+  freq: ObsidianConfig["syncFrequency"],
+): number | null {
   switch (freq) {
-    case "5min": return 5 * 60 * 1000;
-    case "15min": return 15 * 60 * 1000;
-    case "1hr": return 60 * 60 * 1000;
-    default: return null;
+    case "5min":
+      return 5 * 60 * 1000;
+    case "15min":
+      return 15 * 60 * 1000;
+    case "1hr":
+      return 60 * 60 * 1000;
+    default:
+      return null;
   }
 }

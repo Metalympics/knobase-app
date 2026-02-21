@@ -1,14 +1,28 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FileText, Plus, Search, Settings, Trash2, Store, Activity, Crown, AlertTriangle } from "lucide-react";
+import {
+  FileText,
+  Plus,
+  Search,
+  Settings,
+  Trash2,
+  Store,
+  Activity,
+  Crown,
+  AlertTriangle,
+} from "lucide-react";
 import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 import { CollectionSidebar } from "@/components/collections/collection-sidebar";
 import { TaskStatusPanel } from "@/components/sidebar/task-status-panel";
 import type { Workspace } from "@/lib/workspaces/types";
-import { getDocumentLimitInfo, getSubscription } from "@/lib/subscription/store";
+import {
+  getDocumentLimitInfo,
+  getSubscription,
+} from "@/lib/subscription/store";
 
 interface SidebarProps {
   workspaceName: string;
@@ -21,11 +35,27 @@ interface SidebarProps {
   workspace?: Workspace | null;
   onWorkspaceSwitch?: (ws: Workspace) => void;
   onShowActivity?: () => void;
-  onNavigateToTask?: (documentId: string, selection?: { from: number; to: number }) => void;
+  onNavigateToTask?: (
+    documentId: string,
+    selection?: { from: number; to: number },
+  ) => void;
 }
 
-export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, onDelete, onSearch, workspace, onWorkspaceSwitch, onShowActivity, onNavigateToTask }: SidebarProps) {
+export function Sidebar({
+  workspaceName,
+  documents,
+  activeId,
+  onSelect,
+  onAdd,
+  onDelete,
+  onSearch,
+  workspace,
+  onWorkspaceSwitch,
+  onShowActivity,
+  onNavigateToTask,
+}: SidebarProps) {
   const router = useRouter();
+
   const docLimit = workspace ? getDocumentLimitInfo(workspace.id) : null;
   const currentTier = workspace ? getSubscription(workspace.id).tier : "free";
   const isPro = currentTier === "pro" || currentTier === "enterprise";
@@ -159,7 +189,10 @@ export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, o
             </button>
             {documents.length > 1 && (
               <button
-                onClick={(e) => { e.stopPropagation(); onDelete(doc.id); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(doc.id);
+                }}
                 className="mr-1 rounded p-1 text-neutral-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-400 group-hover:opacity-100"
                 aria-label="Delete document"
               >
@@ -183,14 +216,18 @@ export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, o
           <>
             <div className="flex items-center justify-between">
               <span className="text-xs text-neutral-400">Documents</span>
-              <span className={`text-xs ${isAtLimit ? "font-medium text-red-500" : isNearLimit ? "text-amber-500" : "text-neutral-400"}`}>
+              <span
+                className={`text-xs ${isAtLimit ? "font-medium text-red-500" : isNearLimit ? "text-amber-500" : "text-neutral-400"}`}
+              >
                 {docLimit?.current ?? documents.length}/{docLimit?.max ?? 50}
               </span>
             </div>
             <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-neutral-200">
               <div
                 className={`h-full rounded-full transition-all ${isAtLimit ? "bg-red-400" : isNearLimit ? "bg-amber-400" : "bg-neutral-400"}`}
-                style={{ width: `${docLimit?.percentage ?? (documents.length / 50) * 100}%` }}
+                style={{
+                  width: `${docLimit?.percentage ?? (documents.length / 50) * 100}%`,
+                }}
               />
             </div>
             {isAtLimit ? (
@@ -215,15 +252,25 @@ export function Sidebar({ workspaceName, documents, activeId, onSelect, onAdd, o
       </div>
 
       <div className="flex items-center gap-3 border-t border-[#e5e5e5] px-4 py-2.5">
-        <Link href="https://www.knobase.com" target="_blank" className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500">
+        <Link
+          href="https://www.knobase.com"
+          target="_blank"
+          className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500"
+        >
           Knobase
         </Link>
         <span className="text-neutral-200">·</span>
-        <Link href="/tos" className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500">
+        <Link
+          href="/tos"
+          className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500"
+        >
           Terms
         </Link>
         <span className="text-neutral-200">·</span>
-        <Link href="/privacy" className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500">
+        <Link
+          href="/privacy"
+          className="text-[11px] text-neutral-300 transition-colors hover:text-neutral-500"
+        >
           Privacy
         </Link>
       </div>

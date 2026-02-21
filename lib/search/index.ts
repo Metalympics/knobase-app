@@ -11,7 +11,10 @@ export interface SearchResult {
   score: number;
 }
 
-function fuzzyMatch(text: string, query: string): { match: boolean; score: number } {
+function fuzzyMatch(
+  text: string,
+  query: string,
+): { match: boolean; score: number } {
   const lowerText = text.toLowerCase();
   const lowerQuery = query.toLowerCase();
 
@@ -41,7 +44,8 @@ function fuzzyMatch(text: string, query: string): { match: boolean; score: numbe
 function extractSnippet(content: string, query: string, maxLen = 120): string {
   const lower = content.toLowerCase();
   const idx = lower.indexOf(query.toLowerCase());
-  if (idx === -1) return content.slice(0, maxLen) + (content.length > maxLen ? "..." : "");
+  if (idx === -1)
+    return content.slice(0, maxLen) + (content.length > maxLen ? "..." : "");
 
   const start = Math.max(0, idx - 40);
   const end = Math.min(content.length, idx + query.length + 80);
@@ -98,9 +102,11 @@ export function getRecentSearches(): string[] {
 export function addRecentSearch(query: string): void {
   const recent = getRecentSearches().filter((s) => s !== query);
   recent.unshift(query);
+  if (typeof window === "undefined") return;
   localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
 }
 
 export function clearRecentSearches(): void {
+  if (typeof window === "undefined") return;
   localStorage.removeItem(RECENT_KEY);
 }

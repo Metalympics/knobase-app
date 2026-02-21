@@ -23,6 +23,7 @@ function readAll(): Collection[] {
 }
 
 function writeAll(collections: Collection[]): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(LS_KEY, JSON.stringify(collections));
 }
 
@@ -35,7 +36,7 @@ export function getCollection(id: string): Collection | null {
 }
 
 export function createCollection(
-  partial: Partial<Omit<Collection, "id" | "createdAt">>
+  partial: Partial<Omit<Collection, "id" | "createdAt">>,
 ): Collection {
   const all = readAll();
   const collection: Collection = {
@@ -56,7 +57,12 @@ export function createCollection(
 
 export function updateCollection(
   id: string,
-  patch: Partial<Pick<Collection, "name" | "description" | "icon" | "color" | "order" | "parentId">>
+  patch: Partial<
+    Pick<
+      Collection,
+      "name" | "description" | "icon" | "color" | "order" | "parentId"
+    >
+  >,
 ): Collection | null {
   const all = readAll();
   const idx = all.findIndex((c) => c.id === id);
@@ -76,7 +82,7 @@ export function deleteCollection(id: string): boolean {
 
 export function addDocumentToCollection(
   collectionId: string,
-  documentId: string
+  documentId: string,
 ): boolean {
   const all = readAll();
   const col = all.find((c) => c.id === collectionId);
@@ -89,7 +95,7 @@ export function addDocumentToCollection(
 
 export function removeDocumentFromCollection(
   collectionId: string,
-  documentId: string
+  documentId: string,
 ): boolean {
   const all = readAll();
   const col = all.find((c) => c.id === collectionId);
