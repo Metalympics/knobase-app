@@ -23,17 +23,29 @@ import {
   Zap,
   Building2,
   ExternalLink,
+  Bot,
+  Webhook,
+  Server,
+  TrendingUp,
 } from "lucide-react";
+import Link from "next/link";
 import { OpenClawImport } from "@/components/settings/openclaw-import";
 import { OpenClawExport } from "@/components/settings/openclaw-export";
 import { AgentList } from "@/components/marketplace/agent-list";
+import { AgentPersonaSettings } from "@/components/settings/agent-persona";
+import WebhooksSettings from "@/components/settings/webhooks";
+import { MCPConfig } from "@/components/settings/mcp-config";
+import { CredentialsManager } from "@/components/settings/credentials-manager";
+import { AgentAnalyticsDashboard } from "@/components/settings/agent-analytics";
+import { ConnectedAgents } from "@/components/settings/connected-agents";
+import { ApiKeysManager } from "@/components/settings/api-keys-manager";
 import { openClawBridge, type OpenClawConnectionStatus } from "@/lib/sync/openclaw-bridge";
 import { getSubscription, getUsage, refreshUsage, updateSubscriptionTier, cancelSubscription } from "@/lib/subscription/store";
 import { PLANS } from "@/lib/subscription/plans";
 import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
 import type { PlanTier, Subscription, UsageRecord } from "@/lib/subscription/types";
 
-type Tab = "integration" | "import" | "export" | "marketplace" | "apikeys" | "subscription";
+type Tab = "integration" | "import" | "export" | "marketplace" | "apikeys" | "subscription" | "agents" | "analytics" | "webhooks" | "mcp" | "credentials";
 
 export default function SettingsPage() {
   return (
@@ -162,11 +174,16 @@ function SettingsPageInner() {
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "subscription", label: "Subscription", icon: <CreditCard className="h-4 w-4" /> },
+    { id: "agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
+    { id: "analytics", label: "Agent Analytics", icon: <TrendingUp className="h-4 w-4" /> },
     { id: "integration", label: "Integration", icon: <Plug className="h-4 w-4" /> },
+    { id: "webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" /> },
+    { id: "mcp", label: "MCP Server", icon: <Server className="h-4 w-4" /> },
     { id: "import", label: "Import", icon: <Upload className="h-4 w-4" /> },
     { id: "export", label: "Export", icon: <Download className="h-4 w-4" /> },
     { id: "marketplace", label: "Marketplace", icon: <Store className="h-4 w-4" /> },
     { id: "apikeys", label: "API Keys", icon: <Key className="h-4 w-4" /> },
+    { id: "credentials", label: "Credentials", icon: <Shield className="h-4 w-4" /> },
   ];
 
   const statusColor = {
@@ -553,13 +570,25 @@ function SettingsPageInner() {
                 exit={{ opacity: 0, x: -10 }}
                 className="space-y-6"
               >
+                <div className="flex items-center justify-between">
+                  <div />
+                  <Link
+                    href="/settings/api-keys"
+                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700"
+                  >
+                    Open full page <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+                <ApiKeysManager workspaceId={workspaceId} />
+
+                <hr className="border-neutral-200" />
+
                 <div>
                   <h2 className="text-lg font-semibold text-neutral-900">
-                    API Key Management
+                    MCP Server Key (Local)
                   </h2>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Manage API keys for the Knobase MCP server. External tools use
-                    this key to authenticate.
+                    Legacy local key for MCP server authentication.
                   </p>
                 </div>
 
@@ -647,6 +676,118 @@ function SettingsPageInner() {
                     </p>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {activeTab === "agents" && (
+              <motion.div
+                key="agents"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="space-y-8"
+              >
+                <div className="flex items-center justify-between">
+                  <div />
+                  <Link
+                    href="/settings/agents"
+                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700"
+                  >
+                    Open full page <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+                <ConnectedAgents workspaceId={workspaceId} />
+                <hr className="border-neutral-200" />
+                <div>
+                  <h2 className="text-lg font-semibold text-neutral-900">
+                    Agent Personas
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Configure AI agent personas with custom personalities, expertise, and instructions.
+                  </p>
+                </div>
+                <AgentPersonaSettings />
+              </motion.div>
+            )}
+
+            {activeTab === "analytics" && workspaceId && (
+              <motion.div
+                key="analytics"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h2 className="text-lg font-semibold text-neutral-900">
+                    Agent Analytics
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Track agent performance, acceptance rates, response times, and usage patterns.
+                  </p>
+                </div>
+                <AgentAnalyticsDashboard workspaceId={workspaceId} />
+              </motion.div>
+            )}
+
+            {activeTab === "webhooks" && (
+              <motion.div
+                key="webhooks"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="space-y-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div />
+                  <Link
+                    href="/settings/webhooks"
+                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700"
+                  >
+                    Open full page <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+                <WebhooksSettings />
+              </motion.div>
+            )}
+
+            {activeTab === "credentials" && (
+              <motion.div
+                key="credentials"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h2 className="text-lg font-semibold text-neutral-900">
+                    Secure Credentials
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Encrypted vault for API keys and secrets. Protected with AES-256-GCM encryption.
+                  </p>
+                </div>
+                <CredentialsManager />
+              </motion.div>
+            )}
+
+            {activeTab === "mcp" && (
+              <motion.div
+                key="mcp"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h2 className="text-lg font-semibold text-neutral-900">
+                    MCP Server Configuration
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Configure the Model Context Protocol server for external agent access.
+                  </p>
+                </div>
+                <MCPConfig />
               </motion.div>
             )}
           </AnimatePresence>

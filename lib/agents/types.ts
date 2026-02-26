@@ -2,6 +2,31 @@ export type AgentStatus = "online" | "offline" | "typing" | "thinking";
 
 export type AgentCapability = "read" | "write" | "suggest" | "chat";
 
+export type PersonaTone =
+  | "professional"
+  | "casual"
+  | "academic"
+  | "creative"
+  | "direct"
+  | "friendly"
+  | "technical";
+
+export interface AgentPersona {
+  id: string;
+  name: string;
+  role: string;
+  avatar: string;
+  color: string;
+  tone: PersonaTone;
+  voiceDescription: string;
+  expertise: string[];
+  instructions: string;
+  constraints: string[];
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -10,6 +35,7 @@ export interface Agent {
   status: AgentStatus;
   personality: string;
   capabilities: AgentCapability[];
+  persona?: AgentPersona;
   createdAt: string;
   updatedAt: string;
 }

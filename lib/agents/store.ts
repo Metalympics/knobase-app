@@ -1,10 +1,14 @@
-import type { Agent, AgentSuggestion } from "./types";
+import type { Agent, AgentPersona, AgentSuggestion } from "./types";
 
 export type { Agent };
 
 const LS_PREFIX = "knobase-app:";
 const AGENTS_KEY = `${LS_PREFIX}agents`;
 const SUGGESTIONS_KEY = `${LS_PREFIX}agent-suggestions`;
+const PERSONAS_KEY = `${LS_PREFIX}agent-personas`;
+const DOC_PERSONAS_KEY = `${LS_PREFIX}doc-persona-map`;
+const DOC_AGENTS_KEY = `${LS_PREFIX}doc-agents-map`;
+const ACTIVE_DOC_AGENT_KEY = `${LS_PREFIX}active-doc-agent`;
 
 const DEFAULT_AGENT: Agent = {
   id: "claw-default",
@@ -156,3 +160,229 @@ export function updateSuggestionStatus(
     writeSuggestions(all);
   }
 }
+
+// ----------------------------------------------------------------
+// Persona store
+// ----------------------------------------------------------------
+
+function readPersonas(): AgentPersona[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(PERSONAS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePersonas(personas: AgentPersona[]): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PERSONAS_KEY, JSON.stringify(personas));
+}
+
+export function listPersonas(): AgentPersona[] {
+  return readPersonas();
+}
+
+export function getPersona(id: string): AgentPersona | null {
+  return readPersonas().find((p) => p.id === id) ?? null;
+}
+
+export function getDefaultPersona(): AgentPersona | null {
+  return readPersonas().find((p) => p.isDefault) ?? null;
+}
+
+export function createPersona(
+  partial: Omit<AgentPersona, "id" | "createdAt" | "updatedAt">,
+): AgentPersona {
+  const now = new Date().toISOString();
+  const persona: AgentPersona = {
+    ...partial,
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const personas = readPersonas();
+  // If setting as default, unset others
+  if (persona.isDefault) {
+    personas.forEach((p) => (p.isDefault = false));
+  }
+  personas.push(persona);
+  writePersonas(personas);
+  return persona;
+}
+
+export function updatePersona(
+  id: string,
+  patch: Partial<Omit<AgentPersona, "id" | "createdAt">>,
+): AgentPersona | null {
+  const personas = readPersonas();
+  const idx = personas.findIndex((p) => p.id === id);
+  if (idx === -1) return null;
+  // If setting as default, unset others
+  if (patch.isDefault) {
+    personas.forEach((p) => (p.isDefault = false));
+  }
+  Object.assign(personas[idx], patch, { updatedAt: new Date().toISOString() });
+  writePersonas(personas);
+  return personas[idx];
+}
+
+export function deletePersona(id: string): boolean {
+  const personas = readPersonas();
+  const filtered = personas.filter((p) => p.id !== id);
+  if (filtered.length === personas.length) return false;
+  writePersonas(filtered);
+  return true;
+}
+
+export function setDefaultPersona(id: string): void {
+  const personas = readPersonas();
+  personas.forEach((p) => (p.isDefault = p.id === id));
+  writePersonas(personas);
+}
+
+export function exportPersonas(): string {
+  return JSON.stringify(readPersonas(), null, 2);
+}
+
+export function importPersonas(json: string): number {
+  try {
+    const imported = JSON.parse(json) as AgentPersona[];
+    if (!Array.isArray(imported)) return 0;
+    const existing = readPersonas();
+    const existingIds = new Set(existing.map((p) => p.id));
+    let count = 0;
+    for (const p of imported) {
+      if (!p.id || !p.name) continue;
+      if (existingIds.has(p.id)) {
+        // Update existing
+        const idx = existing.findIndex((e) => e.id === p.id);
+        if (idx !== -1) existing[idx] = { ...existing[idx], ...p, updatedAt: new Date().toISOString() };
+      } else {
+        existing.push(p);
+      }
+      count++;
+    }
+    writePersonas(existing);
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+// Per-document persona overrides
+function readDocPersonaMap(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(DOC_PERSONAS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getDocumentPersona(documentId: string): AgentPersona | null {
+  const map = readDocPersonaMap();
+  const personaId = map[documentId];
+  if (!personaId) return null;
+  return getPersona(personaId);
+}
+
+export function setDocumentPersona(documentId: string, personaId: string): void {
+  const map = readDocPersonaMap();
+  map[documentId] = personaId;
+  if (typeof window !== "undefined") {
+    localStorage.setItem(DOC_PERSONAS_KEY, JSON.stringify(map));
+  }
+}
+
+export function clearDocumentPersona(documentId: string): void {
+  const map = readDocPersonaMap();
+  delete map[documentId];
+  if (typeof window !== "undefined") {
+    localStorage.setItem(DOC_PERSONAS_KEY, JSON.stringify(map));
+  }
+}
+
+// ----------------------------------------------------------------
+// Multi-agent document assignments
+// ----------------------------------------------------------------
+
+/** Map of documentId → agentId[] */
+function readDocAgentsMap(): Record<string, string[]> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(DOC_AGENTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDocAgentsMap(map: Record<string, string[]>): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(DOC_AGENTS_KEY, JSON.stringify(map));
+}
+
+/** Get all agents assigned to a document */
+export function getDocumentAgents(documentId: string): Agent[] {
+  const map = readDocAgentsMap();
+  const agentIds = map[documentId] ?? [];
+  const agents = listAgents();
+  return agentIds
+    .map((id) => agents.find((a) => a.id === id))
+    .filter((a): a is Agent => a !== undefined);
+}
+
+/** Assign an agent to a document */
+export function assignAgentToDocument(documentId: string, agentId: string): void {
+  const map = readDocAgentsMap();
+  const agentIds = map[documentId] ?? [];
+  if (!agentIds.includes(agentId)) {
+    agentIds.push(agentId);
+    map[documentId] = agentIds;
+    writeDocAgentsMap(map);
+  }
+}
+
+/** Remove an agent from a document */
+export function removeAgentFromDocument(documentId: string, agentId: string): void {
+  const map = readDocAgentsMap();
+  const agentIds = map[documentId] ?? [];
+  map[documentId] = agentIds.filter((id) => id !== agentId);
+  writeDocAgentsMap(map);
+}
+
+/** Map of documentId → currently active agentId */
+function readActiveDocAgent(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(ACTIVE_DOC_AGENT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Get the currently active agent for a document */
+export function getActiveDocumentAgent(documentId: string): Agent | null {
+  const map = readActiveDocAgent();
+  const agentId = map[documentId];
+  if (!agentId) {
+    // Fall back to first assigned agent, or default agent
+    const assigned = getDocumentAgents(documentId);
+    return assigned[0] ?? getDefaultAgent();
+  }
+  return getAgent(agentId) ?? getDefaultAgent();
+}
+
+/** Set the active agent for a document */
+export function setActiveDocumentAgent(documentId: string, agentId: string): void {
+  const map = readActiveDocAgent();
+  map[documentId] = agentId;
+  if (typeof window !== "undefined") {
+    localStorage.setItem(ACTIVE_DOC_AGENT_KEY, JSON.stringify(map));
+  }
+}
+

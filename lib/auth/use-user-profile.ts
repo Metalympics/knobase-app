@@ -33,7 +33,7 @@ export function useUserProfile() {
           throw new Error(fetchError.message);
         }
 
-        setProfile(data);
+        setProfile(data as unknown as Tables<"users">);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err : new Error("Unknown error"));

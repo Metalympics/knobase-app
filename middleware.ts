@@ -2,10 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
 
   const supabase = createServerClient(
@@ -17,38 +17,18 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          });
+          request.cookies.set({ name, value, ...options });
           response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+            request: { headers: request.headers },
           });
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          });
+          response.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: any) {
-          request.cookies.set({
-            name,
-            value: "",
-            ...options,
-          });
+          request.cookies.set({ name, value: "", ...options });
           response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+            request: { headers: request.headers },
           });
-          response.cookies.set({
-            name,
-            value: "",
-            ...options,
-          });
+          response.cookies.set({ name, value: "", ...options });
         },
       },
     }
@@ -58,29 +38,41 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protected routes that require authentication
-  const protectedPaths = ["/dashboard", "/workspace", "/settings"];
-  const isProtectedPath = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
+  // ── Public routes — no auth required ──
+  const publicPaths = [
+    "/demo",
+    "/d/",
+    "/auth/",
+    "/tos",
+    "/privacy",
+    "/pricing",
+    "/api/",
+  ];
+  const isPublicPath = publicPaths.some((p) => pathname.startsWith(p));
 
-  // Auth routes that should redirect if already authenticated
-  const authPaths = ["/login", "/signup"];
-  const isAuthPath = authPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
+  // ── Protected routes — require authentication ──
+  const protectedPaths = [
+    "/knowledge",
+    "/settings",
+    "/workspaces",
+    "/w/",
+  ];
+  const isProtectedPath = protectedPaths.some((p) => pathname.startsWith(p));
+
+  // ── Auth routes — redirect if already authenticated ──
+  const authPaths = ["/auth/login", "/auth/signup"];
+  const isAuthPath = authPaths.some((p) => pathname.startsWith(p));
 
   // Redirect to login if trying to access protected route without auth
   if (isProtectedPath && !user) {
-    const redirectUrl = new URL("/login", request.url);
-    redirectUrl.searchParams.set("redirect", request.nextUrl.pathname);
+    const redirectUrl = new URL("/auth/login", request.url);
+    redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect to dashboard if trying to access auth routes while authenticated
+  // Redirect to knowledge if accessing auth pages while already logged in
   if (isAuthPath && user) {
-    const redirectUrl = new URL("/dashboard", request.url);
-    return NextResponse.redirect(redirectUrl);
+    return NextResponse.redirect(new URL("/knowledge", request.url));
   }
 
   return response;

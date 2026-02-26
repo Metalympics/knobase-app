@@ -2,11 +2,11 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, X, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
-import type { AgentTask } from "@/lib/agents/task-types";
+import type { DisplayTask, TaskStatus } from "@/lib/agents/task-types";
 import { useState } from "react";
 
 interface PendingBlockProps {
-  task: AgentTask;
+  task: DisplayTask;
   onCancel: (taskId: string) => void;
 }
 
@@ -19,7 +19,7 @@ export function PendingBlock({ task, onCancel }: PendingBlockProps) {
     return text.slice(0, maxLength) + "...";
   };
 
-  const getStatusText = (status: AgentTask["status"]) => {
+  const getStatusText = (status: TaskStatus) => {
     switch (status) {
       case "queued":
         return "Queued";
@@ -56,7 +56,7 @@ export function PendingBlock({ task, onCancel }: PendingBlockProps) {
 
   const getAvatarInitials = () => {
     // Use first letter of agent name
-    return task.agent.name.charAt(0).toUpperCase();
+    return task.agentName.charAt(0).toUpperCase();
   };
 
   const isInProgress = task.status === "queued" || task.status === "running";
@@ -106,7 +106,7 @@ export function PendingBlock({ task, onCancel }: PendingBlockProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-medium text-neutral-900">
-              {task.agent.name}
+              {task.agentName}
             </span>
             <span className="text-neutral-300">•</span>
             <div className="flex items-center gap-1.5">

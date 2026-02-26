@@ -1,12 +1,15 @@
 export {
   createClient,
-  createServerClient,
-  createAdminClient,
   type Database,
   type Tables,
   type InsertDto,
   type UpdateDto,
 } from "./client";
+
+export {
+  createServerClient,
+  createAdminClient,
+} from "./server";
 
 export type {
   TypedSupabaseClient,
@@ -24,4 +27,31 @@ export type {
   UpdateProfileInput,
   AddWorkspaceMemberInput,
   PermissionCheck,
+  // Agent coordination types
+  AgentTask,
+  AgentTaskInsert,
+  AgentTaskUpdate,
+  AgentTaskStatus,
+  AgentTaskType,
+  Mention,
+  MentionInsert,
+  MentionUpdate,
+  MentionStatus,
+  AgentSession,
+  AgentSessionInsert,
+  AgentSessionUpdate,
+  AgentSessionStatus,
+  AgentEditProposal,
+  AgentEditProposalInsert,
+  AgentEditProposalUpdate,
+  EditProposalStatus,
+  EditType,
+  AgentNotification,
+  AgentNotificationInsert,
+  DocumentBlock,
+  DocumentBlockInsert,
+  DocumentBlockUpdate,
+  AgentPersonaRow,
+  AgentPersonaInsert,
+  AgentPersonaUpdate,
 } from "./types";

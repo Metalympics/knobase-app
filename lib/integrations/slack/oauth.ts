@@ -34,10 +34,6 @@ export function disconnectSlack(): void {
   localStorage.removeItem(SLACK_KEY);
 }
 
-export function disconnectSlack(): void {
-  localStorage.removeItem(SLACK_KEY);
-}
-
 export function getSlackOAuthUrl(): string {
   const clientId =
     process.env.NEXT_PUBLIC_SLACK_CLIENT_ID ?? "your-slack-client-id";

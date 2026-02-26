@@ -13,7 +13,7 @@ interface Params {
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
-  const auth = withAuth(request);
+  const auth = await withAuth(request);
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
-  const auth = withAuth(request);
+  const auth = await withAuth(request);
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {
-  const auth = withAuth(request);
+  const auth = await withAuth(request);
   if (!auth.ok) return auth.response;
 
   const { id } = await params;

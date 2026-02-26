@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import * as Y from "yjs";
 import { SupabaseProvider, type ConnectionStatus } from "./supabase-provider";
+import { getOfflineDocument } from "@/lib/offline/db";
 
 const LS_PREFIX = "knobase-app:";
 
@@ -86,6 +87,30 @@ export function useCollaboration(
     let provider: SupabaseProvider | null = null;
     let cancelled = false; // guard for React StrictMode double-invocation
 
+    // Try to restore from IndexedDB (offline cache) or emergency localStorage
+    (async () => {
+      try {
+        // 1) Check emergency localStorage backup first
+        const emergencyKey = `knobase:emergency:${documentId}`;
+        const emergency = localStorage.getItem(emergencyKey);
+        if (emergency) {
+          const { yjsState } = JSON.parse(emergency) as { yjsState: string };
+          const update = base64ToUint8(yjsState);
+          Y.applyUpdate(ydoc, update, "offline-restore");
+          localStorage.removeItem(emergencyKey); // consumed
+        }
+
+        // 2) Restore from IndexedDB (richer, more recent)
+        const cached = await getOfflineDocument(documentId);
+        if (cached?.yjsState) {
+          const update = base64ToUint8(cached.yjsState);
+          Y.applyUpdate(ydoc, update, "offline-restore");
+        }
+      } catch {
+        /* best-effort restore */
+      }
+    })();
+
     try {
       provider = new SupabaseProvider({ document: ydoc, documentId, user });
       providerRef.current = provider;
@@ -143,4 +168,13 @@ export function useCollaboration(
   }, [documentId]);
 
   return { ...state, user };
+}
+
+function base64ToUint8(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }

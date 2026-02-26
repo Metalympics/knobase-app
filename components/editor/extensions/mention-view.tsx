@@ -1,9 +1,10 @@
 "use client";
 
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { PendingBlock } from "@/components/editor/pending-block";
-import { useTaskStore } from "@/lib/agents/task-store";
+import { useDocumentTasks } from "@/hooks/use-agent-tasks";
+import { toDisplayTask } from "@/lib/agents/task-types";
 import type { Mention } from "@/lib/mentions/types";
 import { getInitial } from "@/lib/mentions/store";
 
@@ -30,16 +31,17 @@ export function MentionNodeView({ node }: NodeViewProps) {
   }
 
   // AI mention - show pending block
-  return <AITaskMention taskId={mention.taskId} />;
+  return <AITaskMention taskId={mention.taskId} documentId={node.attrs.documentId as string | undefined} />;
 }
 
-function AITaskMention({ taskId }: { taskId?: string }) {
-  const { tasks, cancelTask } = useTaskStore();
+function AITaskMention({ taskId, documentId }: { taskId?: string; documentId?: string }) {
+  const { tasks: supabaseTasks, cancel: cancelSupabaseTask } = useDocumentTasks(documentId ?? null);
 
   const task = useMemo(() => {
     if (!taskId) return null;
-    return tasks.find((t) => t.id === taskId);
-  }, [tasks, taskId]);
+    const found = supabaseTasks.find((t) => t.id === taskId);
+    return found ? toDisplayTask(found) : null;
+  }, [supabaseTasks, taskId]);
 
   if (!task) {
     return (
@@ -50,7 +52,7 @@ function AITaskMention({ taskId }: { taskId?: string }) {
   }
 
   const handleCancel = (id: string) => {
-    cancelTask(id);
+    cancelSupabaseTask(id);
   };
 
   return (

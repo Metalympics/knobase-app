@@ -15,6 +15,79 @@ export type WorkspaceMember =
   Database["public"]["Tables"]["workspace_members"]["Row"];
 export type Document = Database["public"]["Tables"]["documents"]["Row"];
 
+/* ------------------------------------------------------------------ */
+/* Agent coordination types                                            */
+/* ------------------------------------------------------------------ */
+export type Agent = Database["public"]["Tables"]["agents"]["Row"];
+export type AgentInsert = Database["public"]["Tables"]["agents"]["Insert"];
+export type AgentUpdate = Database["public"]["Tables"]["agents"]["Update"];
+
+export type AgentTask = Database["public"]["Tables"]["agent_tasks"]["Row"];
+export type AgentTaskInsert = Database["public"]["Tables"]["agent_tasks"]["Insert"];
+export type AgentTaskUpdate = Database["public"]["Tables"]["agent_tasks"]["Update"];
+
+export type Mention = Database["public"]["Tables"]["mentions"]["Row"];
+export type MentionInsert = Database["public"]["Tables"]["mentions"]["Insert"];
+export type MentionUpdate = Database["public"]["Tables"]["mentions"]["Update"];
+
+export type AgentSession = Database["public"]["Tables"]["agent_sessions"]["Row"];
+export type AgentSessionInsert = Database["public"]["Tables"]["agent_sessions"]["Insert"];
+export type AgentSessionUpdate = Database["public"]["Tables"]["agent_sessions"]["Update"];
+
+export type AgentEditProposal = Database["public"]["Tables"]["agent_edit_proposals"]["Row"];
+export type AgentEditProposalInsert = Database["public"]["Tables"]["agent_edit_proposals"]["Insert"];
+export type AgentEditProposalUpdate = Database["public"]["Tables"]["agent_edit_proposals"]["Update"];
+
+export type AgentNotification = Database["public"]["Tables"]["agent_notifications"]["Row"];
+export type AgentNotificationInsert = Database["public"]["Tables"]["agent_notifications"]["Insert"];
+
+export type DocumentBlock = Database["public"]["Tables"]["document_blocks"]["Row"];
+export type DocumentBlockInsert = Database["public"]["Tables"]["document_blocks"]["Insert"];
+export type DocumentBlockUpdate = Database["public"]["Tables"]["document_blocks"]["Update"];
+
+export type AgentPersonaRow = Database["public"]["Tables"]["agent_personas"]["Row"];
+export type AgentPersonaInsert = Database["public"]["Tables"]["agent_personas"]["Insert"];
+export type AgentPersonaUpdate = Database["public"]["Tables"]["agent_personas"]["Update"];
+
+export type AgentWebhook = Database["public"]["Tables"]["agent_webhooks"]["Row"];
+export type AgentWebhookInsert = Database["public"]["Tables"]["agent_webhooks"]["Insert"];
+export type AgentWebhookUpdate = Database["public"]["Tables"]["agent_webhooks"]["Update"];
+
+export type AgentApiKey = Database["public"]["Tables"]["agent_api_keys"]["Row"];
+export type AgentApiKeyInsert = Database["public"]["Tables"]["agent_api_keys"]["Insert"];
+export type AgentApiKeyUpdate = Database["public"]["Tables"]["agent_api_keys"]["Update"];
+
+/* ------------------------------------------------------------------ */
+/* Marketplace types                                                   */
+/* ------------------------------------------------------------------ */
+export type KnowledgePack = Database["public"]["Tables"]["knowledge_packs"]["Row"];
+export type KnowledgePackInsert = Database["public"]["Tables"]["knowledge_packs"]["Insert"];
+export type KnowledgePackUpdate = Database["public"]["Tables"]["knowledge_packs"]["Update"];
+
+export type PackPurchase = Database["public"]["Tables"]["pack_purchases"]["Row"];
+export type PackPurchaseInsert = Database["public"]["Tables"]["pack_purchases"]["Insert"];
+
+export type ImportJob = Database["public"]["Tables"]["import_jobs"]["Row"];
+export type ImportJobInsert = Database["public"]["Tables"]["import_jobs"]["Insert"];
+export type ImportJobUpdate = Database["public"]["Tables"]["import_jobs"]["Update"];
+
+export type PackReview = Database["public"]["Tables"]["pack_reviews"]["Row"];
+export type PackReviewInsert = Database["public"]["Tables"]["pack_reviews"]["Insert"];
+
+/* ------------------------------------------------------------------ */
+/* Workspace files types                                               */
+/* ------------------------------------------------------------------ */
+export type WorkspaceFile = Database["public"]["Tables"]["workspace_files"]["Row"];
+export type WorkspaceFileInsert = Database["public"]["Tables"]["workspace_files"]["Insert"];
+export type WorkspaceFileUpdate = Database["public"]["Tables"]["workspace_files"]["Update"];
+
+export type AgentTaskStatus = AgentTask["status"];
+export type AgentTaskType = AgentTask["task_type"];
+export type MentionStatus = Mention["status"];
+export type AgentSessionStatus = AgentSession["status"];
+export type EditProposalStatus = AgentEditProposal["status"];
+export type EditType = AgentEditProposal["edit_type"];
+
 export type WorkspaceWithMembers = Workspace & {
   members: (WorkspaceMember & { user: UserProfile })[];
 };

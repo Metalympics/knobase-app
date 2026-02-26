@@ -139,6 +139,40 @@ export class SupabaseProvider extends Observable<string> {
     this.connect();
   }
 
+  /**
+   * Set agent awareness state. Used to proxy an agent's cursor position
+   * into the collaboration channel from the client that initiated the
+   * agent action.
+   */
+  setAgentState(agentState: {
+    id: string;
+    name: string;
+    avatar: string;
+    color: string;
+    cursor?: { anchor: number; head: number };
+    status: "idle" | "reading" | "editing" | "responding" | "thinking";
+  }) {
+    const existing = this.awareness.getLocalState()?.agents as
+      | Record<string, unknown>
+      | undefined;
+    this.awareness.setLocalStateField("agents", {
+      ...(existing ?? {}),
+      [agentState.id]: { ...agentState, lastActive: Date.now() },
+    });
+  }
+
+  /**
+   * Remove an agent from the local awareness state.
+   */
+  removeAgentState(agentId: string) {
+    const existing = this.awareness.getLocalState()?.agents as
+      | Record<string, unknown>
+      | undefined;
+    if (!existing) return;
+    const { [agentId]: _, ...rest } = existing;
+    this.awareness.setLocalStateField("agents", rest);
+  }
+
   disconnect() {
     this.setStatus("disconnected");
     if (this.syncTimeout) clearTimeout(this.syncTimeout);

@@ -24,7 +24,7 @@ export async function getCurrentUser(
     return null;
   }
 
-  return profile;
+  return profile as unknown as Tables<"users">;
 }
 
 export async function getUserWorkspaces(
@@ -66,7 +66,7 @@ export async function getUserWorkspaceRole(
     return null;
   }
 
-  return data.role;
+  return (data as unknown as { role: "admin" | "editor" | "viewer" }).role;
 }
 
 export async function canEditDocument(
@@ -74,16 +74,17 @@ export async function canEditDocument(
   documentId: string,
   userId: string
 ): Promise<boolean> {
-  const { data: doc, error: docError } = await supabase
+  const { data: docData, error: docError } = await supabase
     .from("documents")
     .select("workspace_id, created_by")
     .eq("id", documentId)
     .single();
 
-  if (docError || !doc) {
+  if (docError || !docData) {
     return false;
   }
 
+  const doc = docData as unknown as { workspace_id: string; created_by: string };
   if (doc.created_by === userId) {
     return true;
   }
@@ -97,21 +98,22 @@ export async function canDeleteDocument(
   documentId: string,
   userId: string
 ): Promise<boolean> {
-  const { data: doc, error: docError } = await supabase
+  const { data: docData2, error: docError } = await supabase
     .from("documents")
     .select("workspace_id, created_by")
     .eq("id", documentId)
     .single();
 
-  if (docError || !doc) {
+  if (docError || !docData2) {
     return false;
   }
 
-  if (doc.created_by === userId) {
+  const doc2 = docData2 as unknown as { workspace_id: string; created_by: string };
+  if (doc2.created_by === userId) {
     return true;
   }
 
-  const role = await getUserWorkspaceRole(supabase, doc.workspace_id, userId);
+  const role = await getUserWorkspaceRole(supabase, doc2.workspace_id, userId);
   return role === "admin";
 }
 
@@ -130,7 +132,7 @@ export async function isWorkspaceAdmin(
     return false;
   }
 
-  if (workspace.owner_id === userId) {
+  if ((workspace as unknown as { owner_id: string }).owner_id === userId) {
     return true;
   }
 
@@ -181,5 +183,5 @@ export async function getWorkspaceDocuments(
     return [];
   }
 
-  return data;
+  return data as unknown as Tables<"documents">[];
 }

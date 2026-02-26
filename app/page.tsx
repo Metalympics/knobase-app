@@ -1,19 +1,41 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 export default function Home() {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const workspace = localStorage.getItem("knobase-app:workspace");
-    if (workspace) {
-      router.replace("/knowledge");
-    } else {
-      router.replace("/onboarding");
+    async function resolve() {
+      // Check Supabase auth first
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        // Authenticated → go to main knowledge dashboard
+        router.replace("/knowledge");
+        return;
+      }
+
+      // Not authenticated — check for legacy localStorage onboarding
+      const workspace = localStorage.getItem("knobase-app:workspace");
+      if (workspace) {
+        router.replace("/knowledge");
+      } else {
+        // Not onboarded → send to demo (zero-friction)
+        router.replace("/demo");
+      }
+      setChecking(false);
     }
+    resolve();
   }, [router]);
+
+  if (!checking) return null;
 
   return (
     <div className="flex min-h-screen items-center justify-center">

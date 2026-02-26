@@ -12,10 +12,11 @@ import {
   Trash2,
   FileText,
 } from "lucide-react";
-import { useTaskStore } from "@/lib/agents/task-store";
-import type { AgentTask, TaskStatus } from "@/lib/agents/task-types";
+import { useDocumentTasks } from "@/hooks/use-agent-tasks";
+import { toDisplayTask, type DisplayTask, type TaskStatus } from "@/lib/agents/task-types";
 
 interface TaskStatusPanelProps {
+  documentId?: string | null;
   onNavigateToTask?: (documentId: string, selection?: { from: number; to: number }) => void;
 }
 
@@ -53,20 +54,26 @@ function timeAgo(date: Date): string {
   return `${days}d`;
 }
 
-export function TaskStatusPanel({ onNavigateToTask }: TaskStatusPanelProps) {
-  const { tasks, clearCompleted } = useTaskStore();
+export function TaskStatusPanel({ documentId, onNavigateToTask }: TaskStatusPanelProps) {
+  const { tasks: supabaseTasks } = useDocumentTasks(documentId ?? null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
 
+  // Convert Supabase tasks to display format
+  const allTasks = useMemo(
+    () => supabaseTasks.map(toDisplayTask),
+    [supabaseTasks],
+  );
+
   const filteredTasks = useMemo(() => {
-    let filtered = tasks;
+    let filtered = allTasks;
     
     if (filterStatus === "active") {
-      filtered = tasks.filter(
+      filtered = allTasks.filter(
         (task) => task.status === "queued" || task.status === "running"
       );
     } else if (filterStatus === "completed") {
-      filtered = tasks.filter(
+      filtered = allTasks.filter(
         (task) =>
           task.status === "completed" ||
           task.status === "failed" ||
@@ -77,36 +84,32 @@ export function TaskStatusPanel({ onNavigateToTask }: TaskStatusPanelProps) {
     return [...filtered].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
     );
-  }, [tasks, filterStatus]);
+  }, [allTasks, filterStatus]);
 
   const activeTasks = useMemo(
-    () => tasks.filter((task) => task.status === "queued" || task.status === "running"),
-    [tasks]
+    () => allTasks.filter((task) => task.status === "queued" || task.status === "running"),
+    [allTasks]
   );
 
   const completedTasks = useMemo(
     () =>
-      tasks.filter(
+      allTasks.filter(
         (task) =>
           task.status === "completed" ||
           task.status === "failed" ||
           task.status === "cancelled"
       ),
-    [tasks]
+    [allTasks]
   );
 
   const handleTaskClick = useCallback(
-    (task: AgentTask) => {
+    (task: DisplayTask) => {
       if (onNavigateToTask) {
-        onNavigateToTask(task.documentId, task.selection);
+        onNavigateToTask(task.documentId);
       }
     },
     [onNavigateToTask]
   );
-
-  const handleClearCompleted = useCallback(() => {
-    clearCompleted();
-  }, [clearCompleted]);
 
   const toggleExpand = useCallback(() => {
     setIsExpanded((prev) => !prev);
@@ -156,7 +159,7 @@ export function TaskStatusPanel({ onNavigateToTask }: TaskStatusPanelProps) {
                       : "text-neutral-500 hover:text-neutral-700"
                   }`}
                 >
-                  All ({tasks.length})
+                  All ({allTasks.length})
                 </button>
                 <button
                   onClick={(e) => {
@@ -238,12 +241,16 @@ export function TaskStatusPanel({ onNavigateToTask }: TaskStatusPanelProps) {
                           {task.type}
                         </span>
                         <span className="text-[9px] text-neutral-400">
-                          {task.agent.name}
+                          {task.agentName}
                         </span>
-                        <span className="text-[9px] text-neutral-300">•</span>
-                        <span className="text-[9px] text-neutral-300">
-                          {task.agent.model}
-                        </span>
+                        {task.agentModel && (
+                          <>
+                            <span className="text-[9px] text-neutral-300">•</span>
+                            <span className="text-[9px] text-neutral-300">
+                              {task.agentModel}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -251,20 +258,6 @@ export function TaskStatusPanel({ onNavigateToTask }: TaskStatusPanelProps) {
               )}
             </div>
 
-            {completedTasks.length > 0 && (
-              <div className="border-t border-neutral-100 px-2 pt-2 pb-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleClearCompleted();
-                  }}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Clear Completed Tasks
-                </button>
-              </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>

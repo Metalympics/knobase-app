@@ -7,7 +7,7 @@ import {
 import { createWebhookSchema, validateBody } from "@/lib/api/validation";
 
 export async function GET(request: NextRequest) {
-  const auth = withAuth(request);
+  const auth = await withAuth(request);
   if (!auth.ok) return auth.response;
 
   const webhooks = listServerWebhooks();
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = withAuth(request);
+  const auth = await withAuth(request);
   if (!auth.ok) return auth.response;
 
   let body: unknown;

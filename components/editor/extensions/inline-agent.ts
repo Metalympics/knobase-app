@@ -4,7 +4,13 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DecorationSet } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
 import type { AgentTask } from "@/lib/agents/task-types";
-import { useTaskStore } from "@/lib/agents/task-store";
+import { handleMention } from "@/lib/agents/task-coordinator";
+import {
+  createEditorStreamHandler,
+  getOpenClawConfig,
+  type AgentStreamHandler,
+} from "@/lib/agents/stream-handler";
+import type { InlineSuggestionData } from "@/components/agent/inline-suggestion";
 import { InlineAgentNodeView } from "./inline-agent-view";
 import type { MentionableUser, HumanMention, AIMention } from "@/lib/mentions/types";
 import { notifyMentionedUser } from "@/lib/mentions/store";
@@ -245,48 +251,37 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
   },
 
   onCreate() {
-    const unsubscribe = useTaskStore.subscribe((state) => {
-      const storage = this.editor.storage as unknown as { inlineAgent: InlineAgentStorage };
-      state.tasks.forEach((task) => {
-        if (storage.inlineAgent.onTaskUpdate) {
-          storage.inlineAgent.onTaskUpdate(task.id, task);
-        }
-      });
-    });
-
-    this.editor.on("destroy", () => {
-      unsubscribe();
-    });
+    // Realtime task updates are handled via Supabase subscriptions
+    // in the useDocumentTasks hook — no local store subscription needed.
   },
 });
 
-export function createInlineAgentTask(
+/**
+ * Active stream handlers keyed by taskId, so they can be cancelled.
+ */
+const activeStreams = new Map<string, AgentStreamHandler>();
+
+/**
+ * Suggestion callback registry. The TiptapEditor can register a handler
+ * to receive inline suggestions from the agent stream.
+ */
+let onSuggestionCallback: ((suggestion: InlineSuggestionData) => void) | null = null;
+
+export function setOnSuggestionCallback(
+  cb: ((suggestion: InlineSuggestionData) => void) | null,
+): void {
+  onSuggestionCallback = cb;
+}
+
+export async function createInlineAgentTask(
   editor: Editor,
   agent: Agent,
   prompt: string,
   documentId: string,
-  documentTitle: string
-): void {
-  const taskStore = useTaskStore.getState();
-  
-  const task: AgentTask = {
-    id: crypto.randomUUID(),
-    type: "inline",
-    status: "queued",
-    prompt,
-    documentId,
-    documentTitle,
-    agent: {
-      name: agent.name,
-      model: agent.id,
-      provider: "demo",
-    },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
-  taskStore.addTask(task);
-
+  documentTitle: string,
+  workspaceId: string,
+  userId?: string,
+): Promise<void> {
   const { from } = editor.state.selection;
   const textBefore = editor.state.doc.textBetween(
     Math.max(0, from - 20),
@@ -294,41 +289,117 @@ export function createInlineAgentTask(
     ""
   );
   const mentionMatch = textBefore.match(/@([a-zA-Z0-9_-]*)$/);
-  
+
+  // Gather surrounding context for the mention
+  const docSize = editor.state.doc.content.size;
+  const contextBefore = editor.state.doc.textBetween(
+    Math.max(0, from - 200),
+    from,
+    "\n",
+  );
+  const contextAfter = editor.state.doc.textBetween(
+    from,
+    Math.min(docSize, from + 200),
+    "\n",
+  );
+
+  // 1. Create mention + task in Supabase
+  let supabaseTaskId: string;
+  try {
+    const { task } = await handleMention({
+      documentId,
+      workspaceId,
+      prompt,
+      contextBefore,
+      contextAfter,
+      createdBy: userId ?? getCurrentUserId() ?? "anonymous",
+      agentId: agent.id,
+      agentName: agent.name,
+    });
+    supabaseTaskId = task.id;
+  } catch (err) {
+    console.error("[InlineAgent] Supabase handleMention failed, using local ID:", err);
+    // Fallback: use a local UUID so the editor flow still works
+    supabaseTaskId = crypto.randomUUID();
+  }
+
+  // 1b. Also notify any registered external agent (OpenClaw) via the mention handler.
+  //     This is fire-and-forget — we don't block the editor on it.
+  import("@/lib/agents/mention-handler").then(({ handleAgentMention }) => {
+    handleAgentMention({
+      documentId,
+      workspaceId,
+      mentionedAgent: `@${agent.name}`,
+      message: prompt,
+      context: `${contextBefore}\n---\n${contextAfter}`,
+      userId: userId ?? getCurrentUserId() ?? "anonymous",
+    }).catch(() => {});
+  }).catch(() => {});
+
+  // 2. Insert inline agent node into the editor
   if (mentionMatch) {
     const mentionPos = from - mentionMatch[0].length;
     editor
       .chain()
       .focus()
       .deleteRange({ from: mentionPos, to: from })
-      .insertInlineAgent(task.id)
+      .insertInlineAgent(supabaseTaskId)
       .run();
   }
 
   const storage = editor.storage as unknown as { inlineAgent: InlineAgentStorage };
   if (storage.inlineAgent.onTaskCreate) {
-    storage.inlineAgent.onTaskCreate(task);
+    storage.inlineAgent.onTaskCreate({
+      id: supabaseTaskId,
+      type: "inline",
+      status: "queued",
+      prompt,
+      documentId,
+      documentTitle,
+      agent: { name: agent.name, model: agent.id, provider: "openclaw" },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   }
 
-  simulateTaskExecution(task.id, taskStore, prompt);
+  // 3. Start SSE streaming (connects to /api/agent/stream)
+  const openclawConfig = getOpenClawConfig();
+
+  const streamHandler = createEditorStreamHandler(
+    editor,
+    {
+      taskId: supabaseTaskId,
+      prompt,
+      documentId,
+      documentTitle,
+      agentId: agent.id,
+      agentName: agent.name,
+      insertPos: from - (mentionMatch ? mentionMatch[0].length : 0),
+      openclawEndpoint: openclawConfig.endpoint ?? undefined,
+      openclawApiKey: openclawConfig.apiKey ?? undefined,
+      workspaceId,
+    },
+    onSuggestionCallback ?? undefined,
+  );
+
+  activeStreams.set(supabaseTaskId, streamHandler);
+
+  streamHandler.start().catch((err) => {
+    console.error("[InlineAgent] Stream error:", err);
+  }).finally(() => {
+    activeStreams.delete(supabaseTaskId);
+  });
 }
 
-async function simulateTaskExecution(
-  taskId: string,
-  taskStore: ReturnType<typeof useTaskStore.getState>,
-  prompt: string
-): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  
-  taskStore.updateTask(taskId, { status: "running" });
-
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-
-  taskStore.updateTask(taskId, {
-    status: "completed",
-    result: `Demo result for: ${prompt}`,
-    completedAt: new Date(),
-  });
+/**
+ * Cancel an active agent stream.
+ */
+export function cancelAgentStream(taskId: string): void {
+  const handler = activeStreams.get(taskId);
+  if (handler) {
+    handler.abort();
+    activeStreams.delete(taskId);
+  }
 }
 
 export function insertHumanMention(

@@ -1,7 +1,7 @@
 export type OpenClawConnectionStatus = "connected" | "connecting" | "disconnected";
 
 export interface OpenClawMessage {
-  type: "command" | "context_update" | "sync_request" | "ping";
+  type: "command" | "context_update" | "sync_request" | "ping" | "awareness";
   payload: Record<string, unknown>;
   timestamp: string;
 }
@@ -11,8 +11,19 @@ export interface OpenClawCommand {
   params: Record<string, unknown>;
 }
 
+export interface OpenClawAwarenessPayload {
+  agentId: string;
+  name: string;
+  avatar: string;
+  color: string;
+  cursor?: { anchor: number; head: number };
+  viewport?: { from: number; to: number };
+  status: "idle" | "reading" | "editing" | "responding" | "thinking";
+}
+
 type StatusListener = (status: OpenClawConnectionStatus) => void;
 type CommandListener = (command: OpenClawCommand) => void;
+type AwarenessListener = (payload: OpenClawAwarenessPayload) => void;
 
 class OpenClawBridge {
   private eventSource: EventSource | null = null;
@@ -21,6 +32,7 @@ class OpenClawBridge {
   private apiKey: string = "";
   private statusListeners = new Set<StatusListener>();
   private commandListeners = new Set<CommandListener>();
+  private awarenessListeners = new Set<AwarenessListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -152,6 +164,11 @@ class OpenClawBridge {
     return () => this.commandListeners.delete(listener);
   }
 
+  onAwareness(listener: AwarenessListener): () => void {
+    this.awarenessListeners.add(listener);
+    return () => this.awarenessListeners.delete(listener);
+  }
+
   private setStatus(status: OpenClawConnectionStatus) {
     this.status = status;
     this.statusListeners.forEach((fn) => fn(status));
@@ -161,6 +178,9 @@ class OpenClawBridge {
     if (msg.type === "command") {
       const cmd = msg.payload as unknown as OpenClawCommand;
       this.commandListeners.forEach((fn) => fn(cmd));
+    } else if (msg.type === "awareness") {
+      const payload = msg.payload as unknown as OpenClawAwarenessPayload;
+      this.awarenessListeners.forEach((fn) => fn(payload));
     }
   }
 

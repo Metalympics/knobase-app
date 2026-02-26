@@ -58,6 +58,7 @@ interface AgentSelectorProps {
   documentId: string;
   documentTitle: string;
   workspaceId: string;
+  userId?: string;
 }
 
 function getOrCreateAgentForModel(model: string, provider: string): Agent {
@@ -96,6 +97,7 @@ export function AgentSelector({
   documentId,
   documentTitle,
   workspaceId,
+  userId,
 }: AgentSelectorProps) {
   const [selected, setSelected] = useState<SelectedItem>({ type: 'ai', index: 0 });
   const [prompt, setPrompt] = useState("");
@@ -158,7 +160,9 @@ export function AgentSelector({
           agentOption.agent!,
           prompt.trim(),
           documentId,
-          documentTitle
+          documentTitle,
+          workspaceId,
+          userId,
         );
       } else {
         const user = filteredUsers[selection.index];
@@ -176,7 +180,7 @@ export function AgentSelector({
       setPrompt("");
       onClose();
     },
-    [editor, filteredAgents, filteredUsers, prompt, documentId, documentTitle, workspaceId, onClose]
+    [editor, filteredAgents, filteredUsers, prompt, documentId, documentTitle, workspaceId, userId, onClose]
   );
 
   useEffect(() => {

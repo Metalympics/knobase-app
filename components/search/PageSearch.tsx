@@ -19,7 +19,7 @@ export function PageSearch({ editor, onClose }: PageSearchProps) {
   }, []);
 
   const syncMatchInfo = useCallback(() => {
-    const storage = editor.storage.search as {
+    const storage = (editor.storage as unknown as Record<string, unknown>).search as {
       results: { from: number; to: number }[];
       currentIndex: number;
     };
@@ -30,7 +30,7 @@ export function PageSearch({ editor, onClose }: PageSearchProps) {
   }, [editor]);
 
   const scrollToMatch = useCallback(() => {
-    const storage = editor.storage.search as {
+    const storage = (editor.storage as unknown as Record<string, unknown>).search as {
       results: { from: number; to: number }[];
       currentIndex: number;
     };

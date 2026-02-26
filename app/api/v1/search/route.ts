@@ -4,7 +4,7 @@ import { listServerDocuments } from "@/lib/api/server-store";
 import { searchSchema, validateBody } from "@/lib/api/validation";
 
 export async function POST(request: NextRequest) {
-  const auth = withAuth(request);
+  const auth = await withAuth(request);
   if (!auth.ok) return auth.response;
 
   let body: unknown;

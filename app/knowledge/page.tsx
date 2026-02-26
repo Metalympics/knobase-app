@@ -18,6 +18,8 @@ import {
   Save,
   Search,
   UserPlus,
+  Download,
+  Share2,
 } from "lucide-react";
 import { Sidebar } from "@/components/editor/sidebar";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
@@ -26,6 +28,7 @@ import { PresenceBar } from "@/components/editor/presence-bar";
 import { BacklinksPanel } from "@/components/editor/backlinks-panel";
 import { DocumentMetadata } from "@/components/editor/document-metadata";
 import { useCollaboration } from "@/lib/yjs/use-collaboration";
+import { useSyncDocument, useSyncStatus } from "@/hooks/use-sync";
 import { useDocuments } from "@/lib/documents/use-documents";
 import { getDefaultAgent } from "@/lib/agents/store";
 import {
@@ -61,12 +64,16 @@ import { getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
 import type { Workspace } from "@/lib/workspaces/types";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { ShareModal } from "@/components/permissions/share-modal";
+import { ShareDialog } from "@/components/editor/share-dialog";
+import { DocumentExportDialog } from "@/components/editor/document-export";
 import { DocumentLockIndicator } from "@/components/collab/locks";
 import { TagBadges } from "@/components/tags/tag-manager";
 import { TagManager } from "@/components/tags/tag-manager";
 import { ActivityFeed } from "@/components/activity/activity-feed";
 import { GuestBanner } from "@/components/guest/guest-banner";
+import { OfflineIndicator } from "@/components/editor/offline-indicator";
 import { canCreateDocument } from "@/lib/subscription/store";
+import { transferDemoToLocalAccount, hasDemoState } from "@/lib/demo/state";
 
 function getWorkspaceName(): string | null {
   if (typeof window === "undefined") return null;
@@ -91,6 +98,14 @@ export default function KnowledgePage() {
       router.replace("/onboarding");
     } else {
       setWorkspaceName(name);
+    }
+
+    // Transfer demo document if coming from signup flow
+    if (hasDemoState()) {
+      const transferredId = transferDemoToLocalAccount();
+      if (transferredId) {
+        localStorage.setItem("knobase-app:selected-doc", transferredId);
+      }
     }
   }, [router]);
 
@@ -124,6 +139,8 @@ export default function KnowledgePage() {
     getOrCreateDefaultWorkspace(),
   );
   const [showShare, setShowShare] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [guestMode] = useState(false);
 
@@ -141,6 +158,17 @@ export default function KnowledgePage() {
   const { provider, ydoc, status, isSynced, isReady, user } =
     useCollaboration(activeId);
 
+  // Offline-first sync engine: persists Yjs to IndexedDB, debounces to Supabase
+  const syncInfo = useSyncStatus();
+  const { forceFlush: syncForceFlush } = useSyncDocument(
+    activeId ?? undefined,
+    ydoc,
+    {
+      title: activeDoc?.title ?? "Untitled",
+      workspaceId: workspace?.id ?? "",
+    },
+  );
+
   const commentCount = activeId ? getCommentCount(activeId) : 0;
 
   useEffect(() => {
@@ -148,6 +176,7 @@ export default function KnowledgePage() {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         flushRef.current?.();
+        syncForceFlush().catch(() => {});
         setSaveStatus("saved");
         if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
         savedTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
@@ -417,13 +446,29 @@ export default function KnowledgePage() {
               </kbd>
             </button>
             {activeId && workspace && (
-              <button
-                onClick={() => setShowShare(true)}
-                className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                Invite
-              </button>
+              <>
+                <button
+                  onClick={() => setShowExport(true)}
+                  className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                  title="Export document"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setShowShareDialog(true)}
+                  className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                  title="Share document"
+                >
+                  <Share2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setShowShare(true)}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Invite
+                </button>
+              </>
             )}
             <button
               onClick={() => setShowGraph(true)}
@@ -488,7 +533,11 @@ export default function KnowledgePage() {
               isSynced={isSynced}
               currentUserId={user.id}
               agent={openClawStatus === "connected" ? agent : null}
+              syncStatus={syncInfo.status}
+              pendingCount={syncInfo.pendingCount}
             />
+
+            <OfflineIndicator />
           </div>
         </header>
 
@@ -531,6 +580,7 @@ export default function KnowledgePage() {
                     documentId={activeId}
                     documentTitle={activeDoc.title ?? "Untitled"}
                     workspaceId={workspace?.id ?? ""}
+                    userId={user?.id ?? ""}
                   />
                   <BacklinksPanel
                     documentId={activeId}
@@ -649,6 +699,24 @@ export default function KnowledgePage() {
           onAgentDisconnect={() => {
             openClawBridge.disconnect();
           }}
+        />
+      )}
+
+      {showShareDialog && activeId && workspace && (
+        <ShareDialog
+          documentId={activeId}
+          documentTitle={activeDoc?.title ?? "Untitled"}
+          workspaceId={workspace.id}
+          currentUserId={user?.id ?? "local-user"}
+          onClose={() => setShowShareDialog(false)}
+        />
+      )}
+
+      {showExport && activeId && (
+        <DocumentExportDialog
+          documentId={activeId}
+          documentTitle={activeDoc?.title ?? "Untitled"}
+          onClose={() => setShowExport(false)}
         />
       )}
 

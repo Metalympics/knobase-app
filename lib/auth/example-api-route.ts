@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase/client";
+import { createServerClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/utils";
 import { NextResponse } from "next/server";
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       .slice(0, 8)
       .toUpperCase();
 
-    const { data: workspace, error: insertError } = await supabase
+    const { data: workspaceData, error: insertError } = await supabase
       .from("workspaces")
       .insert({
         name,
@@ -98,6 +98,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const workspace = workspaceData as unknown as { id: string };
     const { error: memberError } = await supabase
       .from("workspace_members")
       .insert({
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ workspace }, { status: 201 });
+    return NextResponse.json({ workspace: workspaceData }, { status: 201 });
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(

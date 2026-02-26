@@ -4,6 +4,7 @@ import type {
   WorkspaceRole,
   WorkspaceSettings,
 } from "./types";
+import { createClient } from "@/lib/supabase/client";
 
 const LS_PREFIX = "knobase-app:";
 const WORKSPACES_KEY = `${LS_PREFIX}workspaces`;
@@ -35,6 +36,10 @@ function getCurrentUserId(): string {
   return id;
 }
 
+/* ------------------------------------------------------------------ */
+/* localStorage helpers (fallback)                                     */
+/* ------------------------------------------------------------------ */
+
 function readAll(): Workspace[] {
   if (typeof window === "undefined") return [];
   try {
@@ -50,7 +55,46 @@ function writeAll(workspaces: Workspace[]): void {
   localStorage.setItem(WORKSPACES_KEY, JSON.stringify(workspaces));
 }
 
+/* ------------------------------------------------------------------ */
+/* Supabase bridge helpers                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Convert a Supabase workspace row + members to the client Workspace type.
+ */
+function rowToWorkspace(
+  row: Record<string, unknown>,
+  members: Record<string, unknown>[] = [],
+): Workspace {
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? "Workspace",
+    slug: (row.slug as string) ?? slugify((row.name as string) ?? "workspace"),
+    ownerId: (row.owner_id as string) ?? "",
+    createdAt: (row.created_at as string) ?? new Date().toISOString(),
+    icon: (row.icon as string) ?? undefined,
+    color: (row.color as string) ?? undefined,
+    members: members.map((m) => ({
+      userId: (m.user_id as string) ?? "",
+      displayName: (m.display_name as string) ?? "Member",
+      role: ((m.role as string) ?? "viewer") as WorkspaceRole,
+      joinedAt: (m.joined_at as string) ?? new Date().toISOString(),
+    })),
+    settings: {
+      isPublic: false,
+      allowGuests: false,
+      defaultAgent: null,
+    },
+    inviteCode: (row.invite_code as string) ?? "",
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Public API — Supabase-first with localStorage fallback              */
+/* ------------------------------------------------------------------ */
+
 export function listWorkspaces(): Workspace[] {
+  // Synchronous: use localStorage for now
   const userId = getCurrentUserId();
   return readAll().filter(
     (ws) =>
@@ -58,8 +102,84 @@ export function listWorkspaces(): Workspace[] {
   );
 }
 
+/**
+ * Async version: try Supabase first, fall back to localStorage.
+ */
+export async function listWorkspacesAsync(): Promise<Workspace[]> {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: memberRows } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", user.id);
+
+      if (memberRows && memberRows.length > 0) {
+        const wsIds = (memberRows as unknown as { workspace_id: string }[]).map((r) => r.workspace_id);
+        const { data: wsRows } = await supabase
+          .from("workspaces")
+          .select("*")
+          .in("id", wsIds);
+
+        if (wsRows && wsRows.length > 0) {
+          // Fetch all members for these workspaces
+          const { data: allMembers } = await supabase
+            .from("workspace_members")
+            .select("*")
+            .in("workspace_id", wsIds);
+
+          return wsRows.map((ws) => {
+            const wsMembers = ((allMembers ?? []) as unknown as { workspace_id: string }[]).filter(
+              (m) => m.workspace_id === (ws as unknown as { id: string }).id,
+            );
+            return rowToWorkspace(
+              ws as unknown as Record<string, unknown>,
+              wsMembers as unknown as Record<string, unknown>[],
+            );
+          });
+        }
+      }
+    }
+  } catch {
+    // Supabase unavailable — fall through
+  }
+
+  return listWorkspaces(); // localStorage fallback
+}
+
 export function getWorkspace(id: string): Workspace | null {
   return readAll().find((ws) => ws.id === id) ?? null;
+}
+
+/**
+ * Async version: try Supabase first, fall back to localStorage.
+ */
+export async function getWorkspaceAsync(id: string): Promise<Workspace | null> {
+  try {
+    const supabase = createClient();
+    const { data: ws } = await supabase
+      .from("workspaces")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (ws) {
+      const { data: members } = await supabase
+        .from("workspace_members")
+        .select("*")
+        .eq("workspace_id", id);
+
+      return rowToWorkspace(
+        ws as unknown as Record<string, unknown>,
+        (members ?? []) as unknown as Record<string, unknown>[],
+      );
+    }
+  } catch {
+    // Fall through
+  }
+
+  return getWorkspace(id);
 }
 
 export function getActiveWorkspaceId(): string | null {

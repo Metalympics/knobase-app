@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   FileText,
+  FolderOpen,
   Plus,
   Search,
   Settings,
@@ -109,6 +110,13 @@ export function Sidebar({
             Activity
           </button>
         )}
+        <button
+          onClick={() => router.push("/files")}
+          className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+        >
+          <FolderOpen className="h-4 w-4" />
+          Files
+        </button>
         <button
           onClick={() => router.push("/settings")}
           className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
 import type { ConnectionStatus } from "@/lib/yjs/supabase-provider";
+import type { SyncStatus } from "@/lib/sync/sync-engine";
 import { AgentAvatar } from "@/components/agent/agent-avatar";
 import type { Agent } from "@/lib/agents/types";
 
@@ -18,9 +19,13 @@ interface PresenceBarProps {
   isSynced: boolean;
   currentUserId?: string;
   agent?: Agent | null;
+  /** Offline-first sync engine status */
+  syncStatus?: SyncStatus;
+  /** Number of pending offline operations */
+  pendingCount?: number;
 }
 
-export function PresenceBar({ awareness, status, isSynced, agent }: PresenceBarProps) {
+export function PresenceBar({ awareness, status, isSynced, agent, syncStatus, pendingCount }: PresenceBarProps) {
   const [users, setUsers] = useState<AwarenessUser[]>([]);
 
   useEffect(() => {
@@ -45,7 +50,7 @@ export function PresenceBar({ awareness, status, isSynced, agent }: PresenceBarP
 
   return (
     <div className="flex items-center gap-3">
-      <SyncIndicator status={status} isSynced={isSynced} />
+      <SyncIndicator status={status} isSynced={isSynced} syncStatus={syncStatus} pendingCount={pendingCount} />
       <div className="flex items-center -space-x-2">
         {agent && (
           <AgentAvatar
@@ -81,17 +86,30 @@ function UserAvatar({ user }: { user: AwarenessUser }) {
   );
 }
 
-function SyncIndicator({ status, isSynced }: { status: ConnectionStatus; isSynced: boolean }) {
-  if (status === "disconnected") {
+function SyncIndicator({
+  status,
+  isSynced,
+  syncStatus,
+  pendingCount,
+}: {
+  status: ConnectionStatus;
+  isSynced: boolean;
+  syncStatus?: SyncStatus;
+  pendingCount?: number;
+}) {
+  // Offline-first status takes priority when available
+  if (syncStatus === "offline" || status === "disconnected") {
     return (
       <div className="flex items-center gap-1.5">
         <div className="h-2 w-2 rounded-full bg-red-400" />
-        <span className="text-xs font-medium text-red-500">Offline</span>
+        <span className="text-xs font-medium text-red-500">
+          Offline{pendingCount ? ` (${pendingCount})` : ""}
+        </span>
       </div>
     );
   }
 
-  if (status === "connecting" || !isSynced) {
+  if (syncStatus === "syncing" || status === "connecting" || !isSynced) {
     return (
       <div className="flex items-center gap-1.5">
         <div className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
@@ -100,10 +118,28 @@ function SyncIndicator({ status, isSynced }: { status: ConnectionStatus; isSynce
     );
   }
 
+  if (syncStatus === "dirty") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="h-2 w-2 rounded-full bg-blue-400" />
+        <span className="text-xs font-medium text-blue-500">Saving...</span>
+      </div>
+    );
+  }
+
+  if (syncStatus === "error") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="h-2 w-2 rounded-full bg-orange-400" />
+        <span className="text-xs font-medium text-orange-500">Sync error</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-1.5">
       <div className="h-2 w-2 rounded-full bg-emerald-400" />
-      <span className="text-xs font-medium text-emerald-600">Live</span>
+      <span className="text-xs font-medium text-emerald-600">Saved</span>
     </div>
   );
 }

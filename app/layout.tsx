@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense } from "react";
 import { PostHogProvider } from "@/components/analytics/posthog-provider";
 import { PageViewTracker } from "@/components/analytics/page-view-tracker";
+import { AuthProvider } from "@/lib/auth/provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -53,10 +54,12 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <PostHogProvider>
-          <Suspense>
-            <PageViewTracker />
-          </Suspense>
-          {children}
+          <AuthProvider>
+            <Suspense>
+              <PageViewTracker />
+            </Suspense>
+            {children}
+          </AuthProvider>
         </PostHogProvider>
       </body>
     </html>

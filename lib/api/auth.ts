@@ -1,10 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findApiKeyByToken, type ServerApiKey } from "./server-store";
+import { findApiKeyByRawToken } from "@/lib/supabase/api-keys";
+import type { AgentApiKey } from "@/lib/supabase/types";
+
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Resolved API key info exposed to route handlers after auth.
+ * Uses the Supabase-backed agent_api_keys table.
+ */
+export interface ResolvedApiKey {
+  id: string;
+  name: string;
+  workspace_id: string;
+  agent_id: string | null;
+  scopes: string[];
+  tier: "free" | "pro" | "enterprise";
+}
+
+function toResolvedKey(row: AgentApiKey): ResolvedApiKey {
+  // Derive tier from scopes or default
+  const scopes: string[] = Array.isArray(row.scopes) ? (row.scopes as string[]) : [];
+  let tier: ResolvedApiKey["tier"] = "free";
+  if (scopes.includes("enterprise")) tier = "enterprise";
+  else if (scopes.includes("pro")) tier = "pro";
+  return {
+    id: row.id,
+    name: row.name,
+    workspace_id: row.workspace_id,
+    agent_id: row.agent_id,
+    scopes,
+    tier,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Rate Limiting (in-memory, per-instance)                             */
+/* ------------------------------------------------------------------ */
 
 const RATE_LIMIT_MAP = new Map<string, { count: number; resetAt: number }>();
 const RATE_WINDOW_MS = 60_000;
 
-function getRateLimit(tier: ServerApiKey["tier"]): number {
+function getRateLimit(tier: ResolvedApiKey["tier"]): number {
   switch (tier) {
     case "enterprise":
       return 10_000;
@@ -15,7 +53,7 @@ function getRateLimit(tier: ServerApiKey["tier"]): number {
   }
 }
 
-function checkRateLimit(keyId: string, tier: ServerApiKey["tier"]): { allowed: boolean; remaining: number; resetAt: number } {
+function checkRateLimit(keyId: string, tier: ResolvedApiKey["tier"]): { allowed: boolean; remaining: number; resetAt: number } {
   const now = Date.now();
   const limit = getRateLimit(tier);
   let entry = RATE_LIMIT_MAP.get(keyId);
@@ -32,6 +70,10 @@ function checkRateLimit(keyId: string, tier: ServerApiKey["tier"]): { allowed: b
     resetAt: entry.resetAt,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
 
 export function corsHeaders(): Record<string, string> {
   return {
@@ -53,11 +95,20 @@ export function apiError(message: string, code: string, status: number, details?
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Auth middleware (async — uses Supabase)                              */
+/* ------------------------------------------------------------------ */
+
 export type AuthResult =
-  | { ok: true; apiKey: ServerApiKey }
+  | { ok: true; apiKey: ResolvedApiKey }
   | { ok: false; response: NextResponse };
 
-export function withAuth(request: NextRequest): AuthResult {
+/**
+ * Authenticate an incoming API request using the Supabase-backed
+ * `agent_api_keys` table. Performs SHA-256 token lookup, expiry check,
+ * and in-memory rate limiting.
+ */
+export async function withAuth(request: NextRequest): Promise<AuthResult> {
   if (request.method === "OPTIONS") {
     return { ok: false, response: new NextResponse(null, { status: 204, headers: corsHeaders() }) };
   }
@@ -68,10 +119,12 @@ export function withAuth(request: NextRequest): AuthResult {
   }
 
   const token = authHeader.slice(7);
-  const key = findApiKeyByToken(token);
-  if (!key) {
+  const row = await findApiKeyByRawToken(token);
+  if (!row) {
     return { ok: false, response: apiError("Invalid API key", "UNAUTHORIZED", 401) };
   }
+
+  const key = toResolvedKey(row);
 
   const rate = checkRateLimit(key.id, key.tier);
   if (!rate.allowed) {
