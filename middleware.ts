@@ -47,8 +47,25 @@ export async function middleware(request: NextRequest) {
     "/privacy",
     "/pricing",
     "/api/",
+    "/invite/",
   ];
   const isPublicPath = publicPaths.some((p) => pathname.startsWith(p));
+
+  // ── Demo routes — tag with demo-mode header ──
+  if (pathname.startsWith("/demo")) {
+    response.headers.set("x-demo-mode", "true");
+    return response;
+  }
+
+  // ── Invite routes — always allow public access (page handles auth check) ──
+  if (pathname.startsWith("/invite/")) {
+    return response;
+  }
+
+  // Early return for any public path
+  if (isPublicPath) {
+    return response;
+  }
 
   // ── Protected routes — require authentication ──
   const protectedPaths = [
@@ -56,6 +73,7 @@ export async function middleware(request: NextRequest) {
     "/settings",
     "/workspaces",
     "/w/",
+    "/onboarding",
   ];
   const isProtectedPath = protectedPaths.some((p) => pathname.startsWith(p));
 

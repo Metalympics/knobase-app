@@ -68,6 +68,8 @@ interface TiptapEditorProps {
 /* Suggestion handler (singleton per editor instance)                  */
 /* ------------------------------------------------------------------ */
 
+const EMPTY_SUGGESTIONS: InlineSuggestionData[] = [];
+
 const defaultAgent: Agent = {
   id: "agent",
   name: "AI Agent",
@@ -119,7 +121,7 @@ export function TiptapEditor({
   const suggestions = useSyncExternalStore(
     (cb) => editHandler.subscribe(cb),
     () => editHandler.getSuggestions(),
-    () => [] as InlineSuggestionData[],
+    () => EMPTY_SUGGESTIONS,
   );
 
   // Wire the suggestion callback so SSE suggestions flow into the handler
@@ -214,7 +216,10 @@ export function TiptapEditor({
           class: "tiptap-editor outline-none",
         },
         handleKeyDown: (_view, event) => {
-          if (slashMenu.isOpen || agentSelector.isOpen) {
+          // Slash menu keys are swallowed here; agent selector keys are
+          // handled by the InlineAgent extension's addKeyboardShortcuts()
+          // which reads live storage state (not a stale closure).
+          if (slashMenu.isOpen) {
             if (
               ["ArrowUp", "ArrowDown", "Enter", "Escape"].includes(event.key)
             ) {
@@ -373,13 +378,30 @@ export function TiptapEditor({
     setAgentSelector((prev) => ({ ...prev, isOpen: false }));
   }, [editor]);
 
+  // Supabase proposals for this document (must be called before any early return)
+  const supabaseProposals = useDocumentProposals(documentId || null);
+
+  const handleNavigateToSession = useCallback(
+    (_documentId: string, blockId?: string) => {
+      if (!editor || editor.isDestroyed) return;
+      if (blockId) {
+        // Try to find the block element and scroll to it
+        const el = document.getElementById(blockId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+      }
+      // Fall back to focusing the editor
+      editor.commands.focus("start");
+    },
+    [editor],
+  );
+
   if (!editor) return null;
 
   const pendingSuggestions = suggestions.filter((s) => s.status === "pending");
   const agentForSuggestions = activeAgent ?? defaultAgent;
-
-  // Supabase proposals for this document
-  const supabaseProposals = useDocumentProposals(documentId || null);
 
   const handleAcceptSuggestion = (id: string) => {
     const s = editHandler.acceptSuggestion(id);
@@ -486,23 +508,6 @@ export function TiptapEditor({
       // position invalid
     }
   };
-
-  const handleNavigateToSession = useCallback(
-    (_documentId: string, blockId?: string) => {
-      if (!editor || editor.isDestroyed) return;
-      if (blockId) {
-        // Try to find the block element and scroll to it
-        const el = document.getElementById(blockId);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          return;
-        }
-      }
-      // Fall back to focusing the editor
-      editor.commands.focus("start");
-    },
-    [editor],
-  );
 
   return (
     <div ref={editorRef} className="relative flex-1">

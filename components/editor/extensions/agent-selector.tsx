@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Editor } from "@tiptap/react";
-import { Bot, Sparkles, Zap, User, Edit2 } from "lucide-react";
-import { createInlineAgentTask, insertHumanMention } from "./inline-agent";
+import { Bot, Sparkles, Zap, FileText, Edit2 } from "lucide-react";
+import { insertHumanMention } from "./inline-agent";
 import { searchWorkspaceUsers } from "@/lib/mentions/store";
 import { getInitial } from "@/lib/mentions/store";
 import type { MentionableUser } from "@/lib/mentions/types";
 import { listAgents, createAgent, updateAgentName, type Agent } from "@/lib/agents/store";
+import Image from "next/image";
 
 interface AgentOption {
   id: string;
@@ -19,6 +20,13 @@ interface AgentOption {
 }
 
 const BASE_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = [
+  {
+    id: "openclaw",
+    model: "openclaw",
+    provider: "OpenClaw",
+    icon: <Image src="/openclaw.png" alt="OpenClaw" width={32} height={32} className="h-full w-full rounded-md object-cover" />,
+    description: "Full agent workspace integration",
+  },
   {
     id: "gpt-4",
     model: "gpt-4",
@@ -39,6 +47,13 @@ const BASE_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = [
     provider: "Google",
     icon: <Zap className="h-4 w-4" />,
     description: "Fast and efficient",
+  },
+  {
+    id: "summarizer",
+    model: "summarizer",
+    provider: "Knobase",
+    icon: <FileText className="h-4 w-4" />,
+    description: "Summarize documents and sections",
   },
 ];
 
@@ -63,28 +78,38 @@ interface AgentSelectorProps {
 
 function getOrCreateAgentForModel(model: string, provider: string): Agent {
   const agents = listAgents();
-  
-  // Find existing agent with this model
   let agent = agents.find((a) => a.name.toLowerCase().includes(model.toLowerCase()));
-  
+
   if (!agent) {
-    // Create a new agent with a default name based on the model
-    const defaultName = model === "gpt-4" ? "GPT-4" : 
-                       model === "claude-3" ? "Claude" : 
-                       model === "gemini-pro" ? "Gemini" : 
-                       "Assistant";
-    
+    const nameMap: Record<string, string> = {
+      openclaw: "OpenClaw",
+      "gpt-4": "GPT-4",
+      "claude-3": "Claude",
+      "gemini-pro": "Gemini",
+      summarizer: "Summarizer",
+    };
+    const avatarMap: Record<string, string> = {
+      openclaw: "🐾",
+      "gpt-4": "✨",
+      "claude-3": "🤖",
+      "gemini-pro": "⚡",
+      summarizer: "📄",
+    };
+    const colorMap: Record<string, string> = {
+      openclaw: "#E94560",
+      "gpt-4": "#10a37f",
+      "claude-3": "#8B5CF6",
+      "gemini-pro": "#4285f4",
+      summarizer: "#F59E0B",
+    };
+
     agent = createAgent({
-      name: defaultName,
-      avatar: model === "gpt-4" ? "✨" : 
-              model === "claude-3" ? "🤖" : 
-              model === "gemini-pro" ? "⚡" : "🐾",
-      color: model === "gpt-4" ? "#10a37f" : 
-             model === "claude-3" ? "#8B5CF6" : 
-             model === "gemini-pro" ? "#4285f4" : "#8B5CF6",
+      name: nameMap[model] ?? "Assistant",
+      avatar: avatarMap[model] ?? "🐾",
+      color: colorMap[model] ?? "#8B5CF6",
     });
   }
-  
+
   return agent;
 }
 
@@ -100,39 +125,28 @@ export function AgentSelector({
   userId,
 }: AgentSelectorProps) {
   const [selected, setSelected] = useState<SelectedItem>({ type: 'ai', index: 0 });
-  const [prompt, setPrompt] = useState("");
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Enhance agent options with stored agent data
   const AGENT_OPTIONS: AgentOption[] = BASE_AGENT_OPTIONS.map(base => ({
     ...base,
     agent: getOrCreateAgentForModel(base.model, base.provider),
   }));
 
-  // Filter AI agents
   const filteredAgents = AGENT_OPTIONS.filter((agent) => {
     const q = query.toLowerCase();
     return (
       agent.agent!.name.toLowerCase().includes(q) ||
       agent.model.toLowerCase().includes(q) ||
-      agent.provider.toLowerCase().includes(q)
+      agent.provider.toLowerCase().includes(q) ||
+      agent.description.toLowerCase().includes(q)
     );
   });
 
-  // Filter human collaborators
   const filteredUsers = searchWorkspaceUsers(workspaceId, query);
-
   const hasResults = filteredAgents.length > 0 || filteredUsers.length > 0;
-
-  useEffect(() => {
-    if (isOpen && inputRef.current && !editingAgentId) {
-      inputRef.current.focus();
-    }
-  }, [isOpen, editingAgentId]);
 
   useEffect(() => {
     if (editingAgentId && nameInputRef.current) {
@@ -149,38 +163,66 @@ export function AgentSelector({
     setEditName("");
   }, [editName]);
 
+  /**
+   * When an AI agent is selected: delete the @query text from the editor,
+   * insert an inlineAgent node in "prompt" mode so the user can type their
+   * instruction directly inline. No modal, no separate input — the block
+   * appears right where the @ was.
+   */
+  const selectAIAgent = useCallback(
+    (agentOption: AgentOption) => {
+      const { from } = editor.state.selection;
+      const textBefore = editor.state.doc.textBetween(
+        Math.max(0, from - 40),
+        from,
+        "",
+      );
+      const mentionMatch = textBefore.match(/@([a-zA-Z0-9_-]*)$/);
+
+      const deleteFrom = mentionMatch ? from - mentionMatch[0].length : from;
+
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: deleteFrom, to: from })
+        .insertContent({
+          type: "inlineAgent",
+          attrs: {
+            taskId: null,
+            mention: null,
+            promptMode: true,
+            agentId: agentOption.agent!.id,
+            agentName: agentOption.agent!.name,
+            agentModel: agentOption.model,
+            agentAvatar: agentOption.agent!.avatar,
+            agentColor: agentOption.agent!.color,
+            documentId,
+            documentTitle,
+            workspaceId,
+            userId: userId ?? "",
+          },
+        })
+        .run();
+
+      onClose();
+    },
+    [editor, documentId, documentTitle, workspaceId, userId, onClose],
+  );
+
   const executeCommand = useCallback(
     (selection: SelectedItem) => {
       if (selection.type === 'ai') {
         const agentOption = filteredAgents[selection.index];
-        if (!agentOption || !prompt.trim()) return;
-
-        createInlineAgentTask(
-          editor,
-          agentOption.agent!,
-          prompt.trim(),
-          documentId,
-          documentTitle,
-          workspaceId,
-          userId,
-        );
+        if (!agentOption) return;
+        selectAIAgent(agentOption); // also calls onClose internally
       } else {
         const user = filteredUsers[selection.index];
         if (!user) return;
-
-        insertHumanMention(
-          editor,
-          user,
-          documentId,
-          documentTitle,
-          workspaceId
-        );
+        insertHumanMention(editor, user, documentId, documentTitle, workspaceId);
+        onClose();
       }
-
-      setPrompt("");
-      onClose();
     },
-    [editor, filteredAgents, filteredUsers, prompt, documentId, documentTitle, workspaceId, userId, onClose]
+    [editor, filteredAgents, filteredUsers, selectAIAgent, documentId, documentTitle, workspaceId, onClose],
   );
 
   useEffect(() => {
@@ -231,13 +273,9 @@ export function AgentSelector({
           }
           return prev;
         });
-      } else if (e.key === "Enter") {
+      } else if (e.key === "Tab" || e.key === "Enter") {
         e.preventDefault();
-        if (selected.type === 'ai' && prompt.trim()) {
-          executeCommand(selected);
-        } else if (selected.type === 'human') {
-          executeCommand(selected);
-        }
+        executeCommand(selected);
       } else if (e.key === "Escape") {
         e.preventDefault();
         onClose();
@@ -246,7 +284,7 @@ export function AgentSelector({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, selected, filteredAgents.length, filteredUsers.length, executeCommand, prompt, onClose, editingAgentId, handleSaveName]);
+  }, [isOpen, selected, filteredAgents.length, filteredUsers.length, executeCommand, onClose, editingAgentId, handleSaveName]);
 
   useEffect(() => {
     if (menuRef.current) {
@@ -269,51 +307,44 @@ export function AgentSelector({
       <div className="px-3 py-2">
         {/* AI Agents Section */}
         {filteredAgents.length > 0 && (
-          <div className="mb-3">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-2">
+          <div className="mb-2">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-1.5">
               AI Agents
             </div>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div className="space-y-0.5 max-h-60 overflow-y-auto">
               {filteredAgents.map((agentOption, index) => (
                 <div
                   key={agentOption.id}
                   data-active={isAISelected(index)}
-                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm rounded-md transition-colors ${
+                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm rounded-md transition-colors cursor-pointer ${
                     isAISelected(index)
                       ? "bg-neutral-100 text-neutral-900"
                       : "text-neutral-600 hover:bg-neutral-50"
                   }`}
+                  onClick={() => selectAIAgent(agentOption)}
                   onMouseEnter={() => setSelected({ type: 'ai', index })}
                 >
-                  <button
-                    className="flex items-center gap-3 flex-1 min-w-0"
-                    onClick={() => {
-                      setSelected({ type: 'ai', index });
-                      if (inputRef.current) inputRef.current.focus();
-                    }}
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#e5e5e5] bg-white">
-                      {agentOption.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {editingAgentId === agentOption.agent!.id ? (
-                        <input
-                          ref={nameInputRef}
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          onBlur={() => handleSaveName(agentOption.agent!.id)}
-                          className="w-full px-1 py-0.5 text-sm font-medium border border-blue-500 rounded focus:outline-none"
-                        />
-                      ) : (
-                        <>
-                          <div className="font-medium text-neutral-900">{agentOption.agent!.name}</div>
-                          <div className="text-xs text-neutral-400">{agentOption.model}</div>
-                        </>
-                      )}
-                    </div>
-                  </button>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#e5e5e5] bg-white">
+                    {agentOption.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {editingAgentId === agentOption.agent!.id ? (
+                      <input
+                        ref={nameInputRef}
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={() => handleSaveName(agentOption.agent!.id)}
+                        className="w-full px-1 py-0.5 text-sm font-medium border border-blue-500 rounded focus:outline-none"
+                      />
+                    ) : (
+                      <>
+                        <div className="font-medium text-neutral-900">{agentOption.agent!.name}</div>
+                        <div className="text-xs text-neutral-400">{agentOption.description}</div>
+                      </>
+                    )}
+                  </div>
                   {!editingAgentId && (
                     <button
                       onClick={(e) => {
@@ -335,11 +366,11 @@ export function AgentSelector({
 
         {/* Human Collaborators Section */}
         {filteredUsers.length > 0 && (
-          <div className="mb-3">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-2">
-              Human Collaborators
+          <div className="mb-2">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-1.5">
+              Collaborators
             </div>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div className="space-y-0.5 max-h-48 overflow-y-auto">
               {filteredUsers.map((user, index) => (
                 <button
                   key={user.userId}
@@ -349,10 +380,7 @@ export function AgentSelector({
                       ? "bg-neutral-100 text-neutral-900"
                       : "text-neutral-600 hover:bg-neutral-50"
                   }`}
-                  onClick={() => {
-                    setSelected({ type: 'human', index });
-                    executeCommand({ type: 'human', index });
-                  }}
+                  onClick={() => executeCommand({ type: 'human', index })}
                   onMouseEnter={() => setSelected({ type: 'human', index })}
                 >
                   <div
@@ -373,28 +401,12 @@ export function AgentSelector({
           </div>
         )}
 
-        {/* Prompt input for AI agents */}
-        {selected.type === 'ai' && !editingAgentId && (
-          <div className="border-t border-[#e5e5e5] pt-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="What would you like the agent to do?"
-              className="w-full px-3 py-2 text-sm border border-[#e5e5e5] rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && prompt.trim()) {
-                  e.preventDefault();
-                  executeCommand(selected);
-                }
-              }}
-            />
-            <div className="mt-2 text-xs text-neutral-400">
-              Press Enter to submit, Esc to cancel
-            </div>
+        <div className="border-t border-[#e5e5e5] pt-1.5 pb-0.5">
+          <div className="text-[10px] text-neutral-400 text-center">
+            <kbd className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-[9px]">Enter</kbd> to select
+            {" "}<kbd className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-[9px]">Esc</kbd> to dismiss
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

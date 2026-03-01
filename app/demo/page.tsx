@@ -1,94 +1,67 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, LogIn, ArrowRight, X } from "lucide-react";
+import {
+  BookOpen,
+  LogIn,
+  ArrowRight,
+  FileText,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
+import { DemoProvider, useDemo } from "@/lib/demo/context";
+import { useDemoCTA } from "@/hooks/use-demo-cta";
 import {
   saveDemoState,
-  loadDemoState,
-  getOrCreateDemoDocId,
   markDemoStarted,
-  getDemoMinutesElapsed,
-  DEMO_DOCUMENT_CONTENT,
 } from "@/lib/demo/state";
 import { SignupPromptModal } from "@/components/onboarding/signup-modal";
 
 export default function DemoPage() {
+  return (
+    <DemoProvider>
+      <DemoPageContent />
+    </DemoProvider>
+  );
+}
+
+function DemoPageContent() {
   const router = useRouter();
-  const [docId] = useState(() => getOrCreateDemoDocId());
-  const [content, setContent] = useState("");
-  const [showSignup, setShowSignup] = useState(false);
-  const [signupTrigger, setSignupTrigger] = useState<string>("manual");
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hasPromptedRef = useRef(false);
+  const demo = useDemo();
+  const { showCTA, trigger, trackEdit, openCTA, dismissCTA } =
+    useDemoCTA();
 
-  // Load existing demo or initialize with template content
+  // Also persist to localStorage for transfer-on-signup compatibility
   useEffect(() => {
-    const existing = loadDemoState();
-    if (existing && existing.content) {
-      setContent(existing.content);
-    } else {
-      setContent(DEMO_DOCUMENT_CONTENT);
-      saveDemoState({
-        id: docId,
-        title: "Untitled Document",
-        content: DEMO_DOCUMENT_CONTENT,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }
     markDemoStarted();
-  }, [docId]);
-
-  // Auto-prompt after 5 minutes of editing
-  useEffect(() => {
-    timerRef.current = setInterval(() => {
-      if (getDemoMinutesElapsed() >= 5 && !hasPromptedRef.current) {
-        hasPromptedRef.current = true;
-        setSignupTrigger("time");
-        setShowSignup(true);
-      }
-    }, 30_000); // Check every 30s
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
   }, []);
 
-  // Exit intent detection — mouse leaves top of viewport
-  useEffect(() => {
-    const handleMouseLeave = (e: MouseEvent) => {
-      if (e.clientY < 20 && !hasPromptedRef.current) {
-        hasPromptedRef.current = true;
-        setSignupTrigger("exit");
-        setShowSignup(true);
-      }
-    };
-    document.addEventListener("mouseleave", handleMouseLeave);
-    return () => document.removeEventListener("mouseleave", handleMouseLeave);
-  }, []);
-
-  // Persist content changes to localStorage (debounced via editor)
   const handleContentChange = useCallback(
     (markdown: string) => {
-      setContent(markdown);
-      const existing = loadDemoState();
-      saveDemoState({
-        id: docId,
-        title: existing?.title || "Untitled Document",
-        content: markdown,
-        createdAt: existing?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      if (demo.currentDocument) {
+        demo.updateDocumentContent(demo.currentDocument.id, markdown);
+        trackEdit();
+
+        // Also persist to localStorage so existing signup-transfer works
+        saveDemoState({
+          id: demo.currentDocument.id,
+          title: demo.currentDocument.title,
+          content: markdown,
+          createdAt: demo.currentDocument.createdAt,
+          updatedAt: new Date().toISOString(),
+        });
+      }
     },
-    [docId]
+    [demo, trackEdit]
   );
 
   const handleSignupClick = () => {
-    setSignupTrigger("manual");
-    setShowSignup(true);
+    openCTA("manual");
   };
+
+  const currentDoc = demo.currentDocument;
+  if (!currentDoc) return null;
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -104,9 +77,37 @@ export default function DemoPage() {
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
             Demo
           </span>
+
+          {/* Demo doc selector */}
+          <span className="mx-1 text-neutral-300">|</span>
+          <div className="flex items-center gap-1">
+            {demo.documents.map((doc) => (
+              <button
+                key={doc.id}
+                onClick={() => demo.setCurrentDocumentId(doc.id)}
+                className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
+                  doc.id === currentDoc.id
+                    ? "bg-neutral-100 text-neutral-900 font-medium"
+                    : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700"
+                }`}
+              >
+                <FileText className="h-3 w-3" />
+                <span className="hidden sm:inline max-w-[120px] truncate">
+                  {doc.title}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Agent typing indicator */}
+          {demo.agentTyping && (
+            <span className="flex items-center gap-1.5 text-xs text-indigo-600">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
+              {demo.agentTyping.avatar} {demo.agentTyping.name} is thinking…
+            </span>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -139,19 +140,20 @@ export default function DemoPage() {
       {/* Editor */}
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
         <TiptapEditor
-          initialContent={content}
+          key={currentDoc.id}
+          initialContent={currentDoc.content}
           onContentChange={handleContentChange}
-          documentId={docId}
-          documentTitle="Demo Document"
+          documentId={currentDoc.id}
+          documentTitle={currentDoc.title}
         />
       </main>
 
       {/* Signup prompt modal */}
-      {showSignup && (
+      {showCTA && (
         <SignupPromptModal
-          trigger={signupTrigger}
-          onClose={() => setShowSignup(false)}
-          onContinueEditing={() => setShowSignup(false)}
+          trigger={trigger}
+          onClose={dismissCTA}
+          onContinueEditing={dismissCTA}
         />
       )}
     </div>

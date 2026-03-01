@@ -61,6 +61,7 @@ import { getCommentCount } from "@/lib/comments/store";
 import type { Template } from "@/lib/templates/defaults";
 
 import { getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
+import { DocumentContextProvider } from "@/contexts/DocumentContext";
 import type { Workspace } from "@/lib/workspaces/types";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { ShareModal } from "@/components/permissions/share-modal";
@@ -551,7 +552,12 @@ export default function KnowledgePage() {
             )}
             <div className="mx-auto max-w-2xl">
               {activeId && activeDoc && isReady && (
-                <>
+                <DocumentContextProvider
+                  documentId={activeId}
+                  workspaceId={workspace?.id ?? ""}
+                  documentTitle={activeDoc.title ?? "Untitled"}
+                  userId={user?.id ?? ""}
+                >
                   <div className="mb-3">
                     <TagBadges
                       documentId={activeId}
@@ -586,7 +592,7 @@ export default function KnowledgePage() {
                     documentId={activeId}
                     onNavigate={selectDocument}
                   />
-                </>
+                </DocumentContextProvider>
               )}
             </div>
           </div>

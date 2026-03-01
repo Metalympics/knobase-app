@@ -287,11 +287,15 @@ export function SuggestionsPanel({
 export class InlineEditHandler {
   private suggestions: Map<string, InlineSuggestionData> = new Map();
   private listeners = new Set<() => void>();
+  private cachedSnapshot: InlineSuggestionData[] | null = null;
 
   getSuggestions(): InlineSuggestionData[] {
-    return Array.from(this.suggestions.values()).sort(
-      (a, b) => a.range.from - b.range.from,
-    );
+    if (this.cachedSnapshot === null) {
+      this.cachedSnapshot = Array.from(this.suggestions.values()).sort(
+        (a, b) => a.range.from - b.range.from,
+      );
+    }
+    return this.cachedSnapshot;
   }
 
   getPendingSuggestions(): InlineSuggestionData[] {
@@ -366,6 +370,7 @@ export class InlineEditHandler {
   }
 
   private notify(): void {
+    this.cachedSnapshot = null;
     this.listeners.forEach((fn) => fn());
   }
 }

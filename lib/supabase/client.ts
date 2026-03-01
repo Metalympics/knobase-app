@@ -796,6 +796,44 @@ export type Database = {
         };
         Relationships: [];
       };
+      invites: {
+        Row: {
+          id: string;
+          token: string;
+          email: string;
+          workspace_id: string | null;
+          document_id: string | null;
+          invited_by: string;
+          role: string;
+          used_at: string | null;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          token: string;
+          email: string;
+          workspace_id?: string | null;
+          document_id?: string | null;
+          invited_by: string;
+          role?: string;
+          used_at?: string | null;
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          token?: string;
+          email?: string;
+          workspace_id?: string | null;
+          document_id?: string | null;
+          invited_by?: string;
+          role?: string;
+          used_at?: string | null;
+          expires_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

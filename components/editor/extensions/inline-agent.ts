@@ -4,7 +4,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DecorationSet } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
 import type { AgentTask } from "@/lib/agents/task-types";
-import { handleMention } from "@/lib/agents/task-coordinator";
+import { syncTaskToSupabase } from "@/lib/agents/sync-bridge";
 import {
   createEditorStreamHandler,
   getOpenClawConfig,
@@ -65,12 +65,8 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
         default: null,
         parseHTML: (element) => element.getAttribute("data-task-id"),
         renderHTML: (attributes) => {
-          if (!attributes.taskId) {
-            return {};
-          }
-          return {
-            "data-task-id": attributes.taskId,
-          };
+          if (!attributes.taskId) return {};
+          return { "data-task-id": attributes.taskId };
         },
       },
       mention: {
@@ -80,15 +76,26 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
           return mentionData ? JSON.parse(mentionData) : null;
         },
         renderHTML: (attributes) => {
-          if (!attributes.mention) {
-            return {};
-          }
+          if (!attributes.mention) return {};
           return {
             "data-mention": JSON.stringify(attributes.mention),
             "data-mention-type": attributes.mention.type,
           };
         },
       },
+      // Transient attrs — used by the React node view to manage the inline
+      // prompt → progress → result lifecycle.  Not serialized to HTML.
+      promptMode: { default: false, renderHTML: () => ({}) },
+      agentId: { default: null, renderHTML: () => ({}) },
+      agentName: { default: null, renderHTML: () => ({}) },
+      agentModel: { default: null, renderHTML: () => ({}) },
+      agentAvatar: { default: null, renderHTML: () => ({}) },
+      agentColor: { default: null, renderHTML: () => ({}) },
+      documentId: { default: null, renderHTML: () => ({}) },
+      documentTitle: { default: null, renderHTML: () => ({}) },
+      workspaceId: { default: null, renderHTML: () => ({}) },
+      userId: { default: null, renderHTML: () => ({}) },
+      submittedPrompt: { default: null, renderHTML: () => ({}) },
     };
   },
 
@@ -155,6 +162,11 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
   },
 
   addKeyboardShortcuts() {
+    const isSelectorOpen = () => {
+      const s = this.editor.storage as unknown as { inlineAgent: InlineAgentStorage };
+      return s.inlineAgent.showAgentSelector;
+    };
+
     return {
       "@": () => {
         const { state, dispatch } = this.editor.view;
@@ -183,6 +195,13 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
 
         return true;
       },
+      // Swallow navigation/selection keys when the agent selector dropdown
+      // is open so ProseMirror doesn't act on them. The AgentSelector's
+      // own document-level keydown listener handles the actual behavior.
+      Enter: () => isSelectorOpen(),
+      Tab: () => isSelectorOpen(),
+      ArrowUp: () => isSelectorOpen(),
+      ArrowDown: () => isSelectorOpen(),
       Escape: () => {
         const storage = this.editor.storage as unknown as { inlineAgent: InlineAgentStorage };
         if (storage.inlineAgent.showAgentSelector) {
@@ -225,15 +244,18 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
               $from.parentOffset
             );
 
-            const mentionMatch = textBefore.match(/@([a-zA-Z0-9_-]*)$/);
+            // Only match @ at start-of-line or after whitespace to avoid
+            // triggering on mid-word @ (e.g. email addresses).
+            const mentionMatch = textBefore.match(/(?:^|\s)@([a-zA-Z0-9_-]*)$/);
             const storage = editor.storage as unknown as { inlineAgent: InlineAgentStorage };
 
-            if (mentionMatch && mentionMatch[1].length > 0) {
+            if (mentionMatch) {
               storage.inlineAgent.showAgentSelector = true;
+              // Empty capture group = bare @, show all options (query = "")
               storage.inlineAgent.query = mentionMatch[1];
               const coords = editor.view.coordsAtPos(selection.from);
               storage.inlineAgent.position = coords;
-            } else if (!mentionMatch) {
+            } else {
               storage.inlineAgent.showAgentSelector = false;
               storage.inlineAgent.query = "";
             }
@@ -273,6 +295,14 @@ export function setOnSuggestionCallback(
   onSuggestionCallback = cb;
 }
 
+/**
+ * Create an agent task and start the SSE stream. Returns the Supabase task ID
+ * so the caller (typically InlineAgentNodeView) can wire the node to it.
+ *
+ * The inline-agent node is expected to ALREADY be in the document when this
+ * function is called — the AgentSelector inserts it in "promptMode" and the
+ * node view flips it to progress mode then calls this function.
+ */
 export async function createInlineAgentTask(
   editor: Editor,
   agent: Agent,
@@ -281,14 +311,8 @@ export async function createInlineAgentTask(
   documentTitle: string,
   workspaceId: string,
   userId?: string,
-): Promise<void> {
+): Promise<string> {
   const { from } = editor.state.selection;
-  const textBefore = editor.state.doc.textBetween(
-    Math.max(0, from - 20),
-    from,
-    ""
-  );
-  const mentionMatch = textBefore.match(/@([a-zA-Z0-9_-]*)$/);
 
   // Gather surrounding context for the mention
   const docSize = editor.state.doc.content.size;
@@ -303,28 +327,25 @@ export async function createInlineAgentTask(
     "\n",
   );
 
-  // 1. Create mention + task in Supabase
+  // 1. Sync to Supabase via the bridge (optimistic local update + persist + webhook)
   let supabaseTaskId: string;
   try {
-    const { task } = await handleMention({
+    const { taskId } = await syncTaskToSupabase({
       documentId,
       workspaceId,
       prompt,
-      contextBefore,
-      contextAfter,
-      createdBy: userId ?? getCurrentUserId() ?? "anonymous",
+      mentionedAgent: `@${agent.name}`,
       agentId: agent.id,
       agentName: agent.name,
+      userId: userId ?? getCurrentUserId() ?? "anonymous",
     });
-    supabaseTaskId = task.id;
+    supabaseTaskId = taskId;
   } catch (err) {
-    console.error("[InlineAgent] Supabase handleMention failed, using local ID:", err);
-    // Fallback: use a local UUID so the editor flow still works
+    console.error("[InlineAgent] sync-bridge failed, using local ID:", err);
     supabaseTaskId = crypto.randomUUID();
   }
 
-  // 1b. Also notify any registered external agent (OpenClaw) via the mention handler.
-  //     This is fire-and-forget — we don't block the editor on it.
+  // 1b. Fire-and-forget OpenClaw notification
   import("@/lib/agents/mention-handler").then(({ handleAgentMention }) => {
     handleAgentMention({
       documentId,
@@ -336,17 +357,7 @@ export async function createInlineAgentTask(
     }).catch(() => {});
   }).catch(() => {});
 
-  // 2. Insert inline agent node into the editor
-  if (mentionMatch) {
-    const mentionPos = from - mentionMatch[0].length;
-    editor
-      .chain()
-      .focus()
-      .deleteRange({ from: mentionPos, to: from })
-      .insertInlineAgent(supabaseTaskId)
-      .run();
-  }
-
+  // 2. Notify local task-create listeners
   const storage = editor.storage as unknown as { inlineAgent: InlineAgentStorage };
   if (storage.inlineAgent.onTaskCreate) {
     storage.inlineAgent.onTaskCreate({
@@ -374,7 +385,7 @@ export async function createInlineAgentTask(
       documentTitle,
       agentId: agent.id,
       agentName: agent.name,
-      insertPos: from - (mentionMatch ? mentionMatch[0].length : 0),
+      insertPos: from,
       openclawEndpoint: openclawConfig.endpoint ?? undefined,
       openclawApiKey: openclawConfig.apiKey ?? undefined,
       workspaceId,
@@ -389,6 +400,8 @@ export async function createInlineAgentTask(
   }).finally(() => {
     activeStreams.delete(supabaseTaskId);
   });
+
+  return supabaseTaskId;
 }
 
 /**

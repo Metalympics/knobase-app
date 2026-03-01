@@ -71,26 +71,31 @@ export interface MentionContext {
  * automatically creates a task for the targeted agent.
  */
 export async function handleMention(ctx: MentionContext): Promise<{
-  mention: Mention;
+  mention: Mention | null;
   task: AgentTask;
 }> {
   const agentId = ctx.agentId ?? "claw";
   const agentName = ctx.agentName ?? "Claw";
 
-  // 1. Create mention record
-  const mention = await createMention({
-    document_id: ctx.documentId,
-    block_id: ctx.blockId ?? null,
-    yjs_position: ctx.yjsPosition ?? null,
-    target_type: "agent",
-    target_id: agentId,
-    target_name: agentName,
-    mention_text: `@${agentName}`,
-    context_before: ctx.contextBefore ?? null,
-    context_after: ctx.contextAfter ?? null,
-    prompt: ctx.prompt,
-    created_by: ctx.createdBy,
-  });
+  // 1. Create mention record (non-fatal — task creation can proceed without it)
+  let mention: Mention | null = null;
+  try {
+    mention = await createMention({
+      document_id: ctx.documentId,
+      block_id: ctx.blockId ?? null,
+      yjs_position: ctx.yjsPosition ?? null,
+      target_type: "agent",
+      target_id: agentId,
+      target_name: agentName,
+      mention_text: `@${agentName}`,
+      context_before: ctx.contextBefore ?? null,
+      context_after: ctx.contextAfter ?? null,
+      prompt: ctx.prompt,
+      created_by: ctx.createdBy,
+    });
+  } catch (err) {
+    console.warn("[TaskCoordinator] Mention creation failed (Supabase may be unavailable):", err);
+  }
 
   // 2. Create task from mention
   const task = await createTask({
@@ -102,7 +107,7 @@ export async function handleMention(ctx: MentionContext): Promise<{
     prompt: ctx.prompt,
     target_context: {
       type: "mention",
-      mention_id: mention.id,
+      mention_id: mention?.id,
       block_id: ctx.blockId,
       yjs_position: ctx.yjsPosition,
       context_before: ctx.contextBefore,
@@ -110,11 +115,13 @@ export async function handleMention(ctx: MentionContext): Promise<{
     },
     created_by: ctx.createdBy,
     created_by_type: "user",
-    source_mention_id: mention.id,
+    source_mention_id: mention?.id ?? null,
   });
 
-  // 3. Link mention to task
-  await linkMentionToTask(mention.id, task.id);
+  // 3. Link mention to task (only if mention was created)
+  if (mention) {
+    await linkMentionToTask(mention.id, task.id).catch(() => {});
+  }
 
   // 4. Fire webhook notification so external agents (OpenClaw) can pick up the task
   notifyTaskCreated(task as unknown as Record<string, unknown>).catch(() => {});

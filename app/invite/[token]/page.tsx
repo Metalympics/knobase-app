@@ -1,0 +1,438 @@
+"use client";
+
+// ── Invite Acceptance Page ──
+// Public route: /invite/:token
+// Shows invite details, auth options, and auto-accepts after authentication.
+
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import {
+  BookOpen,
+  Users,
+  FileText,
+  AlertCircle,
+  Clock,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase/client";
+
+export default function InvitePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+        </div>
+      }
+    >
+      <InviteContent />
+    </Suspense>
+  );
+}
+
+interface InviteData {
+  id: string;
+  token: string;
+  email: string;
+  workspace_id: string | null;
+  document_id: string | null;
+  role: string;
+  expires_at: string;
+  used_at: string | null;
+  invited_by: string;
+  // Joined data
+  workspace_name?: string;
+  document_title?: string;
+  inviter_name?: string;
+}
+
+function InviteContent() {
+  const router = useRouter();
+  const params = useParams<{ token: string }>();
+  const token = params.token;
+
+  const [invite, setInvite] = useState<InviteData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState(false);
+
+  // Email magic link state
+  const [email, setEmail] = useState("");
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  // Load invite details
+  useEffect(() => {
+    async function loadInvite() {
+      const supabase = createClient();
+
+      // Check auth
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Fetch invite
+      const { data: rawInvite, error: fetchError } = await supabase
+        .from("invites")
+        .select("*")
+        .eq("token", token)
+        .maybeSingle();
+
+      // Cast to typed row
+      const inviteData = rawInvite as (typeof rawInvite & {
+        id: string;
+        token: string;
+        email: string;
+        workspace_id: string | null;
+        document_id: string | null;
+        invited_by: string;
+        role: string;
+        used_at: string | null;
+        expires_at: string;
+        created_at: string;
+      }) | null;
+
+      if (fetchError || !rawInvite || !inviteData) {
+        setError("This invite link is invalid.");
+        setLoading(false);
+        return;
+      }
+
+      if (inviteData.used_at) {
+        setError("This invite has already been used.");
+        setLoading(false);
+        return;
+      }
+
+      if (new Date(inviteData.expires_at) < new Date()) {
+        setError("This invite has expired.");
+        setLoading(false);
+        return;
+      }
+
+      // Fetch related data
+      let workspace_name: string | undefined;
+      let document_title: string | undefined;
+      let inviter_name: string | undefined;
+
+      if (inviteData.workspace_id) {
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("name")
+          .eq("id", inviteData.workspace_id)
+          .maybeSingle();
+        workspace_name = ws?.name;
+      }
+
+      if (inviteData.document_id) {
+        const { data: doc } = await supabase
+          .from("documents")
+          .select("title")
+          .eq("id", inviteData.document_id)
+          .maybeSingle();
+        document_title = doc?.title;
+      }
+
+      if (inviteData.invited_by) {
+        const { data: inviter } = await supabase
+          .from("users")
+          .select("display_name")
+          .eq("id", inviteData.invited_by)
+          .maybeSingle();
+        inviter_name = inviter?.display_name ?? undefined;
+      }
+
+      setInvite({
+        ...inviteData,
+        workspace_name,
+        document_title,
+        inviter_name,
+      });
+
+      // If already authenticated, auto-accept
+      if (user) {
+        await handleAccept(user.id, inviteData);
+      }
+
+      setLoading(false);
+    }
+
+    loadInvite();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const handleAccept = async (authUserId: string, inviteData: InviteData) => {
+    setAccepting(true);
+    const supabase = createClient();
+
+    // Get public user
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_id", authUserId)
+      .single();
+
+    if (!publicUser || !inviteData.workspace_id) {
+      setAccepting(false);
+      return;
+    }
+
+    // Add to workspace
+    await supabase.from("workspace_members").upsert(
+      {
+        workspace_id: inviteData.workspace_id,
+        user_id: publicUser.id,
+        role: (inviteData.role as "admin" | "editor" | "viewer") || "editor",
+      },
+      { onConflict: "workspace_id,user_id" }
+    );
+
+    // Mark used
+    await supabase
+      .from("invites")
+      .update({ used_at: new Date().toISOString() })
+      .eq("id", inviteData.id);
+
+    // Redirect
+    if (inviteData.document_id) {
+      router.push(`/d/${inviteData.document_id}`);
+    } else {
+      router.push(`/w/${inviteData.workspace_id}`);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    const supabase = createClient();
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?invite=${token}`,
+      },
+    });
+  };
+
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+
+    setEmailLoading(true);
+    const supabase = createClient();
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?invite=${token}`,
+      },
+    });
+
+    setEmailLoading(false);
+    if (otpError) {
+      setError(otpError.message);
+    } else {
+      setMagicLinkSent(true);
+    }
+  };
+
+  // ── Loading state ──
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+      </div>
+    );
+  }
+
+  // ── Accepting state ──
+  if (accepting) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-white">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+        <p className="text-sm text-neutral-500">Joining workspace...</p>
+      </div>
+    );
+  }
+
+  // ── Error state ──
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="w-full max-w-md px-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+          </div>
+          <h1 className="text-xl font-semibold text-neutral-900">
+            Invalid Invite
+          </h1>
+          <p className="mt-2 text-sm text-neutral-500">{error}</p>
+          <Link href="/auth/login">
+            <Button className="mt-6 h-11 bg-neutral-900 text-white hover:bg-neutral-800">
+              Go to login
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!invite) return null;
+
+  // ── Magic link sent ──
+  if (magicLinkSent) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="w-full max-w-md px-6">
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-6 text-center">
+            <p className="text-sm font-medium text-green-800">
+              Check your email
+            </p>
+            <p className="text-xs text-green-600">
+              We sent a login link to{" "}
+              <span className="font-medium">{email}</span>. Click it to join the
+              workspace.
+            </p>
+            <button
+              onClick={() => setMagicLinkSent(false)}
+              className="mt-2 text-xs text-green-600 underline hover:text-green-800"
+            >
+              Use a different email
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Invite acceptance UI ──
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="w-full max-w-md px-6">
+        {/* Header */}
+        <div className="mb-8 flex flex-col items-center gap-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-white shadow-sm">
+            <BookOpen className="h-6 w-6 text-neutral-700" />
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-neutral-900">
+            You&apos;re invited
+          </h1>
+          <p className="text-center text-sm text-neutral-500">
+            {invite.inviter_name
+              ? `${invite.inviter_name} invited you to collaborate`
+              : "You've been invited to collaborate"}
+          </p>
+        </div>
+
+        {/* Invite details card */}
+        <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+          {invite.workspace_name && (
+            <div className="flex items-center gap-2 text-sm text-neutral-700">
+              <Users className="h-4 w-4 text-neutral-400" />
+              <span>
+                Workspace:{" "}
+                <span className="font-medium">{invite.workspace_name}</span>
+              </span>
+            </div>
+          )}
+          {invite.document_title && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
+              <FileText className="h-4 w-4 text-neutral-400" />
+              <span>
+                Document:{" "}
+                <span className="font-medium">{invite.document_title}</span>
+              </span>
+            </div>
+          )}
+          <div className="mt-2 flex items-center gap-2 text-xs text-neutral-400">
+            <Clock className="h-3 w-3" />
+            <span>
+              Expires{" "}
+              {new Date(invite.expires_at).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+        </div>
+
+        {/* Auth options */}
+        <Button
+          variant="outline"
+          className="mb-3 h-11 w-full justify-center gap-2 border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+          onClick={handleGoogleSignIn}
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24">
+            <path
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+              fill="#4285F4"
+            />
+            <path
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              fill="#34A853"
+            />
+            <path
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              fill="#EA4335"
+            />
+          </svg>
+          Continue with Google
+        </Button>
+
+        {/* Divider */}
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-neutral-200" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-white px-2 text-neutral-400">
+              or use email
+            </span>
+          </div>
+        </div>
+
+        {/* Magic link form */}
+        <form onSubmit={handleMagicLink} className="flex flex-col gap-3">
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-11 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-300"
+            autoFocus
+          />
+          <Button
+            type="submit"
+            disabled={emailLoading || !email.trim()}
+            className="h-11 bg-neutral-900 text-white hover:bg-neutral-800"
+          >
+            {emailLoading ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Sending...
+              </span>
+            ) : (
+              "Email me a magic link"
+            )}
+          </Button>
+        </form>
+
+        {/* Footer */}
+        <div className="mt-6 flex flex-col items-center gap-2 text-xs text-neutral-400">
+          <p>
+            Already have an account?{" "}
+            <Link
+              href={`/auth/login?redirect=/invite/${token}`}
+              className="text-neutral-600 underline hover:text-neutral-900"
+            >
+              Log in
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

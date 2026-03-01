@@ -6,6 +6,10 @@ interface TaskStore {
   tasks: AgentTask[];
   addTask: (task: AgentTask) => void;
   updateTask: (id: string, updates: Partial<AgentTask>) => void;
+  /** Replace a temporary optimistic ID with the real Supabase ID. */
+  updateTaskId: (tempId: string, realId: string) => void;
+  /** Remove a task by ID (used to rollback a failed optimistic add). */
+  removeTask: (id: string) => void;
   getTasksByDocument: (documentId: string) => AgentTask[];
   getActiveTasks: () => AgentTask[];
   getRecentTasks: (limit?: number) => AgentTask[];
@@ -19,6 +23,20 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   addTask: (task: AgentTask) => {
     set((state) => ({
       tasks: [...state.tasks, task],
+    }));
+  },
+
+  updateTaskId: (tempId: string, realId: string) => {
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === tempId ? { ...task, id: realId } : task
+      ),
+    }));
+  },
+
+  removeTask: (id: string) => {
+    set((state) => ({
+      tasks: state.tasks.filter((task) => task.id !== id),
     }));
   },
 

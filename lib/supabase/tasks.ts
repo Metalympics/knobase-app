@@ -212,7 +212,7 @@ export async function failTask(
 /** Subscribe to task changes for a document (realtime) */
 export function subscribeToDocumentTasks(
   documentId: string,
-  callback: (task: AgentTask) => void,
+  callback: (task: AgentTask, eventType?: string, old?: Partial<AgentTask>) => void,
 ): { unsubscribe: () => void } {
   const channel = supabase()
     .channel(`document-tasks-${documentId}`)
@@ -225,7 +225,7 @@ export function subscribeToDocumentTasks(
         filter: `document_id=eq.${documentId}`,
       },
       (payload) => {
-        callback(payload.new as AgentTask);
+        callback(payload.new as AgentTask, payload.eventType, payload.old as Partial<AgentTask>);
       },
     )
     .subscribe();
