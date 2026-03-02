@@ -74,7 +74,6 @@ import { ActivityFeed } from "@/components/activity/activity-feed";
 import { GuestBanner } from "@/components/guest/guest-banner";
 import { OfflineIndicator } from "@/components/editor/offline-indicator";
 import { canCreateDocument } from "@/lib/subscription/store";
-import { transferDemoToLocalAccount, hasDemoState } from "@/lib/demo/state";
 
 function getWorkspaceName(): string | null {
   if (typeof window === "undefined") return null;
@@ -101,13 +100,6 @@ export default function KnowledgePage() {
       setWorkspaceName(name);
     }
 
-    // Transfer demo document if coming from signup flow
-    if (hasDemoState()) {
-      const transferredId = transferDemoToLocalAccount();
-      if (transferredId) {
-        localStorage.setItem("knobase-app:selected-doc", transferredId);
-      }
-    }
   }, [router]);
 
   const [editor, setEditor] = useState<Editor | null>(null);

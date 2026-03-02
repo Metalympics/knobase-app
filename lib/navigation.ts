@@ -40,7 +40,7 @@ export function getDemoLink(): string {
 }
 
 /**
- * Signup link with demo transfer intent.
+ * Signup link from the demo page.
  */
 export function getSignupWithDemoLink(): string {
   return `/auth/signup?source=demo`;

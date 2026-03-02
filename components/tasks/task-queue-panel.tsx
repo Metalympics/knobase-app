@@ -233,19 +233,7 @@ export function TaskQueuePanel({ documentId, className }: TaskQueuePanelProps) {
     );
   }
 
-  if (tasks.length === 0) {
-    return (
-      <div
-        className={`flex flex-col items-center justify-center gap-2 p-6 text-center text-sm text-neutral-400 ${className ?? ""}`}
-      >
-        <ListTodo className="size-8 opacity-40" />
-        <p>No agent tasks yet</p>
-        <p className="text-xs">
-          Mention an agent with <kbd className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] dark:bg-neutral-700">@</kbd> to get started
-        </p>
-      </div>
-    );
-  }
+  if (tasks.length === 0) return null;
 
   return (
     <div className={`flex flex-col gap-3 ${className ?? ""}`}>

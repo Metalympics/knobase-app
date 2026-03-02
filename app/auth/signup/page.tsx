@@ -2,15 +2,13 @@
 
 // ── Signup Page ──
 // Supports Google OAuth + magic link.
-// If source=demo, transfers demo document on successful auth.
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
-import { hasDemoState } from "@/lib/demo/state";
 import Link from "next/link";
 
 export default function SignupPage() {
@@ -30,21 +28,13 @@ function SignupContent() {
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasDemo, setHasDemo] = useState(false);
-
-  useEffect(() => {
-    setHasDemo(hasDemoState());
-  }, []);
-
   const handleGoogleSignup = async () => {
     const supabase = createClient();
-    const redirectParams = new URLSearchParams();
-    if (fromDemo || hasDemo) redirectParams.set("source", "demo");
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?${redirectParams.toString()}`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
     if (error) setError(error.message);
@@ -58,13 +48,11 @@ function SignupContent() {
     setError(null);
 
     const supabase = createClient();
-    const redirectParams = new URLSearchParams();
-    if (fromDemo || hasDemo) redirectParams.set("source", "demo");
 
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?${redirectParams.toString()}`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -85,12 +73,10 @@ function SignupContent() {
             <BookOpen className="h-6 w-6 text-neutral-700" />
           </div>
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-neutral-900">
-            {fromDemo ? "Save your work" : "Create your account"}
+            Create your account
           </h1>
           <p className="text-center text-sm text-neutral-500">
-            {fromDemo
-              ? "Sign up to save your demo document and unlock all features."
-              : "Start collaborating with AI in seconds."}
+            Start collaborating with AI in seconds.
           </p>
         </div>
 
@@ -113,14 +99,6 @@ function SignupContent() {
           </div>
         ) : (
           <>
-            {/* Demo transfer notice */}
-            {(fromDemo || hasDemo) && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                Your demo document will be automatically saved to your new
-                account.
-              </div>
-            )}
-
             {/* Google OAuth */}
             <Button
               variant="outline"

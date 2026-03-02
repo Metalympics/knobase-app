@@ -22,6 +22,7 @@ import { createInlineAgentTask, cancelAgentStream } from "./inline-agent";
 import { listAgents } from "@/lib/agents/store";
 import type { Mention } from "@/lib/mentions/types";
 import { getInitial } from "@/lib/mentions/store";
+import { useDemoSafe } from "@/lib/demo/context";
 
 /* ------------------------------------------------------------------ */
 /* Inline Prompt Input                                                  */
@@ -85,10 +86,14 @@ function InlinePromptInput({
           style={{ borderColor: `${agentColor}20` }}
         >
           <div
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]"
+            className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px]"
             style={{ backgroundColor: agentColor, color: "#fff" }}
           >
-            {agentAvatar}
+            {agentAvatar.startsWith("/") ? (
+              <Image src={agentAvatar} alt={agentName} width={20} height={20} className="h-full w-full object-cover rounded-full" />
+            ) : (
+              agentAvatar || "🤖"
+            )}
           </div>
           <span className="text-xs font-medium" style={{ color: agentColor }}>
             @{agentName}
@@ -151,16 +156,40 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   const promptMode = node.attrs.promptMode as boolean;
   const documentId = node.attrs.documentId as string | null;
 
+  const demo = useDemoSafe();
+
   // All hooks must be called unconditionally — React requires the same hooks
   // in the same order on every render regardless of which branch we render.
   const { tasks: supabaseTasks, cancel: cancelSupabaseTask } = useDocumentTasks(documentId);
   const { pending: pendingProposals, accept: acceptProposal, reject: rejectProposal } = useDocumentProposals(documentId);
 
+  // In demo mode, resolve task status from the simulated task list.
+  // This gives us queued/processing/completed states without Supabase.
+  const demoTask = useMemo(() => {
+    if (!demo || !taskId) return null;
+    return demo.simulatedTasks.find((t) => t.id === taskId) ?? null;
+  }, [demo, taskId]);
+
   const task = useMemo(() => {
     if (!taskId) return null;
+    // Prefer demo simulated task over Supabase
+    if (demoTask) {
+      return {
+        id: demoTask.id,
+        status: demoTask.status === "queued" ? "queued" as const
+          : demoTask.status === "processing" ? "running" as const
+          : demoTask.status === "completed" ? "completed" as const
+          : "failed" as const,
+        prompt: demoTask.prompt,
+        result: demoTask.response ?? null,
+        agentName: demoTask.agentName,
+        currentAction: null,
+        error: null,
+      };
+    }
     const found = supabaseTasks.find((t) => t.id === taskId);
     return found ? toDisplayTask(found) : null;
-  }, [supabaseTasks, taskId]);
+  }, [supabaseTasks, taskId, demoTask]);
 
   const taskProposals = useMemo(
     () => pendingProposals.filter((p) => p.task_id === taskId),
@@ -239,6 +268,10 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
 
     updateAttributes({ promptMode: false, submittedPrompt: prompt });
 
+    if (demo) {
+      demo.triggerAgentResponse(agentId, prompt, docId).catch(() => {});
+    }
+
     createInlineAgentTask(editor, agent, prompt, docId, docTitle, wsId, uid)
       .then((resultTaskId) => {
         if (resultTaskId) updateAttributes({ taskId: resultTaskId });
@@ -246,7 +279,7 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
       .catch(() => {
         deleteNode();
       });
-  }, [node.attrs, editor, updateAttributes, deleteNode]);
+  }, [node.attrs, editor, updateAttributes, deleteNode, demo]);
 
   const handlePromptCancel = useCallback(() => {
     deleteNode();
@@ -291,9 +324,9 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   // ── Queued / Processing — unified block ────────────────────────
   const agentName = (node.attrs.agentName as string) || "Agent";
   const agentColor = (node.attrs.agentColor as string) || "#8B5CF6";
-  const agentModel = (node.attrs.agentModel as string) || "";
+  const agentAvatarStr = (node.attrs.agentAvatar as string) || "";
   const promptText = (node.attrs.submittedPrompt as string) || task?.prompt || "";
-  const isOpenClaw = agentModel === "openclaw";
+  const hasImageAvatar = agentAvatarStr.startsWith("/");
 
   const isQueued = !task || task.status === "queued";
   const isRunning = task?.status === "running";
@@ -319,10 +352,10 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
                 className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full"
                 style={{ backgroundColor: agentColor }}
               >
-                {isOpenClaw ? (
-                  <Image src="/openclaw.png" alt="OpenClaw" width={20} height={20} className="h-full w-full object-cover rounded-full" />
+                {hasImageAvatar ? (
+                  <Image src={agentAvatarStr} alt={agentName} width={20} height={20} className="h-full w-full object-cover rounded-full" />
                 ) : (
-                  <span className="text-[10px] text-white">{(node.attrs.agentAvatar as string) || "🤖"}</span>
+                  <span className="text-[10px] text-white">{agentAvatarStr || "🤖"}</span>
                 )}
               </div>
               <span className="text-xs font-medium" style={{ color: isFailed ? undefined : agentColor }}>
@@ -362,7 +395,7 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
                         {promptText}
                       </p>
                     ) : isRunning ? (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-400 opacity-0 group-hover:opacity-100">
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-500">
                         {promptText}
                       </p>
                     ) : (
@@ -425,10 +458,8 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   if (isCompleted && taskProposals.length > 0) {
     return (
       <NodeViewWrapper className="inline-agent-node">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="relative my-2 w-full space-y-2"
+        <div
+          className="relative my-2 w-full space-y-2 group/completed"
           contentEditable={false}
         >
           {taskProposals.map((proposal) => {
@@ -438,9 +469,15 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
               <div key={proposal.id} className="rounded-lg border border-emerald-200 bg-emerald-50/50">
                 <div className="flex items-center justify-between border-b border-emerald-100 px-3 py-1.5">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    {hasImageAvatar ? (
+                      <div className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ backgroundColor: agentColor }}>
+                        <Image src={agentAvatarStr} alt={agentName} width={16} height={16} className="h-full w-full object-cover rounded-full" />
+                      </div>
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    )}
                     <span className="text-xs font-medium text-emerald-700">
-                      {task.agentName} — {proposal.edit_type}
+                      {agentName} — {proposal.edit_type}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -468,7 +505,14 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
               </div>
             );
           })}
-        </motion.div>
+          {promptText && (
+            <div className="absolute -top-8 left-3 right-3 opacity-0 group-hover/completed:opacity-100 pointer-events-none transition-opacity">
+              <div className="inline-flex items-center gap-1.5 rounded-md bg-neutral-800 px-2.5 py-1 text-[11px] text-neutral-300 shadow-lg">
+                <span className="text-neutral-500">Prompt:</span> {promptText}
+              </div>
+            </div>
+          )}
+        </div>
       </NodeViewWrapper>
     );
   }
@@ -477,17 +521,21 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   if (isCompleted && task.result) {
     return (
       <NodeViewWrapper className="inline-agent-node">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="relative my-2 w-full rounded-lg border border-emerald-200 bg-emerald-50/50"
+        <div
+          className="relative my-2 w-full rounded-lg border border-emerald-200 bg-emerald-50/50 group/completed"
           contentEditable={false}
         >
           <div className="flex items-center justify-between border-b border-emerald-100 px-3 py-1.5">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              {hasImageAvatar ? (
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ backgroundColor: agentColor }}>
+                  <Image src={agentAvatarStr} alt={agentName} width={16} height={16} className="h-full w-full object-cover rounded-full" />
+                </div>
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              )}
               <span className="text-xs font-medium text-emerald-700">
-                {task.agentName} responded
+                {agentName} responded
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -509,7 +557,15 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
           <div className="px-3 py-2">
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{task.result}</p>
           </div>
-        </motion.div>
+          {/* Prompt tooltip on hover */}
+          {promptText && (
+            <div className="absolute -top-8 left-3 right-3 opacity-0 group-hover/completed:opacity-100 pointer-events-none transition-opacity">
+              <div className="inline-flex items-center gap-1.5 rounded-md bg-neutral-800 px-2.5 py-1 text-[11px] text-neutral-300 shadow-lg">
+                <span className="text-neutral-500">Prompt:</span> {promptText}
+              </div>
+            </div>
+          )}
+        </div>
       </NodeViewWrapper>
     );
   }

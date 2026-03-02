@@ -8,6 +8,8 @@ import { searchWorkspaceUsers } from "@/lib/mentions/store";
 import { getInitial } from "@/lib/mentions/store";
 import type { MentionableUser } from "@/lib/mentions/types";
 import { listAgents, createAgent, updateAgentName, type Agent } from "@/lib/agents/store";
+import { useDemoSafe } from "@/lib/demo/context";
+import { DEMO_AGENTS, DEMO_PEOPLE } from "@/lib/demo/simulated-agents";
 import Image from "next/image";
 
 interface AgentOption {
@@ -57,6 +59,22 @@ const BASE_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = [
   },
 ];
 
+const DEMO_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = DEMO_AGENTS.map((a) => ({
+  id: a.id,
+  model: a.id,
+  provider: a.name,
+  icon: (
+    <Image
+      src={a.avatar}
+      alt={a.name}
+      width={32}
+      height={32}
+      className="h-full w-full rounded-md object-cover"
+    />
+  ),
+  description: a.description,
+}));
+
 type SelectionType = 'human' | 'ai';
 
 interface SelectedItem {
@@ -76,13 +94,16 @@ interface AgentSelectorProps {
   userId?: string;
 }
 
-function getOrCreateAgentForModel(model: string, provider: string): Agent {
+function getOrCreateAgentForModel(model: string, _provider: string): Agent {
   const agents = listAgents();
   let agent = agents.find((a) => a.name.toLowerCase().includes(model.toLowerCase()));
 
   if (!agent) {
     const nameMap: Record<string, string> = {
       openclaw: "OpenClaw",
+      chatgpt: "ChatGPT",
+      claude: "Claude",
+      cursor: "Cursor",
       "gpt-4": "GPT-4",
       "claude-3": "Claude",
       "gemini-pro": "Gemini",
@@ -90,6 +111,9 @@ function getOrCreateAgentForModel(model: string, provider: string): Agent {
     };
     const avatarMap: Record<string, string> = {
       openclaw: "🐾",
+      chatgpt: "✨",
+      claude: "🤖",
+      cursor: "⚡",
       "gpt-4": "✨",
       "claude-3": "🤖",
       "gemini-pro": "⚡",
@@ -97,6 +121,9 @@ function getOrCreateAgentForModel(model: string, provider: string): Agent {
     };
     const colorMap: Record<string, string> = {
       openclaw: "#E94560",
+      chatgpt: "#10a37f",
+      claude: "#8B5CF6",
+      cursor: "#2563EB",
       "gpt-4": "#10a37f",
       "claude-3": "#8B5CF6",
       "gemini-pro": "#4285f4",
@@ -129,8 +156,12 @@ export function AgentSelector({
   const [editName, setEditName] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const demoCtx = useDemoSafe();
+  const isDemo = !!demoCtx;
 
-  const AGENT_OPTIONS: AgentOption[] = BASE_AGENT_OPTIONS.map(base => ({
+  const baseOptions = isDemo ? DEMO_AGENT_OPTIONS : BASE_AGENT_OPTIONS;
+
+  const AGENT_OPTIONS: AgentOption[] = baseOptions.map(base => ({
     ...base,
     agent: getOrCreateAgentForModel(base.model, base.provider),
   }));
@@ -145,7 +176,19 @@ export function AgentSelector({
     );
   });
 
-  const filteredUsers = searchWorkspaceUsers(workspaceId, query);
+  const demoUsers: MentionableUser[] = isDemo
+    ? DEMO_PEOPLE.filter((p) => {
+        const q = query.toLowerCase();
+        return p.displayName.toLowerCase().includes(q) || p.role.toLowerCase().includes(q);
+      }).map((p) => ({
+        userId: p.userId,
+        displayName: p.displayName,
+        color: p.color,
+        role: p.role,
+      }))
+    : [];
+
+  const filteredUsers = isDemo ? demoUsers : searchWorkspaceUsers(workspaceId, query);
   const hasResults = filteredAgents.length > 0 || filteredUsers.length > 0;
 
   useEffect(() => {

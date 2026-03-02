@@ -1,10 +1,12 @@
 // ── Demo Data ──
 // Pre-populated workspace and documents for the demo sandbox.
 // All data lives in-memory — no DB writes.
+// Each document doubles as a feature showcase with embedded CTAs.
 
 export interface DemoDocument {
   id: string;
   title: string;
+  icon: string;
   content: string;
   createdAt: string;
   updatedAt: string;
@@ -18,7 +20,7 @@ export interface DemoWorkspace {
 
 export const DEMO_WORKSPACE: DemoWorkspace = {
   id: "demo-space",
-  name: "Demo: Product Team",
+  name: "Demo Workspace",
   subdomain: "demo",
 };
 
@@ -26,140 +28,395 @@ const now = new Date().toISOString();
 
 export const DEMO_DOCUMENTS: DemoDocument[] = [
   {
-    id: "demo-doc-1",
-    title: "🚀 Q1 Product Roadmap",
-    content: `# 🚀 Q1 Product Roadmap
+    id: "demo-welcome",
+    title: "Welcome to Knobase",
+    icon: "👋",
+    content: `# Welcome to Knobase
 
-## Overview
-
-This quarter we're focused on three high-impact areas: **real-time collaboration**, **AI agent integrations**, and **marketplace launch**.
-
-## Priorities
-
-### 1. Real-Time Collaboration
-- Multi-cursor editing (Y.js)
-- Presence indicators
-- Comment threads on document blocks
-- @mentions for teammates and AI agents
-
-### 2. AI Agent Integration
-- Agent-in-the-editor: AI writes directly in your document
-- Task queue: assign work, track progress, review suggestions
-- Persona system: customize agent tone & behavior
-- MCP protocol support for external agent connections
-
-### 3. Marketplace Launch
-- Browse and install knowledge packs
-- Creator tools for publishing templates
-- Stripe-based payments
+Your AI-powered knowledge workspace — where humans and AI agents collaborate in the same document.
 
 ---
 
-## Timeline
+## 1. AGENT MENTIONS™
+*"Your AI teammate, one @ away"*
 
-| Milestone | Target | Status |
-|-----------|--------|--------|
-| Collaboration MVP | Jan 15 | ✅ Done |
-| Agent task queue | Feb 1 | ✅ Done |
-| Marketplace beta | Feb 28 | 🔄 In progress |
-| Public launch | Mar 15 | 📋 Planned |
+Mention any AI agent inline — right where you're writing. No switching tabs, no copy-paste. The agent reads your document and responds in place.
+
+**Available agents in this demo:**
+- **OpenClaw** — Full workspace agent (tasks, research, drafts)
+- **ChatGPT** — Reasoning and generation
+- **Claude** — Deep analysis and long-context
+- **Cursor** — Code-focused assistance
+
+👇 **Try it now** — type \`@\` on the empty line below and pick an agent:
+
+\u00A0
+
+\u00A0
+
+\u00A0
+
+\u00A0
+
+\u00A0
+
+\u00A0
+
+*Your response will appear right here in the document.*
 
 ---
 
-*Try typing **@claw** below and ask it to help prioritize these items!*
+## 2. LIVE PRESENCE™
+*"See your agent think"*
+
+When you @mention an agent, watch the sidebar — you'll see the task appear in the **Agent Queue** and transition through statuses in real-time:
+
+**Queued** → **Processing** → **Completed**
+
+Try mentioning an agent above and watch the queue update live.
+
+---
+
+## 3. AGENT QUEUE™
+*"Never lose a task"*
+
+Every @mention creates a tracked task. Open the **Agent Queue** in the sidebar to see all active and completed tasks. Try mentioning multiple agents to see them queue up!
+
+---
+
+## 4. FILE UPLOADS
+*"Drag, drop, done"*
+
+Paste or drag an image directly into this editor to see instant file embedding. In demo mode, files are ephemeral — sign up to save them permanently.
+
+Try it: drag any image from your desktop onto this editor.
+
+---
+
+## 5. TEMPLATES
+*"Start with structure"*
+
+Browse pre-built document templates at [knobase.com/templates](https://knobase.com/templates) — research briefs, product specs, meeting notes, and more. Import them with one click.
+
+---
+
+## Ready to build your knowledge base?
+
+**Create a free account** to save your work, connect real AI agents, and collaborate with your team.
 
 `,
     createdAt: now,
     updatedAt: now,
   },
+
   {
-    id: "demo-doc-2",
-    title: "📊 User Research Analysis",
-    content: `# 📊 User Research Analysis
+    id: "demo-report",
+    title: "Q3 Company Report",
+    icon: "📊",
+    content: `# Q3 2025 Company Report
+
+## Executive Summary
+
+> 💡 **This section is empty on purpose.** Try typing \`@openclaw summarize this report\` below to have an AI agent fill it in for you.
+
+---
+
+## Revenue
+
+| Quarter | ARR       | Growth | New Customers |
+|---------|-----------|--------|---------------|
+| Q1 2025 | $2.8M     | —      | 48            |
+| Q2 2025 | $3.4M     | +21%   | 67            |
+| Q3 2025 | $4.2M     | +24%   | 89            |
+
+Total revenue for Q3 was $1.4M, representing 32% year-over-year growth. Enterprise segment grew 48% while SMB grew 18%.
+
+## Key Metrics
+
+- **Daily Active Users:** 12,400 (+18% QoQ)
+- **Net Promoter Score:** 62 (+8 from Q2)
+- **Customer Churn:** 4.2% (up from 3.8% — driven by SMB segment)
+- **Average Contract Value:** $14,200 (+12% QoQ)
+- **Time to Value:** 3.2 days (down from 5.1 days)
+
+## Enterprise Pilot Program
+
+12 enterprise accounts signed in Q3, including:
+- Acme Corp (500 seats)
+- Zenith Technologies (200 seats)
+- Meridian Health (350 seats)
+
+Pipeline for Q4: 28 accounts in late-stage negotiation, representing ~$2.1M in potential ARR.
+
+## Product Highlights
+
+- Shipped agent-in-editor (v0.3.0)
+- Launched task queue and inline suggestions (v0.4.0)
+- Beta: real-time collaboration with Y.js
+- Beta: workspace invite system
+
+## Challenges
+
+1. **SMB churn** increased 4% — exit surveys cite "too complex for small teams"
+2. **Hiring velocity** below target — 3 of 6 platform roles still open
+3. **OpenClaw webhook reliability** — 2 outages in Q3, resolved in v0.4.1
+
+## Outlook
+
+Q4 priorities: marketplace launch, enterprise SSO, and reducing SMB churn through a simplified onboarding flow.
+
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  {
+    id: "demo-clinical",
+    title: "Clinical Trial — AZ-4821",
+    icon: "🧬",
+    content: `# Clinical Trial Report — Study AZ-4821
+
+## Phase II Randomized Controlled Trial: Etonavir vs. Placebo
+
+**Sponsor:** Zenith Biomedical  |  **Protocol:** AZ-4821-PH2  |  **Date:** 2025-12-15
+
+---
+
+## Analysis
+
+> 💡 **Need a quick read on this trial?** Try typing \`@claude analyze the efficacy and safety data in this clinical trial\` below.
+
+---
+
+## Study Design
+
+- **Population:** Adults aged 35–70 with moderate-to-severe COPD (GOLD stage II–III)
+- **Randomization:** 2:1 (Etonavir 200mg BID : Placebo), double-blind
+- **Duration:** 24 weeks, with 4-week follow-up
+- **Primary endpoint:** Change in FEV₁ (L) from baseline at Week 24
+- **Secondary endpoints:** SGRQ total score, exacerbation rate, 6MWD
+
+---
+
+## Efficacy Results
+
+| Endpoint                  | Etonavir (n=312) | Placebo (n=156) | Δ (95% CI)           | p-value  |
+|---------------------------|------------------|-----------------|----------------------|----------|
+| ΔFEV₁ (L) at Wk 24       | +0.18            | +0.04           | 0.14 (0.08–0.20)    | <0.001   |
+| SGRQ total score change   | −8.2             | −3.1            | −5.1 (−7.4 to −2.8) | <0.001   |
+| Annualized exacerbation   | 0.72             | 1.14            | RR 0.63 (0.48–0.83) | 0.001    |
+| 6MWD change (m)           | +38              | +12             | 26 (14–38)           | <0.001   |
+
+## Safety Summary
+
+| Event                     | Etonavir n (%)   | Placebo n (%)   |
+|---------------------------|------------------|-----------------|
+| Any AE                    | 187 (59.9%)      | 84 (53.8%)      |
+| Serious AE                | 23 (7.4%)        | 14 (9.0%)       |
+| Headache                  | 42 (13.5%)       | 18 (11.5%)      |
+| Nausea                    | 31 (9.9%)        | 12 (7.7%)       |
+| Elevated ALT (>3× ULN)   | 8 (2.6%)         | 2 (1.3%)        |
+| Discontinuation due to AE | 14 (4.5%)        | 7 (4.5%)        |
+
+---
+
+## Interpretation
+
+> 💡 **This report is dense.** Try typing \`@claude analyze the efficacy and safety data in this clinical trial\` below to get an AI-powered interpretation.
+
+---
+
+## Subgroup Analyses
+
+### By GOLD Stage
+
+| Subgroup   | ΔFEV₁ (Etonavir) | ΔFEV₁ (Placebo) | Treatment Effect |
+|------------|-------------------|-----------------|-----------------|
+| Stage II   | +0.21             | +0.05           | +0.16           |
+| Stage III  | +0.14             | +0.03           | +0.11           |
+
+### By Age
+
+| Subgroup   | ΔFEV₁ (Etonavir) | ΔFEV₁ (Placebo) | Treatment Effect |
+|------------|-------------------|-----------------|-----------------|
+| 35–54      | +0.20             | +0.05           | +0.15           |
+| 55–70      | +0.16             | +0.03           | +0.13           |
+
+### By Smoking Status
+
+| Subgroup         | ΔFEV₁ (Etonavir) | ΔFEV₁ (Placebo) | Treatment Effect |
+|------------------|-------------------|-----------------|-----------------|
+| Current smoker   | +0.15             | +0.04           | +0.11           |
+| Former smoker    | +0.20             | +0.04           | +0.16           |
+
+## Pharmacokinetic Data
+
+- **Cmax:** 842 ng/mL (CV 28%)
+- **AUC₀₋₁₂:** 4,210 ng·h/mL (CV 32%)
+- **Trough (C₁₂):** 186 ng/mL (CV 35%)
+- **t½:** 8.4 hours
+- **Exposure-response:** Positive correlation between AUC and ΔFEV₁ (r=0.42, p<0.001)
+
+No clinically relevant food effect. No dose adjustment needed for mild-to-moderate renal impairment.
+
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  {
+    id: "demo-meeting",
+    title: "Weekly Meeting Notes",
+    icon: "📝",
+    content: `# Team Standup — Mar 3, 2026
+
+**Attendees:** Chris, Sarah, Mike, Priya
+
+---
 
 ## Summary
 
-We interviewed 24 knowledge workers across 8 companies. Here are the key findings.
-
-## Top Pain Points
-
-1. **Context switching** — 78% of users switch between 5+ tools daily
-2. **Lost knowledge** — Documents get buried in Notion/Google Docs/Slack
-3. **AI is isolated** — ChatGPT/Claude conversations are disconnected from actual work
-4. **No single source of truth** — Teams duplicate information across platforms
-
-## What Users Want
-
-> "I want an AI that works *in* my document, not in a separate chat window."
-> — Product Manager, Series B startup
-
-> "If I could @mention an AI and have it research something right where I'm writing, that would be incredible."
-> - Engineering Lead, Fortune 500
-
-## Opportunity Sizing
-
-- TAM: $12B (knowledge management software)
-- SAM: $3.2B (AI-augmented writing tools)
-- SOM: $180M (collaborative AI knowledge bases)
-
-## Recommendations
-
-1. **Double down on in-document AI** — this is our key differentiator
-2. **Focus on teams, not solo users** — collaboration drives retention
-3. **Build integrations** — users won't abandon existing tools overnight
+> 💡 **Catch up fast.** Try typing \`@chatgpt summarize this meeting\` below to generate a quick recap.
 
 ---
 
-*Type **@claw summarize this** to see the AI in action!*
+## Updates
+
+**Chris (Product Lead)**
+- Finished the new dashboard layout — Figma link shared in #design
+- Met with Acme Corp for enterprise feedback session
+- Reviewing Q4 OKRs draft
+
+**Sarah (Engineer)**
+- API integration is 80% complete — webhook handlers done
+- Found and fixed a race condition in the Y.js sync layer
+- Pair programming with new hire on Monday
+
+**Mike (Designer)**
+- Design system v2 tokens are finalized
+- Mobile responsive mockups ready for review
+- Working on marketplace card components
+
+**Priya (Data Scientist)**
+- A/B test on onboarding flow shows 23% improvement in activation
+- Built churn prediction model — accuracy at 84%
+- Dashboard data pipeline migration to ClickHouse in progress
+
+---
+
+## Discussion
+
+- Should we soft-launch the marketplace to 50 beta users before full rollout?
+- Enterprise SSO: build vs. buy? Sarah recommends Auth0, Chris wants to evaluate WorkOS.
+- Customer "Meridian Health" requesting HIPAA compliance — add to Q1 roadmap.
+
+---
+
+## Action Items
+
+> 💡 **Need action items?** Try typing \`@chatgpt draft action items from this meeting\` below:
+
+---
+
+## Next Meeting
+
+Thursday, Mar 6 at 10:00 AM — Sprint planning for v0.5.0
 
 `,
     createdAt: now,
     updatedAt: now,
   },
+
   {
-    id: "demo-doc-3",
-    title: "📝 Meeting Notes — Feb 28",
-    content: `# 📝 Meeting Notes — Feb 28
+    id: "demo-roadmap",
+    title: "Product Roadmap",
+    icon: "🗺️",
+    content: `# 2026 Product Roadmap
 
-**Attendees:** Sarah, Mike, @claw
+## Vision
 
-## Agenda
-
-1. Sprint review
-2. Marketplace launch blocklist
-3. Customer feedback triage
-
-## Sprint Review
-
-### Completed
-- ✅ Agent cursor overlay
-- ✅ Task queue panel
-- ✅ Inline suggestion accept/reject
-- ✅ Workspace invite system
-
-### In Progress
-- 🔄 Marketplace Stripe integration
-- 🔄 Knowledge pack import/export
-- 🔄 Mobile responsive editor
-
-### Blocked
-- ⛔ OpenClaw webhook reliability (waiting on external fix)
-
-## Action Items
-
-- [ ] Sarah: Finalize marketplace pricing tiers
-- [ ] Mike: Write migration for knowledge pack reviews table
-- [ ] @claw: Draft release notes for v0.4.0
-
-## Notes
-
-- Consider soft-launching marketplace to 50 beta users before full rollout
-- Need to add rate limiting to agent API endpoints
-- Customer "Acme Corp" requesting SSO — add to Q2 roadmap
+Make Knobase the default workspace where knowledge workers and AI agents collaborate seamlessly.
 
 ---
 
-*Ask **@claw** to help draft the release notes!*
+## Proposed Features
+
+1. **Real-time collaboration** — Multi-cursor editing, presence indicators, comment threads
+2. **Agent marketplace** — Browse, install, and share agent configurations
+3. **Mobile app** — iOS and Android with offline sync
+4. **SSO / enterprise auth** — SAML 2.0, SCIM provisioning, audit logs
+5. **API webhooks** — Event-driven integrations for CI/CD, Slack, Jira
+6. **Voice commands** — Speech-to-text agent invocation
+7. **Knowledge graph** — Visual map of document relationships and agent insights
+8. **Version control** — Git-like branching for document drafts
+9. **Workflow automation** — Chain multiple agents: research → draft → review → publish
+10. **Analytics dashboard** — Agent usage, document engagement, team productivity metrics
+
+---
+
+## Priority Ranking
+
+> 💡 **Which features matter most?** Try typing \`@openclaw prioritize these features by user impact\` below:
+
+---
+
+## Timeline (Draft)
+
+| Quarter | Focus Area                    | Status      |
+|---------|-------------------------------|-------------|
+| Q1 2026 | Collaboration + Agent v2      | 🔄 Current  |
+| Q2 2026 | Enterprise + Marketplace      | 📋 Planned  |
+| Q3 2026 | Mobile + Integrations         | 📋 Planned  |
+| Q4 2026 | Analytics + Workflow          | 💭 Ideation |
+
+---
+
+## Open Questions
+
+- How do we price the marketplace? Revenue share vs. flat fee?
+- Should mobile be native or PWA?
+- What's the minimum viable enterprise feature set for SOC 2?
+
+*This roadmap is a living document. Update it as priorities shift.*
+
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  {
+    id: "demo-join",
+    title: "Join Knobase",
+    icon: "🚀",
+    content: `# You've seen what Knobase can do.
+
+---
+
+## What you just experienced:
+
+- ✅ **Agent Mentions** — @mention AI agents right in your document
+- ✅ **Live Presence** — Watch agents think and respond in real-time
+- ✅ **Agent Queue** — Every task tracked from queued to completed
+- ✅ **File Uploads** — Drag, drop, and embed files instantly
+- ✅ **Rich Documents** — Tables, headings, code blocks, and more
+
+---
+
+## What's waiting for you:
+
+- 🔗 **Connect your own AI** — OpenAI, Anthropic, Google, or any MCP-compatible provider
+- 👥 **Real-time collaboration** — Invite teammates, see their cursors, co-edit live
+- 🏪 **Agent Templates** — Browse and install pre-built agent configurations
+- 📁 **Persistent storage** — Your files and documents, saved and synced
+- 🔒 **Enterprise ready** — SSO, audit logs, and workspace permissions
+
+---
+
+## Create your free account
+
+No credit card required. Free forever for personal use.
+
+*Click "Get started free" in the sidebar to create your account.*
 
 `,
     createdAt: now,

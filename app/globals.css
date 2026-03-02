@@ -219,51 +219,100 @@
   height: 0;
 }
 
-/* Table styles */
+/* Table styles — covers both Tiptap Table extension (.tiptap-table) and
+   plain markdown-parsed tables */
+.tiptap-wrapper .tiptap-editor table,
 .tiptap-wrapper .tiptap-editor .tiptap-table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0.75em 0;
+  margin: 1em 0;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #e5e5e5;
+  table-layout: auto;
 }
 
+.tiptap-wrapper .tiptap-editor table td,
+.tiptap-wrapper .tiptap-editor table th,
 .tiptap-wrapper .tiptap-editor .tiptap-table td,
 .tiptap-wrapper .tiptap-editor .tiptap-table th {
   border: 1px solid #e5e5e5;
-  padding: 0.5em 0.75em;
+  padding: 0.6em 1em;
   min-width: 80px;
   vertical-align: top;
-  font-size: 0.9em;
+  font-size: 0.875em;
+  line-height: 1.5;
 }
 
+.tiptap-wrapper .tiptap-editor table th,
 .tiptap-wrapper .tiptap-editor .tiptap-table th {
   background: #fafafa;
   font-weight: 600;
-  color: #525252;
+  color: #404040;
   text-align: left;
+  white-space: nowrap;
 }
 
+.tiptap-wrapper .tiptap-editor table thead tr,
+.tiptap-wrapper .tiptap-editor .tiptap-table thead tr {
+  border-bottom: 2px solid #d4d4d4;
+}
+
+.tiptap-wrapper .tiptap-editor table tbody tr:hover,
+.tiptap-wrapper .tiptap-editor .tiptap-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.tiptap-wrapper .tiptap-editor table tbody tr:nth-child(even),
+.tiptap-wrapper .tiptap-editor .tiptap-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.tiptap-wrapper .tiptap-editor table tbody tr:nth-child(even):hover,
+.tiptap-wrapper .tiptap-editor .tiptap-table tbody tr:nth-child(even):hover {
+  background: #f5f5f5;
+}
+
+.tiptap-wrapper .tiptap-editor table td.selectedCell,
+.tiptap-wrapper .tiptap-editor table th.selectedCell,
 .tiptap-wrapper .tiptap-editor .tiptap-table td.selectedCell,
 .tiptap-wrapper .tiptap-editor .tiptap-table th.selectedCell {
   background: #eff6ff;
   border-color: #93c5fd;
 }
 
-/* Image styles */
+/* Column resize handle */
+.tiptap-wrapper .tiptap-editor .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background: #3b82f6;
+  cursor: col-resize;
+  z-index: 20;
+}
+
+.tiptap-wrapper .tiptap-editor .tableWrapper {
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.tiptap-wrapper .tiptap-editor.resize-cursor {
+  cursor: col-resize;
+}
+
+/* Image styles — handled by ResizableImageView node view */
 .tiptap-wrapper .tiptap-editor .tiptap-image {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  margin: 0.75em 0;
   display: block;
 }
 
-.tiptap-wrapper .tiptap-editor .tiptap-image.ProseMirror-selectednode {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
-  border-radius: 8px;
+/* Prevent default ProseMirror selection outline — custom view handles it */
+.tiptap-wrapper .tiptap-editor [data-node-view-wrapper] > div img {
+  outline: none !important;
 }
 
 /* Link styles */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,6 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { transferDemoToLocalAccount, hasDemoState } from "@/lib/demo/state";
 
 export default function OnboardingPage() {
   return (
@@ -41,8 +40,6 @@ const STEPS: Step[] = ["workspace", "persona", "invite", "complete"];
 
 function OnboardingWizard() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const fromDemo = searchParams.get("from_demo") === "1";
 
   const [step, setStep] = useState<Step>("workspace");
   const [isLoading, setIsLoading] = useState(false);
@@ -150,11 +147,6 @@ function OnboardingWizard() {
           ).toISOString(),
         });
       }
-    }
-
-    // Transfer demo content if coming from demo
-    if (fromDemo && hasDemoState()) {
-      transferDemoToLocalAccount();
     }
 
     // Also persist workspace name to localStorage for offline mode

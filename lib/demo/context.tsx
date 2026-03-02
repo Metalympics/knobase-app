@@ -3,13 +3,14 @@
 // ── Demo Context ──
 // Provides in-memory demo state that wraps /demo routes.
 // No DB writes. Resets on page refresh. Pre-loaded demo documents.
-// Simulates agent interactions with canned responses.
+// Simulates agent interactions with canned responses and task lifecycle.
 
 import {
   createContext,
   useContext,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import {
@@ -20,11 +21,41 @@ import {
 } from "./demo-data";
 import {
   matchSimulatedResponse,
-  type SimulatedAgent,
   DEMO_AGENTS,
+  DEMO_PEOPLE,
+  type SimulatedAgent,
+  type SimulatedPerson,
 } from "./simulated-agents";
 
 // ── Types ──
+
+export type SimulatedTaskStatus = "queued" | "processing" | "completed" | "failed";
+
+export interface SimulatedTask {
+  id: string;
+  agentId: string;
+  agentName: string;
+  agentAvatar: string;
+  agentColor: string;
+  prompt: string;
+  status: SimulatedTaskStatus;
+  response?: string;
+  documentId: string;
+  createdAt: Date;
+}
+
+export interface PresenceEntry {
+  id: string;
+  name: string;
+  type: "person" | "agent";
+  color: string;
+  avatar?: string;
+  documentId: string;
+  documentTitle: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type JSONContent = Record<string, any>;
 
 interface DemoContextValue {
   isDemo: true;
@@ -32,20 +63,33 @@ interface DemoContextValue {
   documents: DemoDocument[];
   currentDocument: DemoDocument | null;
   simulatedAgents: SimulatedAgent[];
+  simulatedPeople: SimulatedPerson[];
 
-  // Navigation
   setCurrentDocumentId: (id: string) => void;
-
-  // Editing (in-memory only)
+  createDocument: () => string;
   updateDocumentContent: (docId: string, content: string) => void;
 
-  // Agent simulation
+  /** Store the editor JSON snapshot for a document (preserves custom nodes) */
+  saveEditorJson: (docId: string, json: JSONContent) => void;
+  /** Get the stored JSON snapshot, if any */
+  getEditorJson: (docId: string) => JSONContent | null;
+
   triggerAgentResponse: (
-    mention: string
+    agentId: string,
+    mention: string,
+    documentId?: string,
   ) => Promise<{ agent: SimulatedAgent; response: string }>;
   agentTyping: SimulatedAgent | null;
 
-  // CTA tracking
+  /** Navigate to a task's document and scroll to its anchor node */
+  navigateToTask: (task: SimulatedTask) => void;
+  /** Pending scroll target after navigation */
+  pendingScrollTaskId: string | null;
+  clearPendingScroll: () => void;
+
+  simulatedTasks: SimulatedTask[];
+  presence: PresenceEntry[];
+
   editCount: number;
   mentionCount: number;
   incrementEdits: () => void;
@@ -56,6 +100,61 @@ const DemoContext = createContext<DemoContextValue | undefined>(undefined);
 
 // ── Provider ──
 
+export const SEED_TASKS: SimulatedTask[] = [
+  {
+    id: "seed-task-1",
+    agentId: "openclaw",
+    agentName: "OpenClaw",
+    agentAvatar: "/openclaw.png",
+    agentColor: "#E94560",
+    prompt: "Summarize Q3 company report",
+    status: "completed",
+    response: `Q3 2025 was a strong quarter with $4.2M ARR (+24% QoQ), driven by 89 new customers and a 48% surge in the enterprise segment. Key wins include Acme Corp (500 seats), Zenith Technologies, and Meridian Health. DAU grew 18% to 12,400 and NPS climbed to 62.
+
+Product shipped agent-in-editor (v0.3.0) and task queue (v0.4.0), with real-time collab and invites in beta.
+
+Risks: SMB churn rose to 4.2% ("too complex"), 3 of 6 platform roles remain open, and OpenClaw had 2 webhook outages. Q4 focus: marketplace launch, enterprise SSO, and simplified SMB onboarding.`,
+    documentId: "demo-report",
+    createdAt: new Date(Date.now() - 25 * 60_000),
+  },
+  {
+    id: "seed-task-2",
+    agentId: "claude",
+    agentName: "Claude",
+    agentAvatar: "/claude.png",
+    agentColor: "#8B5CF6",
+    prompt: "Analyze clinical trial safety data",
+    status: "processing",
+    documentId: "demo-clinical",
+    createdAt: new Date(Date.now() - 3 * 60_000),
+  },
+  {
+    id: "seed-task-3",
+    agentId: "chatgpt",
+    agentName: "ChatGPT",
+    agentAvatar: "/chatgpt.png",
+    agentColor: "#10a37f",
+    prompt: "Draft action items from standup",
+    status: "queued",
+    documentId: "demo-meeting",
+    createdAt: new Date(Date.now() - 1 * 60_000),
+  },
+];
+
+function buildPresence(docs: DemoDocument[]): PresenceEntry[] {
+  const docMap = new Map(docs.map((d) => [d.id, d.title]));
+  return [
+    { id: "demo-chris", name: "Chris", type: "person", color: "#3B82F6", documentId: "demo-roadmap", documentTitle: docMap.get("demo-roadmap") ?? "" },
+    { id: "demo-sarah", name: "Sarah", type: "person", color: "#10B981", documentId: "demo-report", documentTitle: docMap.get("demo-report") ?? "" },
+    { id: "demo-mike", name: "Mike", type: "person", color: "#F59E0B", documentId: "demo-welcome", documentTitle: docMap.get("demo-welcome") ?? "" },
+    { id: "demo-priya", name: "Priya", type: "person", color: "#F43F5E", documentId: "demo-clinical", documentTitle: docMap.get("demo-clinical") ?? "" },
+    { id: "openclaw", name: "OpenClaw", type: "agent", color: "#E94560", avatar: "/openclaw.png", documentId: "demo-report", documentTitle: docMap.get("demo-report") ?? "" },
+    { id: "chatgpt", name: "ChatGPT", type: "agent", color: "#10a37f", avatar: "/chatgpt.png", documentId: "demo-meeting", documentTitle: docMap.get("demo-meeting") ?? "" },
+    { id: "claude", name: "Claude", type: "agent", color: "#8B5CF6", avatar: "/claude.png", documentId: "demo-clinical", documentTitle: docMap.get("demo-clinical") ?? "" },
+    { id: "cursor", name: "Cursor", type: "agent", color: "#2563EB", avatar: "/cursor.png", documentId: "demo-roadmap", documentTitle: docMap.get("demo-roadmap") ?? "" },
+  ];
+}
+
 export function DemoProvider({ children }: { children: ReactNode }) {
   const [documents, setDocuments] = useState<DemoDocument[]>(
     () => DEMO_DOCUMENTS
@@ -64,14 +163,46 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     DEMO_DOCUMENTS[0]?.id ?? ""
   );
   const [agentTyping, setAgentTyping] = useState<SimulatedAgent | null>(null);
+  const [simulatedTasks, setSimulatedTasks] = useState<SimulatedTask[]>(() => SEED_TASKS);
   const [editCount, setEditCount] = useState(0);
   const [mentionCount, setMentionCount] = useState(0);
+  const [pendingScrollTaskId, setPendingScrollTaskId] = useState<string | null>(null);
+  const taskIdCounter = useRef(3);
+  const docIdCounter = useRef(0);
+  const editorJsonCache = useRef<Map<string, JSONContent>>(new Map());
+
+  const presence = buildPresence(documents);
+
+  const saveEditorJson = useCallback((docId: string, json: JSONContent) => {
+    editorJsonCache.current.set(docId, json);
+  }, []);
+
+  const getEditorJson = useCallback((docId: string): JSONContent | null => {
+    return editorJsonCache.current.get(docId) ?? null;
+  }, []);
 
   const currentDocument =
     documents.find((d) => d.id === currentDocId) ?? null;
 
   const setCurrentDocumentId = useCallback((id: string) => {
     setCurrentDocId(id);
+  }, []);
+
+  const createDocument = useCallback((): string => {
+    docIdCounter.current += 1;
+    const id = `demo-new-${docIdCounter.current}`;
+    const now = new Date().toISOString();
+    const newDoc: DemoDocument = {
+      id,
+      title: "Untitled",
+      icon: "📄",
+      content: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    setDocuments((prev) => [...prev, newDoc]);
+    setCurrentDocId(id);
+    return id;
   }, []);
 
   const updateDocumentContent = useCallback(
@@ -95,23 +226,49 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setMentionCount((c) => c + 1);
   }, []);
 
+  const navigateToTask = useCallback((task: SimulatedTask) => {
+    setCurrentDocId(task.documentId);
+    setPendingScrollTaskId(task.id);
+  }, []);
+
+  const clearPendingScroll = useCallback(() => {
+    setPendingScrollTaskId(null);
+  }, []);
+
   const triggerAgentResponse = useCallback(
     async (
-      mention: string
+      agentId: string,
+      mention: string,
+      documentId?: string,
     ): Promise<{ agent: SimulatedAgent; response: string }> => {
-      const agent = DEMO_AGENTS[0]; // Claw is the default demo agent
+      const agent = DEMO_AGENTS.find((a) => a.id === agentId) ?? DEMO_AGENTS[0];
       setAgentTyping(agent);
 
-      // Simulate thinking delay (1.5–3s)
-      const delay = 1500 + Math.random() * 1500;
-      await new Promise((r) => setTimeout(r, delay));
+      taskIdCounter.current += 1;
+      const taskId = `demo-task-${taskIdCounter.current}`;
 
-      const response = matchSimulatedResponse(mention);
+      const newTask: SimulatedTask = {
+        id: taskId,
+        agentId: agent.id,
+        agentName: agent.name,
+        agentAvatar: agent.avatar,
+        agentColor: agent.color,
+        prompt: mention.length > 80 ? mention.slice(0, 80) + "…" : mention,
+        status: "queued",
+        documentId: documentId ?? currentDocId,
+        createdAt: new Date(),
+      };
 
+      setSimulatedTasks((prev) => [newTask, ...prev]);
+
+      // Stay in "queued" — the only completed case is the pre-seeded seed-task-1.
+      await new Promise((r) => setTimeout(r, 600));
       setAgentTyping(null);
+
+      const response = matchSimulatedResponse(agentId, mention);
       return { agent, response };
     },
-    []
+    [currentDocId]
   );
 
   const value: DemoContextValue = {
@@ -120,10 +277,19 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     documents,
     currentDocument,
     simulatedAgents: DEMO_AGENTS,
+    simulatedPeople: DEMO_PEOPLE,
     setCurrentDocumentId,
+    createDocument,
     updateDocumentContent,
+    saveEditorJson,
+    getEditorJson,
     triggerAgentResponse,
     agentTyping,
+    navigateToTask,
+    pendingScrollTaskId,
+    clearPendingScroll,
+    simulatedTasks,
+    presence,
     editCount,
     mentionCount,
     incrementEdits,

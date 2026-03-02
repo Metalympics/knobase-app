@@ -1,7 +1,6 @@
 // ── Auth Callback Route ──
 // Handles OAuth and magic link redirects from Supabase.
 // Creates public.users record on first sign-in.
-// Transfers demo document to real account if source=demo.
 // Redirects to onboarding if no workspace assigned.
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -10,7 +9,6 @@ import { createServerClient } from "@supabase/ssr";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const source = searchParams.get("source");
   const redirect = searchParams.get("redirect");
   const inviteToken = searchParams.get("invite");
 
@@ -80,11 +78,7 @@ export async function GET(request: NextRequest) {
 
         // New user → send to onboarding (unless coming from invite)
         if (!inviteToken) {
-          const onboardingUrl = new URL("/onboarding", origin);
-          if (source === "demo") {
-            onboardingUrl.searchParams.set("from_demo", "1");
-          }
-          return NextResponse.redirect(onboardingUrl);
+          return NextResponse.redirect(new URL("/onboarding", origin));
         }
       }
 
@@ -144,13 +138,6 @@ export async function GET(request: NextRequest) {
           // Fall through to default redirect
         }
       }
-    }
-
-    // If coming from demo, tag the redirect so client can transfer the document
-    if (source === "demo") {
-      const url = new URL(destination, origin);
-      url.searchParams.set("from_demo", "1");
-      return NextResponse.redirect(url);
     }
 
     return response;

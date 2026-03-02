@@ -5,14 +5,13 @@
 // Resolves from Supabase first, falls back to localStorage for offline/demo docs.
 
 import { useEffect, useState, Suspense } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { BookOpen, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { getDocument as getLocalDocument } from "@/lib/documents/store";
 import { createClient } from "@/lib/supabase/client";
 import { getActiveWorkspaceId } from "@/lib/workspaces/store";
-import { transferDemoToLocalAccount, hasDemoState } from "@/lib/demo/state";
 import type { Document } from "@/lib/documents/types";
 import Link from "next/link";
 
@@ -29,23 +28,11 @@ export default function UniversalDocumentPage() {
 function UniversalDocumentContent() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const docId = params.id as string;
-  const fromDemo = searchParams.get("from_demo") === "1";
-
   const [status, setStatus] = useState<DocStatus>("loading");
   const [doc, setDoc] = useState<Document | null>(null);
 
   useEffect(() => {
-    // Handle demo-to-account transfer on first auth redirect
-    if (fromDemo && hasDemoState()) {
-      const transferredId = transferDemoToLocalAccount();
-      if (transferredId) {
-        router.replace(`/d/${transferredId}`);
-        return;
-      }
-    }
-
     // Resolve the document — Supabase first, then localStorage fallback
     async function resolveDocument() {
       // 1. Try Supabase
@@ -94,7 +81,7 @@ function UniversalDocumentContent() {
     }
 
     resolveDocument();
-  }, [docId, fromDemo, router]);
+  }, [docId, router]);
 
   if (status === "loading") {
     return (

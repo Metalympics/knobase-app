@@ -1,22 +1,90 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import {
-  BookOpen,
-  LogIn,
-  ArrowRight,
-  FileText,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useRef } from "react";
+import type { Editor } from "@tiptap/react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
-import { DemoProvider, useDemo } from "@/lib/demo/context";
-import { useDemoCTA } from "@/hooks/use-demo-cta";
-import {
-  saveDemoState,
-  markDemoStarted,
-} from "@/lib/demo/state";
-import { SignupPromptModal } from "@/components/onboarding/signup-modal";
+import { DemoProvider, useDemo, SEED_TASKS } from "@/lib/demo/context";
+import { DemoSidebar } from "@/components/demo/demo-sidebar";
+
+// ── Helpers for seed task injection ──
+
+function injectSeedNodes(editor: Editor, tasks: typeof SEED_TASKS) {
+  // Find the first blockquote in the doc (the > 💡 CTA hint)
+  // and insert the inline agent node right after it.
+  let insertPos: number | null = null;
+  editor.state.doc.descendants((node, pos) => {
+    if (insertPos !== null) return false;
+    if (node.type.name === "blockquote") {
+      insertPos = pos + node.nodeSize;
+      return false;
+    }
+  });
+
+  // Fallback: insert after the first empty paragraph
+  if (insertPos === null) {
+    editor.state.doc.descendants((node, pos) => {
+      if (insertPos !== null) return false;
+      if (
+        node.type.name === "paragraph" &&
+        node.textContent.trim().length === 0
+      ) {
+        insertPos = pos + node.nodeSize;
+        return false;
+      }
+    });
+  }
+
+  // Last resort: end of document
+  if (insertPos === null) {
+    insertPos = editor.state.doc.content.size;
+  }
+
+  const { schema } = editor.state;
+  const nodesToInsert = tasks.map((task) => {
+    const inlineNode = schema.nodes.inlineAgent.create({
+      taskId: task.id,
+      agentId: task.agentId,
+      agentName: task.agentName,
+      agentAvatar: task.agentAvatar,
+      agentColor: task.agentColor,
+      submittedPrompt: task.prompt,
+      promptMode: false,
+      documentId: task.documentId,
+    });
+    return schema.nodes.paragraph.create(null, inlineNode);
+  });
+
+  try {
+    const tr = editor.state.tr.insert(insertPos, nodesToInsert);
+    editor.view.dispatch(tr);
+  } catch (e) {
+    console.warn("[Demo] Failed to inject seed nodes:", e);
+  }
+}
+
+function scrollToInlineAgent(editor: Editor, taskId: string) {
+  let targetPos: number | null = null;
+  editor.state.doc.descendants((node, pos) => {
+    if (targetPos !== null) return false;
+    if (node.type.name === "inlineAgent" && node.attrs.taskId === taskId) {
+      targetPos = pos;
+      return false;
+    }
+  });
+
+  if (targetPos !== null) {
+    try {
+      const domInfo = editor.view.domAtPos(targetPos);
+      const el =
+        domInfo.node instanceof HTMLElement
+          ? domInfo.node
+          : domInfo.node.parentElement;
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+      // DOM position may not be resolvable yet
+    }
+  }
+}
 
 export default function DemoPage() {
   return (
@@ -27,135 +95,132 @@ export default function DemoPage() {
 }
 
 function DemoPageContent() {
-  const router = useRouter();
   const demo = useDemo();
-  const { showCTA, trigger, trackEdit, openCTA, dismissCTA } =
-    useDemoCTA();
+  const editorRef = useRef<Editor | null>(null);
+  const prevDocIdRef = useRef<string | null>(null);
+  const seededDocsRef = useRef<Set<string>>(new Set());
 
-  // Also persist to localStorage for transfer-on-signup compatibility
+  // When the current document changes, snapshot the old editor's JSON
+  // so inline agent nodes survive the round-trip.
   useEffect(() => {
-    markDemoStarted();
-  }, []);
+    const prevId = prevDocIdRef.current;
+    const newId = demo.currentDocument?.id ?? null;
+
+    if (prevId && prevId !== newId && editorRef.current) {
+      demo.saveEditorJson(prevId, editorRef.current.getJSON());
+      editorRef.current = null;
+    }
+
+    prevDocIdRef.current = newId;
+  }, [demo, demo.currentDocument?.id]);
+
+  // Inject seed inline-agent nodes + handle scroll-to-task.
+  // Separated from handleEditorReady to avoid timing issues with editor
+  // content parsing. Runs once per document when the editor is available.
+  const pendingScrollRef = useRef<string | null>(null);
+
+  // When a scroll target is set (user clicked a task in sidebar),
+  // either stash it for handleEditorReady (different doc → remount)
+  // or scroll immediately (same doc → editor already loaded).
+  useEffect(() => {
+    if (!demo.pendingScrollTaskId) return;
+    const taskId = demo.pendingScrollTaskId;
+    demo.clearPendingScroll();
+
+    if (editorRef.current) {
+      // Editor is already loaded — scroll directly
+      requestAnimationFrame(() => {
+        if (editorRef.current) scrollToInlineAgent(editorRef.current, taskId);
+      });
+    } else {
+      // Editor will remount — stash for handleEditorReady
+      pendingScrollRef.current = taskId;
+    }
+  }, [demo, demo.pendingScrollTaskId]);
+
+  const handleEditorReady = useCallback(
+    (editor: Editor) => {
+      editorRef.current = editor;
+      const docId = demo.currentDocument?.id;
+      if (!docId) return;
+
+      const scrollTarget = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+
+      // Brief delay for the editor to finish initializing content
+      requestAnimationFrame(() => {
+        // ── Inject seed inline-agent nodes on first load ──
+        if (!seededDocsRef.current.has(docId) && !demo.getEditorJson(docId)) {
+          const seedTasks = SEED_TASKS.filter((t) => t.documentId === docId);
+
+          if (seedTasks.length > 0) {
+            seededDocsRef.current.add(docId);
+            injectSeedNodes(editor, seedTasks);
+          }
+        }
+
+        // ── Scroll to task anchor ──
+        if (scrollTarget) {
+          requestAnimationFrame(() => scrollToInlineAgent(editor, scrollTarget));
+        }
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [demo.currentDocument?.id],
+  );
 
   const handleContentChange = useCallback(
     (markdown: string) => {
       if (demo.currentDocument) {
         demo.updateDocumentContent(demo.currentDocument.id, markdown);
-        trackEdit();
-
-        // Also persist to localStorage so existing signup-transfer works
-        saveDemoState({
-          id: demo.currentDocument.id,
-          title: demo.currentDocument.title,
-          content: markdown,
-          createdAt: demo.currentDocument.createdAt,
-          updatedAt: new Date().toISOString(),
-        });
       }
     },
-    [demo, trackEdit]
+    [demo]
   );
-
-  const handleSignupClick = () => {
-    openCTA("manual");
-  };
 
   const currentDoc = demo.currentDocument;
   if (!currentDoc) return null;
 
+  // Prefer the JSON snapshot (preserves inline agent nodes) over markdown
+  const jsonSnapshot = demo.getEditorJson(currentDoc.id);
+  const editorContent = jsonSnapshot ?? currentDoc.content;
+
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      {/* Demo header bar */}
-      <header className="sticky top-0 z-50 flex h-12 items-center justify-between border-b border-neutral-200 bg-white/95 px-4 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white">
-            <BookOpen className="h-4 w-4 text-neutral-700" />
-          </div>
-          <span className="text-sm font-medium text-neutral-900">
-            Knobase
-          </span>
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-            Demo
-          </span>
+    <div className="flex h-screen bg-white">
+      <DemoSidebar />
 
-          {/* Demo doc selector */}
-          <span className="mx-1 text-neutral-300">|</span>
-          <div className="flex items-center gap-1">
-            {demo.documents.map((doc) => (
-              <button
-                key={doc.id}
-                onClick={() => demo.setCurrentDocumentId(doc.id)}
-                className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
-                  doc.id === currentDoc.id
-                    ? "bg-neutral-100 text-neutral-900 font-medium"
-                    : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700"
-                }`}
-              >
-                <FileText className="h-3 w-3" />
-                <span className="hidden sm:inline max-w-[120px] truncate">
-                  {doc.title}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Agent typing indicator */}
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Demo info banner */}
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-700">
+          You&apos;re in demo mode — no account required. Type{" "}
+          <kbd className="rounded border border-amber-300 bg-amber-100 px-1 py-0.5 font-mono text-[10px]">
+            @
+          </kbd>{" "}
+          in the editor to try AI agent mentions.
           {demo.agentTyping && (
-            <span className="flex items-center gap-1.5 text-xs text-indigo-600">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
-              {demo.agentTyping.avatar} {demo.agentTyping.name} is thinking…
+            <span className="ml-3 inline-flex items-center gap-1.5 text-indigo-600">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
+              {demo.agentTyping.name} is thinking…
             </span>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/auth/login")}
-            className="text-neutral-600"
-          >
-            <LogIn className="mr-1 h-3.5 w-3.5" />
-            Log in
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSignupClick}
-            className="bg-neutral-900 text-white hover:bg-neutral-800"
-          >
-            Save your work
-            <ArrowRight className="ml-1 h-3.5 w-3.5" />
-          </Button>
         </div>
-      </header>
 
-      {/* Demo info banner */}
-      <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-700">
-        You&apos;re in demo mode — no account required. Try typing{" "}
-        <kbd className="rounded border border-amber-300 bg-amber-100 px-1 py-0.5 font-mono text-[10px]">
-          @claw
-        </kbd>{" "}
-        in the editor to see your AI teammate in action.
+        {/* Editor */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-4xl px-6 py-8">
+            <TiptapEditor
+              key={currentDoc.id}
+              initialContent={editorContent}
+              onEditorReady={handleEditorReady}
+              onContentChange={handleContentChange}
+              documentId={currentDoc.id}
+              documentTitle={currentDoc.title}
+              workspaceId={demo.workspace.id}
+            />
+          </div>
+        </main>
       </div>
 
-      {/* Editor */}
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
-        <TiptapEditor
-          key={currentDoc.id}
-          initialContent={currentDoc.content}
-          onContentChange={handleContentChange}
-          documentId={currentDoc.id}
-          documentTitle={currentDoc.title}
-        />
-      </main>
-
-      {/* Signup prompt modal */}
-      {showCTA && (
-        <SignupPromptModal
-          trigger={trigger}
-          onClose={dismissCTA}
-          onContinueEditing={dismissCTA}
-        />
-      )}
     </div>
   );
 }

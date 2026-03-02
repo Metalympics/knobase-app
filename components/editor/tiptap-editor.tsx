@@ -9,7 +9,7 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
-import { Image } from "@tiptap/extension-image";
+import { ResizableImage } from "./extensions/resizable-image";
 import { Link } from "@tiptap/extension-link";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
@@ -52,7 +52,8 @@ interface TiptapEditorProps {
   ydoc?: Y.Doc;
   provider?: SupabaseProvider | null;
   user?: { id: string; name: string; color: string };
-  initialContent?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  initialContent?: string | Record<string, any>;
   onContentChange?: (markdown: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
   flushRef?: React.MutableRefObject<(() => void) | null>;
@@ -169,10 +170,7 @@ export function TiptapEditor({
         TableRow,
         TableCell,
         TableHeader,
-        Image.configure({
-          HTMLAttributes: { class: "tiptap-image" },
-          inline: false,
-        }),
+        ResizableImage,
         Link.configure({
           openOnClick: true,
           HTMLAttributes: { class: "tiptap-link" },
@@ -216,9 +214,6 @@ export function TiptapEditor({
           class: "tiptap-editor outline-none",
         },
         handleKeyDown: (_view, event) => {
-          // Slash menu keys are swallowed here; agent selector keys are
-          // handled by the InlineAgent extension's addKeyboardShortcuts()
-          // which reads live storage state (not a stale closure).
           if (slashMenu.isOpen) {
             if (
               ["ArrowUp", "ArrowDown", "Enter", "Escape"].includes(event.key)
@@ -227,6 +222,60 @@ export function TiptapEditor({
             }
           }
           return false;
+        },
+        handleDrop: (view, event, _slice, moved) => {
+          if (moved || !event.dataTransfer?.files.length) return false;
+
+          const images = Array.from(event.dataTransfer.files).filter((f) =>
+            f.type.startsWith("image/")
+          );
+          if (images.length === 0) return false;
+
+          event.preventDefault();
+
+          const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+
+          images.forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const src = e.target?.result as string;
+              if (!src) return;
+              const pos = coords?.pos ?? view.state.selection.from;
+              const node = view.state.schema.nodes.image.create({ src });
+              const tr = view.state.tr.insert(pos, node);
+              view.dispatch(tr);
+            };
+            reader.readAsDataURL(file);
+          });
+
+          return true;
+        },
+        handlePaste: (view, event) => {
+          const items = event.clipboardData?.items;
+          if (!items) return false;
+
+          const images = Array.from(items).filter((item) =>
+            item.type.startsWith("image/")
+          );
+          if (images.length === 0) return false;
+
+          event.preventDefault();
+
+          images.forEach((item) => {
+            const file = item.getAsFile();
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const src = e.target?.result as string;
+              if (!src) return;
+              const node = view.state.schema.nodes.image.create({ src });
+              const tr = view.state.tr.replaceSelectionWith(node);
+              view.dispatch(tr);
+            };
+            reader.readAsDataURL(file);
+          });
+
+          return true;
         },
       },
       onUpdate: ({ editor: ed }) => {

@@ -5,7 +5,7 @@
 // Sets active workspace and loads the knowledge editor for the document.
 
 import { useEffect, useState, Suspense } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Loader2, BookOpen, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getDocument } from "@/lib/documents/store";
@@ -13,7 +13,6 @@ import {
   setActiveWorkspaceId,
   getWorkspace,
 } from "@/lib/workspaces/store";
-import { transferDemoToLocalAccount, hasDemoState } from "@/lib/demo/state";
 import Link from "next/link";
 
 type PageStatus = "loading" | "ready" | "not-found" | "wrong-workspace";
@@ -29,23 +28,11 @@ export default function ContextualDocumentPage() {
 function ContextualDocumentContent() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const workspaceId = params.workspaceId as string;
   const docId = params.id as string;
-  const fromDemo = searchParams.get("from_demo") === "1";
-
   const [status, setStatus] = useState<PageStatus>("loading");
 
   useEffect(() => {
-    // Handle demo-to-account transfer
-    if (fromDemo && hasDemoState()) {
-      const transferredId = transferDemoToLocalAccount();
-      if (transferredId) {
-        router.replace(`/w/${workspaceId}/d/${transferredId}`);
-        return;
-      }
-    }
-
     // Validate workspace exists
     const ws = getWorkspace(workspaceId);
     if (!ws) {
@@ -69,7 +56,7 @@ function ContextualDocumentContent() {
       localStorage.setItem("knobase-app:selected-doc", docId);
     }
     router.replace("/knowledge");
-  }, [workspaceId, docId, fromDemo, router]);
+  }, [workspaceId, docId, router]);
 
   if (status === "loading") {
     return (
