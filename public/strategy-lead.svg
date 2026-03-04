@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#7C3AED"/>
+  <!-- Chess knight / strategy icon -->
+  <g fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Head -->
+    <path d="M24 44 L24 38 C24 34 26 30 30 28 C32 27 34 26 35 24 C36 22 36 19 34 17 C32 15 29 15 27 17 C25 19 25 21 26 23" />
+    <!-- Base -->
+    <line x1="20" y1="44" x2="40" y2="44"/>
+    <!-- Mane detail -->
+    <path d="M26 23 C24 25 23 28 24 31"/>
+    <!-- Eye -->
+    <circle cx="31" cy="21" r="1.5" fill="white" stroke="none"/>
+  </g>
+</svg>

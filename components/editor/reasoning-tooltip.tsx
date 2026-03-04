@@ -90,10 +90,12 @@ function formatTimestamp(ts: string): string {
 
 interface ReasoningBadgeProps {
   trace: ReasoningTrace;
+  /** When true, renders in the expanded state by default (for showcases/screenshots) */
+  defaultExpanded?: boolean;
 }
 
-export function ReasoningBadge({ trace }: ReasoningBadgeProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export function ReasoningBadge({ trace, defaultExpanded = false }: ReasoningBadgeProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
     <div className="my-1">

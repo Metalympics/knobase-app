@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#1E3A5F"/>
+  <!-- Shield icon -->
+  <g fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Shield outline -->
+    <path d="M32 16 L44 20 L44 32 C44 39 38 44 32 46 C26 44 20 39 20 32 L20 20 Z" fill="rgba(255,255,255,0.12)" stroke="white"/>
+    <!-- Check mark inside shield -->
+    <polyline points="26,32 30,36 38,27" stroke-width="2.5"/>
+  </g>
+</svg>

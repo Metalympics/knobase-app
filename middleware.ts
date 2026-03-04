@@ -8,9 +8,45 @@ export async function middleware(request: NextRequest) {
     request: { headers: request.headers },
   });
 
+  // ── Public routes — resolve before touching Supabase ──
+  const publicPaths = [
+    "/demo",
+    "/ui",
+    "/d/",
+    "/auth/",
+    "/tos",
+    "/privacy",
+    "/pricing",
+    "/api/",
+    "/invite/",
+  ];
+
+  // Tag demo routes and return immediately
+  if (pathname.startsWith("/demo")) {
+    response.headers.set("x-demo-mode", "true");
+    return response;
+  }
+
+  // Invite routes — always public
+  if (pathname.startsWith("/invite/")) {
+    return response;
+  }
+
+  // All other public paths
+  const isPublicPath = publicPaths.some((p) => pathname.startsWith(p));
+  if (isPublicPath) {
+    return response;
+  }
+
+  // ── Auth-required routes — need Supabase ──
+  // Guard against missing env vars (e.g. local dev without .env)
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return response;
+  }
+
   const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
     {
       cookies: {
         get(name: string) {
@@ -37,35 +73,6 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  // ── Public routes — no auth required ──
-  const publicPaths = [
-    "/demo",
-    "/d/",
-    "/auth/",
-    "/tos",
-    "/privacy",
-    "/pricing",
-    "/api/",
-    "/invite/",
-  ];
-  const isPublicPath = publicPaths.some((p) => pathname.startsWith(p));
-
-  // ── Demo routes — tag with demo-mode header ──
-  if (pathname.startsWith("/demo")) {
-    response.headers.set("x-demo-mode", "true");
-    return response;
-  }
-
-  // ── Invite routes — always allow public access (page handles auth check) ──
-  if (pathname.startsWith("/invite/")) {
-    return response;
-  }
-
-  // Early return for any public path
-  if (isPublicPath) {
-    return response;
-  }
 
   // ── Protected routes — require authentication ──
   const protectedPaths = [

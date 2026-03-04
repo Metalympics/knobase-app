@@ -142,19 +142,48 @@ Risks: SMB churn rose to 4.2% ("too complex"), 3 of 6 platform roles remain open
     documentId: "demo-meeting",
     createdAt: new Date(Date.now() - 1 * 60_000),
   },
+  {
+    id: "seed-task-4",
+    agentId: "strategy-lead",
+    agentName: "Strategy Lead",
+    agentAvatar: "/strategy-lead.svg",
+    agentColor: "#7C3AED",
+    prompt: "Competitor Analysis",
+    status: "completed",
+    response: `**Competitor Analysis — Q4 2025**
+
+**Direct competitors:**
+
+| Competitor | ARR (est.) | Key strength | Key weakness |
+|---|---|---|---|
+| Notion AI | $400M+ | Brand & ecosystem | AI is a feature, not the core |
+| Confluence AI | $1B+ | Enterprise footprint | Legacy UX, slow innovation |
+| Coda | $100M est. | Flexible data model | Steep learning curve |
+
+**Our position:** Knobase is the only product where AI agents are first-class collaborators, not add-on copilots. The inline @mention workflow has no direct equivalent.
+
+**Biggest threat:** Notion launching agent-to-agent orchestration. Timeline: likely 12–18 months based on their current product roadmap signals.
+
+**Recommendation:** Accelerate the agent marketplace before Notion copies the pattern. First-mover advantage in agent templates is the defensible moat.`,
+    documentId: "demo-gtm",
+    createdAt: new Date(Date.now() - 45 * 60_000),
+  },
 ];
 
 function buildPresence(docs: DemoDocument[]): PresenceEntry[] {
   const docMap = new Map(docs.map((d) => [d.id, d.title]));
   return [
     { id: "demo-chris", name: "Chris", type: "person", color: "#3B82F6", documentId: "demo-roadmap", documentTitle: docMap.get("demo-roadmap") ?? "" },
-    { id: "demo-sarah", name: "Sarah", type: "person", color: "#10B981", documentId: "demo-report", documentTitle: docMap.get("demo-report") ?? "" },
+    { id: "demo-sarah", name: "Sarah", type: "person", color: "#10B981", avatar: "/avatar-sarah.svg", documentId: "demo-report", documentTitle: docMap.get("demo-report") ?? "" },
     { id: "demo-mike", name: "Mike", type: "person", color: "#F59E0B", documentId: "demo-welcome", documentTitle: docMap.get("demo-welcome") ?? "" },
     { id: "demo-priya", name: "Priya", type: "person", color: "#F43F5E", documentId: "demo-clinical", documentTitle: docMap.get("demo-clinical") ?? "" },
+    { id: "demo-alex", name: "Alex", type: "person", color: "#3B82F6", avatar: "/avatar-alex.svg", documentId: "demo-gtm", documentTitle: docMap.get("demo-gtm") ?? "" },
     { id: "openclaw", name: "OpenClaw", type: "agent", color: "#E94560", avatar: "/openclaw.png", documentId: "demo-report", documentTitle: docMap.get("demo-report") ?? "" },
     { id: "chatgpt", name: "ChatGPT", type: "agent", color: "#10a37f", avatar: "/chatgpt.png", documentId: "demo-meeting", documentTitle: docMap.get("demo-meeting") ?? "" },
     { id: "claude", name: "Claude", type: "agent", color: "#8B5CF6", avatar: "/claude.png", documentId: "demo-clinical", documentTitle: docMap.get("demo-clinical") ?? "" },
     { id: "cursor", name: "Cursor", type: "agent", color: "#2563EB", avatar: "/cursor.png", documentId: "demo-roadmap", documentTitle: docMap.get("demo-roadmap") ?? "" },
+    { id: "strategy-lead", name: "Strategy Lead", type: "agent", color: "#7C3AED", avatar: "/strategy-lead.svg", documentId: "demo-gtm", documentTitle: docMap.get("demo-gtm") ?? "" },
+    { id: "data-analyst", name: "Data Analyst", type: "agent", color: "#2563EB", avatar: "/data-analyst.svg", documentId: "demo-report", documentTitle: docMap.get("demo-report") ?? "" },
   ];
 }
 

@@ -481,6 +481,92 @@ Make Knobase the default workspace where knowledge workers and AI agents collabo
     updatedAt: now,
   },
   {
+    id: "demo-gtm",
+    title: "Q4 Go-To-Market Strategy",
+    icon: "🎯",
+    content: `# Q4 Go-To-Market Strategy
+
+**Owner:** Chris Lee  |  **Quarter:** Q4 2025  |  **Status:** 🟡 In Progress
+
+Knobase is entering its most critical quarter. With $4.2M ARR at the end of Q3 and a growing enterprise pipeline, Q4 is our moment to accelerate. This document outlines the strategic pillars, go-to-market plays, and execution plan to close the year strong.
+
+---
+
+## Executive Summary
+
+> 💡 **This section is empty on purpose.** Try typing \`@strategy-lead analyze our Q3 performance data and outline three main growth pillars for Q4\` below to have the Strategy Lead agent fill it in.
+
+\u00A0
+
+\u00A0
+
+\u00A0
+
+---
+
+## Q3 Performance Snapshot
+
+| Metric              | Q3 2025   | Q2 2025   | Change    |
+|---------------------|-----------|-----------|-----------|
+| ARR                 | $4.2M     | $3.4M     | +24% QoQ  |
+| New Customers       | 89        | 67        | +33%      |
+| Enterprise Accounts | 12        | 5         | +140%     |
+| Churn Rate (SMB)    | 4.2%      | 3.8%      | +0.4pp    |
+| NPS                 | 62        | 54        | +8        |
+| DAU                 | 12,400    | 10,500    | +18%      |
+
+### Q3 Churn Breakdown
+
+| Segment     | Churn Rate | Primary Reason             | Accounts Lost |
+|-------------|------------|----------------------------|---------------|
+| SMB (<10)   | 6.8%       | "Too complex for our team" | 31            |
+| Mid-Market  | 2.1%       | Competitor pricing         | 8             |
+| Enterprise  | 0%         | —                          | 0             |
+
+**Key insight:** SMB churn is the primary risk. Exit surveys cite onboarding complexity and lack of templates as top reasons. Enterprise retention is perfect — this is where we double down.
+
+---
+
+## Growth Pillars
+
+> 💡 **This section will be populated by @strategy-lead.** Mention the agent above to see the three growth pillars for Q4 appear here.
+
+---
+
+## Target Accounts — Q4 Pipeline
+
+| Company           | Segment    | Potential ACV | Stage          | Owner  |
+|-------------------|------------|---------------|----------------|--------|
+| Horizon Capital   | Enterprise | $380K         | Late-stage     | Chris  |
+| Apex Research     | Enterprise | $210K         | Demo scheduled | Sarah  |
+| BrightPath Health | Enterprise | $290K         | Proposal sent  | Chris  |
+| Nimbus Tech (x3)  | Mid-Market | $45K each     | Trial          | Mike   |
+
+Total pipeline: ~$1.07M potential new ARR in Q4.
+
+---
+
+## Positioning
+
+**Current tagline:** "The open-source AI workspace"
+
+**Proposed Q4 messaging:** "Your AI teammates, not just your AI tools."
+
+This shift positions Knobase against Notion AI and Confluence AI — both of which offer *AI assistants* — by emphasizing *agent orchestration*: multiple AI agents collaborating with humans in the same document.
+
+---
+
+## Open Items
+
+- [ ] @data-analyst — pull exact churn cohort data for the SMB segment
+- [ ] @compliance-officer — review the BrightPath Health proposal for HIPAA requirements
+- [ ] @seo-expert — optimize the public-facing positioning page for search
+- [ ] Sarah — finalize the Apex Research demo script by Oct 10
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
     id: "demo-join",
     title: "Join Knobase",
     icon: "🚀",

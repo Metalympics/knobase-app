@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#EA580C"/>
+  <!-- Search / magnifier icon -->
+  <g fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Magnifier circle -->
+    <circle cx="28" cy="28" r="10"/>
+    <!-- Magnifier handle -->
+    <line x1="35" y1="35" x2="44" y2="44"/>
+    <!-- Upward trend arrow inside circle -->
+    <polyline points="22,32 26,26 30,28 34,22" stroke-width="1.8"/>
+    <polyline points="31,22 34,22 34,25" stroke-width="1.8"/>
+  </g>
+</svg>

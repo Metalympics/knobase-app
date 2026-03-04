@@ -29,6 +29,8 @@ import {
 interface NotificationCenterProps {
   onNavigate?: (documentId: string) => void;
   onOpenSettings?: () => void;
+  /** When true, renders the dropdown permanently open (for showcases/screenshots) */
+  defaultOpen?: boolean;
 }
 
 const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
@@ -57,8 +59,9 @@ function timeAgo(timestamp: string): string {
 export function NotificationCenter({
   onNavigate,
   onOpenSettings,
+  defaultOpen = false,
 }: NotificationCenterProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [notifications, setNotifications] = useState<Notification[]>(listNotifications);
   const [unreadCount, setUnreadCount] = useState(getUnreadCount);
   const [toast, setToast] = useState<Notification | null>(null);

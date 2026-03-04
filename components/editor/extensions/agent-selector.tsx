@@ -19,6 +19,7 @@ interface AgentOption {
   icon: React.ReactNode;
   description: string;
   avatarSrc?: string;
+  color?: string;
   agent?: Agent;
 }
 
@@ -75,6 +76,7 @@ const DEMO_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = DEMO_AGENTS.map((a) => 
     />
   ),
   avatarSrc: a.avatar,
+  color: a.color,
   description: a.description,
 }));
 
@@ -171,8 +173,9 @@ export function AgentSelector({
 
   const filteredAgents = AGENT_OPTIONS.filter((agent) => {
     const q = query.toLowerCase();
+    const displayName = isDemo ? agent.provider : agent.agent!.name;
     return (
-      agent.agent!.name.toLowerCase().includes(q) ||
+      displayName.toLowerCase().includes(q) ||
       agent.model.toLowerCase().includes(q) ||
       agent.provider.toLowerCase().includes(q) ||
       agent.description.toLowerCase().includes(q)
@@ -238,10 +241,10 @@ export function AgentSelector({
             mention: null,
             promptMode: true,
             agentId: isDemo ? agentOption.id : agentOption.agent!.id,
-            agentName: agentOption.agent!.name,
+            agentName: isDemo ? agentOption.provider : agentOption.agent!.name,
             agentModel: agentOption.model,
             agentAvatar: agentOption.avatarSrc ?? agentOption.agent!.avatar,
-            agentColor: agentOption.agent!.color,
+            agentColor: agentOption.color ?? agentOption.agent!.color,
             documentId,
             documentTitle,
             workspaceId,
@@ -374,7 +377,7 @@ export function AgentSelector({
                     {agentOption.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    {editingAgentId === agentOption.agent!.id ? (
+                    {!isDemo && editingAgentId === agentOption.agent!.id ? (
                       <input
                         ref={nameInputRef}
                         type="text"
@@ -386,12 +389,14 @@ export function AgentSelector({
                       />
                     ) : (
                       <>
-                        <div className="font-medium text-neutral-900">{agentOption.agent!.name}</div>
+                        <div className="font-medium text-neutral-900">
+                          {isDemo ? agentOption.provider : agentOption.agent!.name}
+                        </div>
                         <div className="text-xs text-neutral-400">{agentOption.description}</div>
                       </>
                     )}
                   </div>
-                  {!editingAgentId && (
+                  {!isDemo && !editingAgentId && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

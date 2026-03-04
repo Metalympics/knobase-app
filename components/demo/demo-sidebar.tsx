@@ -14,10 +14,12 @@ import {
   User,
   Bot,
   ChevronRight,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDemo, type SimulatedTask, type PresenceEntry } from "@/lib/demo/context";
 import type { DemoDocument } from "@/lib/demo/demo-data";
+import { AgentStudioModal } from "@/components/marketplace/agent-studio-modal";
 
 function getInitial(name: string) {
   return name.charAt(0).toUpperCase();
@@ -85,7 +87,7 @@ function PresenceRow({
       title={`Go to ${entry.documentTitle}`}
     >
       <div className="relative">
-        {entry.type === "agent" && entry.avatar ? (
+        {entry.avatar ? (
           <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white border border-neutral-200">
             <Image
               src={entry.avatar}
@@ -202,6 +204,7 @@ export function DemoSidebar() {
   const router = useRouter();
   const demo = useDemo();
   const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>("all");
+  const [showAgentStudio, setShowAgentStudio] = useState(false);
 
   const people = demo.presence.filter((p) => p.type === "person");
   const agents = demo.presence.filter((p) => p.type === "agent");
@@ -329,6 +332,15 @@ export function DemoSidebar() {
         <Button
           variant="ghost"
           size="sm"
+          onClick={() => setShowAgentStudio(true)}
+          className="w-full justify-start text-neutral-600"
+        >
+          <UserPlus className="mr-2 h-3.5 w-3.5" />
+          Invite agents
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => router.push("/auth/login")}
           className="w-full justify-start text-neutral-600"
         >
@@ -344,6 +356,13 @@ export function DemoSidebar() {
           <ArrowRight className="ml-2 h-3.5 w-3.5" />
         </Button>
       </div>
+
+      {showAgentStudio && (
+        <AgentStudioModal
+          onClose={() => setShowAgentStudio(false)}
+          addedAgentIds={demo.simulatedAgents.map((a) => a.id)}
+        />
+      )}
     </aside>
   );
 }
