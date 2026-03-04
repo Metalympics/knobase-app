@@ -441,3 +441,39 @@
   pointer-events: none;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+/* ── Agent response body — scoped markdown rendering ── */
+.agent-response-body p { margin: 0 0 0.5rem; }
+.agent-response-body p:last-child { margin-bottom: 0; }
+.agent-response-body h1,
+.agent-response-body h2,
+.agent-response-body h3 { font-weight: 600; margin: 0.75rem 0 0.25rem; line-height: 1.3; }
+.agent-response-body h1 { font-size: 1rem; }
+.agent-response-body h2 { font-size: 0.9375rem; }
+.agent-response-body h3 { font-size: 0.875rem; }
+.agent-response-body strong { font-weight: 600; }
+.agent-response-body em { font-style: italic; }
+.agent-response-body code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.8125em;
+  background: rgba(0,0,0,0.06);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+.agent-response-body ul,
+.agent-response-body ol { margin: 0.25rem 0 0.5rem 1.25rem; padding: 0; }
+.agent-response-body li { margin-bottom: 0.15rem; }
+.agent-response-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+  font-size: 0.8125rem;
+}
+.agent-response-body th,
+.agent-response-body td {
+  border: 1px solid rgba(0,0,0,0.12);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+.agent-response-body th { font-weight: 600; background: rgba(0,0,0,0.04); }
+.agent-response-body hr { border: none; border-top: 1px solid rgba(0,0,0,0.12); margin: 0.5rem 0; }

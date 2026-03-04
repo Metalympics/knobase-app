@@ -2,6 +2,110 @@
 
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useMemo, useCallback, useState, useRef, useEffect } from "react";
+
+/* ------------------------------------------------------------------ */
+/* Markdown → HTML converter for agent response rendering/insertion     */
+/* ------------------------------------------------------------------ */
+function markdownToHtml(md: string): string {
+  const applyInline = (text: string) =>
+    text
+      .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+      .replace(/`([^`\n]+)`/g, "<code>$1</code>");
+
+  const lines = md.split("\n");
+  const out: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+  let tableOpen = false;
+  let tableBodyOpen = false;
+
+  const flushList = () => {
+    if (listType) { out.push(`</${listType}>`); listType = null; }
+  };
+  const flushTable = () => {
+    if (tableBodyOpen) { out.push("</tbody>"); tableBodyOpen = false; }
+    if (tableOpen) { out.push("</table>"); tableOpen = false; }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+
+    // Headings
+    const h3 = line.match(/^### (.+)/);
+    const h2 = line.match(/^## (.+)/);
+    const h1 = line.match(/^# (.+)/);
+    if (h3 || h2 || h1) {
+      flushList(); flushTable();
+      const match = (h3 || h2 || h1)!;
+      const level = h3 ? 3 : h2 ? 2 : 1;
+      out.push(`<h${level}>${applyInline(match[1])}</h${level}>`);
+      continue;
+    }
+
+    // Table rows
+    if (line.startsWith("|")) {
+      flushList();
+      // Separator row — opens tbody
+      if (/^\|[\s|:-]+\|$/.test(line)) {
+        if (!tableBodyOpen) { out.push("<tbody>"); tableBodyOpen = true; }
+        continue;
+      }
+      const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+      if (!tableOpen) {
+        out.push('<table>');
+        out.push("<thead><tr>" + cells.map((c) => `<th>${applyInline(c)}</th>`).join("") + "</tr></thead>");
+        tableOpen = true;
+      } else {
+        out.push("<tr>" + cells.map((c) => `<td>${applyInline(c)}</td>`).join("") + "</tr>");
+      }
+      continue;
+    } else {
+      flushTable();
+    }
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) {
+      flushList();
+      out.push("<hr>");
+      continue;
+    }
+
+    // Unordered list
+    const ulMatch = line.match(/^[*-] (.+)/);
+    if (ulMatch) {
+      if (listType === "ol") flushList();
+      if (!listType) { out.push("<ul>"); listType = "ul"; }
+      out.push(`<li>${applyInline(ulMatch[1])}</li>`);
+      continue;
+    }
+
+    // Ordered list
+    const olMatch = line.match(/^\d+\. (.+)/);
+    if (olMatch) {
+      if (listType === "ul") flushList();
+      if (!listType) { out.push("<ol>"); listType = "ol"; }
+      out.push(`<li>${applyInline(olMatch[1])}</li>`);
+      continue;
+    }
+
+    // Blank line — flush open blocks
+    if (line.trim() === "") {
+      flushList();
+      flushTable();
+      out.push("<br>");
+      continue;
+    }
+
+    // Plain paragraph line
+    flushList();
+    out.push(`<p>${applyInline(line)}</p>`);
+  }
+
+  flushList();
+  flushTable();
+  return out.join("\n");
+}
 import { motion } from "framer-motion";
 import {
   X,
@@ -214,19 +318,20 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
     if (!task?.result || !editor) return;
     try {
       let nodePos: number | null = null;
+      let nodeSize: number | null = null;
       editor.state.doc.descendants((n, p) => {
         if (n.type.name === "inlineAgent" && n.attrs.taskId === taskId && nodePos === null) {
           nodePos = p;
+          nodeSize = n.nodeSize;
         }
       });
-      if (nodePos !== null) {
-        const n = editor.state.doc.nodeAt(nodePos);
-        if (n) {
-          const tr = editor.state.tr;
-          tr.delete(nodePos, nodePos + n.nodeSize);
-          tr.insertText(task.result, nodePos);
-          editor.view.dispatch(tr);
-        }
+      if (nodePos !== null && nodeSize !== null) {
+        const html = markdownToHtml(task.result);
+        editor
+          .chain()
+          .deleteRange({ from: nodePos, to: nodePos + nodeSize })
+          .insertContentAt(nodePos, html)
+          .run();
       }
     } catch {
       deleteNode();
@@ -500,7 +605,10 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
                   {proposal.explanation && (
                     <p className="mb-1 text-[11px] italic text-neutral-500">{proposal.explanation}</p>
                   )}
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{content}</p>
+                  <div
+                    className="agent-response-body text-sm leading-relaxed text-neutral-700"
+                    dangerouslySetInnerHTML={{ __html: markdownToHtml(content) }}
+                  />
                 </div>
               </div>
             );
@@ -554,9 +662,10 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
               </button>
             </div>
           </div>
-          <div className="px-3 py-2">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{task.result}</p>
-          </div>
+          <div
+            className="agent-response-body px-3 py-2 text-sm leading-relaxed text-neutral-700"
+            dangerouslySetInnerHTML={{ __html: markdownToHtml(task.result) }}
+          />
           {/* Prompt tooltip on hover */}
           {promptText && (
             <div className="absolute -top-8 left-3 right-3 opacity-0 group-hover/completed:opacity-100 pointer-events-none transition-opacity">
