@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { DemoProvider, useDemo, SEED_TASKS } from "@/lib/demo/context";
 import { DemoSidebar } from "@/components/demo/demo-sidebar";
+import { Breadcrumb, type BreadcrumbItem } from "@/components/ui/breadcrumb";
 
 // ── Helpers for seed task injection ──
 
@@ -185,25 +186,26 @@ function DemoPageContent() {
   const jsonSnapshot = demo.getEditorJson(currentDoc.id);
   const editorContent = jsonSnapshot ?? currentDoc.content;
 
+  const ancestorChain = demo.getAncestorChain(currentDoc.id);
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { id: "ws", label: demo.workspace.name, icon: "📚", onClick: () => demo.setCurrentDocumentId(demo.documents[0]?.id) },
+    ...ancestorChain.map((doc) => ({
+      id: doc.id,
+      label: doc.title,
+      icon: doc.icon,
+      onClick: doc.id !== currentDoc.id ? () => demo.setCurrentDocumentId(doc.id) : undefined,
+    })),
+  ];
+
   return (
     <div className="flex h-screen bg-white">
       <DemoSidebar />
 
       <div className="flex flex-1 flex-col min-w-0">
-        {/* Demo info banner */}
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-700">
-          You&apos;re in demo mode — no account required. Type{" "}
-          <kbd className="rounded border border-amber-300 bg-amber-100 px-1 py-0.5 font-mono text-[10px]">
-            @
-          </kbd>{" "}
-          in the editor to try AI agent mentions.
-          {demo.agentTyping && (
-            <span className="ml-3 inline-flex items-center gap-1.5 text-indigo-600">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
-              {demo.agentTyping.name} is thinking…
-            </span>
-          )}
-        </div>
+        {/* Breadcrumb header */}
+        <header className="shrink-0 flex items-center px-6 py-2">
+          <Breadcrumb items={breadcrumbItems} />
+        </header>
 
         {/* Editor */}
         <main className="flex-1 overflow-y-auto">

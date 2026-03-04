@@ -18,8 +18,38 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Knobase",
-  description: "Your AI-powered knowledge base",
+  title: "Knobase — Human-AI Workspace",
+  description:
+    "Real-time collaboration for teams and AI agents. Invite colleagues, invite your agent, work side by side. The workspace OpenClaw should have been.",
+  keywords: [
+    "AI collaboration",
+    "human AI workspace",
+    "OpenClaw",
+    "real-time editing",
+    "agent workspace",
+    "Knobase",
+    "AI agents",
+    "team collaboration",
+  ],
+  metadataBase: new URL("https://app.knobase.com"),
+  openGraph: {
+    title: "Knobase — Human-AI Workspace",
+    description:
+      "Real-time collaboration for teams and AI agents. Invite colleagues, invite your agent, work side by side.",
+    type: "website",
+    url: "https://app.knobase.com",
+    siteName: "Knobase",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Knobase — Human-AI Workspace",
+    description:
+      "Real-time collaboration for teams and AI agents. The workspace OpenClaw should have been.",
+  },
+  alternates: {
+    canonical: "https://app.knobase.com",
+  },
+  manifest: "/manifest.webmanifest",
 };
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;

@@ -18,6 +18,7 @@ interface AgentOption {
   provider: string;
   icon: React.ReactNode;
   description: string;
+  avatarSrc?: string;
   agent?: Agent;
 }
 
@@ -27,6 +28,7 @@ const BASE_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = [
     model: "openclaw",
     provider: "OpenClaw",
     icon: <Image src="/openclaw.png" alt="OpenClaw" width={32} height={32} className="h-full w-full rounded-md object-cover" />,
+    avatarSrc: "/openclaw.png",
     description: "Full agent workspace integration",
   },
   {
@@ -72,6 +74,7 @@ const DEMO_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = DEMO_AGENTS.map((a) => 
       className="h-full w-full rounded-md object-cover"
     />
   ),
+  avatarSrc: a.avatar,
   description: a.description,
 }));
 
@@ -234,10 +237,10 @@ export function AgentSelector({
             taskId: null,
             mention: null,
             promptMode: true,
-            agentId: agentOption.agent!.id,
+            agentId: isDemo ? agentOption.id : agentOption.agent!.id,
             agentName: agentOption.agent!.name,
             agentModel: agentOption.model,
-            agentAvatar: agentOption.agent!.avatar,
+            agentAvatar: agentOption.avatarSrc ?? agentOption.agent!.avatar,
             agentColor: agentOption.agent!.color,
             documentId,
             documentTitle,
@@ -249,7 +252,7 @@ export function AgentSelector({
 
       onClose();
     },
-    [editor, documentId, documentTitle, workspaceId, userId, onClose],
+    [editor, documentId, documentTitle, workspaceId, userId, onClose, isDemo],
   );
 
   const executeCommand = useCallback(

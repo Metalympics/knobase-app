@@ -42,23 +42,6 @@ export function useDocuments() {
   useEffect(() => {
     const initial = initDocuments();
     setDocs(initial.docs);
-
-    // Check for a document pre-selected by contextual routing (/w/.../d/...)
-    const selectedDocId =
-      typeof window !== "undefined"
-        ? localStorage.getItem("knobase-app:selected-doc")
-        : null;
-
-    if (selectedDocId) {
-      localStorage.removeItem("knobase-app:selected-doc");
-      const doc = getDocument(selectedDocId);
-      if (doc) {
-        setActiveId(doc.id);
-        setActiveDoc(doc);
-        return;
-      }
-    }
-
     setActiveId(initial.activeId);
     setActiveDoc(initial.activeDoc);
   }, []);
@@ -76,14 +59,14 @@ export function useDocuments() {
   }, []);
 
   const addDocument = useCallback(
-    (title = "Untitled", skipLimitCheck = false) => {
+    (title = "Untitled", skipLimitCheck = false, parentId?: string) => {
       if (!skipLimitCheck) {
         const wsId = getActiveWorkspaceId();
         if (wsId && !canCreateDocument(wsId)) {
           return null;
         }
       }
-      const doc = createDocument(title);
+      const doc = createDocument(title, parentId);
       refresh();
       setActiveId(doc.id);
       setActiveDoc(doc);

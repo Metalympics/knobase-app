@@ -10,6 +10,7 @@ export interface DemoDocument {
   content: string;
   createdAt: string;
   updatedAt: string;
+  parentId?: string;
 }
 
 export interface DemoWorkspace {
@@ -384,6 +385,101 @@ Make Knobase the default workspace where knowledge workers and AI agents collabo
     updatedAt: now,
   },
 
+  {
+    id: "demo-report-revenue",
+    title: "Revenue Breakdown",
+    icon: "💰",
+    parentId: "demo-report",
+    content: `# Revenue Breakdown — Q3 2025
+
+## By Segment
+
+| Segment     | ARR      | Growth | % of Total |
+|-------------|----------|--------|------------|
+| Enterprise  | $2.5M    | +48%   | 60%        |
+| Mid-Market  | $1.1M    | +22%   | 26%        |
+| SMB         | $0.6M    | +8%    | 14%        |
+
+## By Region
+
+| Region       | ARR      | Growth |
+|--------------|----------|--------|
+| North America| $2.9M    | +28%   |
+| Europe       | $0.8M    | +18%   |
+| APAC         | $0.5M    | +32%   |
+
+## Key Deals
+
+- **Acme Corp** — $420K ACV, 500 seats, signed Aug 15
+- **Zenith Technologies** — $180K ACV, 200 seats, signed Sep 2
+- **Meridian Health** — $290K ACV, 350 seats, signed Sep 18
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "demo-report-metrics",
+    title: "Key Metrics Deep Dive",
+    icon: "📈",
+    parentId: "demo-report",
+    content: `# Key Metrics Deep Dive — Q3 2025
+
+## User Engagement
+
+- **DAU:** 12,400 (+18% QoQ)
+- **WAU:** 28,600 (+15% QoQ)
+- **MAU:** 45,200 (+12% QoQ)
+- **DAU/MAU ratio:** 27.4% (healthy engagement)
+
+## Retention
+
+| Cohort    | Month 1 | Month 3 | Month 6 |
+|-----------|---------|---------|---------|
+| Jan 2025  | 82%     | 68%     | 54%     |
+| Apr 2025  | 85%     | 72%     | —       |
+| Jul 2025  | 88%     | —       | —       |
+
+## NPS Breakdown
+
+- **Promoters (9-10):** 48%
+- **Passives (7-8):** 34%
+- **Detractors (0-6):** 18%
+- **NPS Score:** 62 (+8 from Q2)
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "demo-roadmap-q1",
+    title: "Q1 2026 Sprint Plan",
+    icon: "🏃",
+    parentId: "demo-roadmap",
+    content: `# Q1 2026 Sprint Plan
+
+## Sprint Goals
+
+1. **Real-time collaboration** — Ship multi-cursor editing with Y.js
+2. **Agent v2** — Inline agent mentions with prompt input
+3. **Workspace invites** — Email-based invite system with roles
+
+## Week-by-Week
+
+| Week | Focus | Owner |
+|------|-------|-------|
+| W1-2 | Y.js integration + conflict resolution | Sarah |
+| W3-4 | Agent mention UI + task queue | Chris |
+| W5-6 | Invite system + permissions | Mike |
+| W7-8 | QA, bug fixes, performance | All |
+
+## Success Criteria
+
+- [ ] 95% sync reliability in collab sessions
+- [ ] Agent response time < 3s for simple tasks
+- [ ] Invite acceptance rate > 70%
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
   {
     id: "demo-join",
     title: "Join Knobase",

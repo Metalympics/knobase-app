@@ -14,6 +14,7 @@ import {
   Activity,
   Crown,
   AlertTriangle,
+  ChevronRight,
 } from "lucide-react";
 import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
@@ -40,6 +41,87 @@ interface SidebarProps {
     documentId: string,
     selection?: { from: number; to: number },
   ) => void;
+}
+
+function DocTreeItem({
+  doc,
+  allDocs,
+  activeId,
+  onSelect,
+  onDelete,
+  depth = 0,
+}: {
+  doc: DocumentMeta;
+  allDocs: DocumentMeta[];
+  activeId: string | null;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  depth?: number;
+}) {
+  const children = allDocs.filter((d) => d.parentId === doc.id);
+  const hasChildren = children.length > 0;
+  const isActive = doc.id === activeId;
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div>
+      <div className="group flex items-center" style={{ paddingLeft: `${depth * 12}px` }}>
+        <button
+          onClick={() => hasChildren && setExpanded((p) => !p)}
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
+            hasChildren
+              ? "text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+              : "text-transparent pointer-events-none"
+          }`}
+        >
+          <ChevronRight
+            className={`h-3 w-3 transition-transform ${expanded && hasChildren ? "rotate-90" : ""}`}
+          />
+        </button>
+        <button
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/plain", doc.id);
+            e.dataTransfer.effectAllowed = "copy";
+          }}
+          onClick={() => onSelect(doc.id)}
+          className={`flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-sm transition-colors min-w-0 ${
+            isActive
+              ? "bg-neutral-100 font-medium text-neutral-900"
+              : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
+          }`}
+        >
+          <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+          <span className="truncate">{doc.title || "Untitled"}</span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(doc.id);
+          }}
+          className="mr-1 rounded p-1 text-neutral-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-400 group-hover:opacity-100"
+          aria-label="Delete document"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      {expanded && hasChildren && (
+        <div>
+          {children.map((child) => (
+            <DocTreeItem
+              key={child.id}
+              doc={child}
+              allDocs={allDocs}
+              activeId={activeId}
+              onSelect={onSelect}
+              onDelete={onDelete}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Sidebar({
@@ -175,40 +257,19 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2">
-        {documents.map((doc) => (
-          <div key={doc.id} className="group flex items-center">
-            <button
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/plain", doc.id);
-                e.dataTransfer.effectAllowed = "copy";
-              }}
-              onClick={() => onSelect(doc.id)}
-              className={`flex flex-1 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors ${
-                doc.id === activeId
-                  ? "bg-neutral-100 font-medium text-neutral-900"
-                  : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
-              }`}
-            >
-              <FileText className="h-4 w-4 shrink-0 text-neutral-400" />
-              <span className="truncate">{doc.title || "Untitled"}</span>
-              <span className="ml-auto text-[10px] text-neutral-300">.md</span>
-            </button>
-            {documents.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(doc.id);
-                }}
-                className="mr-1 rounded p-1 text-neutral-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-400 group-hover:opacity-100"
-                aria-label="Delete document"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        ))}
+      <div className="flex-1 overflow-y-auto px-1">
+        {documents
+          .filter((doc) => !doc.parentId)
+          .map((doc) => (
+            <DocTreeItem
+              key={doc.id}
+              doc={doc}
+              allDocs={documents}
+              activeId={activeId}
+              onSelect={onSelect}
+              onDelete={onDelete}
+            />
+          ))}
       </div>
 
       <div className="border-t border-[#e5e5e5] px-4 py-3">

@@ -570,12 +570,10 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
     );
   }
 
-  // Fallback: cancelled or unknown status — remove the node
-  return (
-    <NodeViewWrapper className="inline-agent-node">
-      <span className="text-xs text-neutral-400 italic" contentEditable={false}>
-        Task ended.
-      </span>
-    </NodeViewWrapper>
-  );
+  // Fallback: cancelled or unknown status — silently remove the node
+  useEffect(() => {
+    deleteNode();
+  }, [deleteNode]);
+
+  return null;
 }

@@ -35,7 +35,7 @@ export function getDocument(id: string): Document | null {
   return readAll().find((d) => d.id === id) ?? null;
 }
 
-export function createDocument(title = "Untitled"): Document {
+export function createDocument(title = "Untitled", parentId?: string): Document {
   const now = new Date().toISOString();
   const doc: Document = {
     id: crypto.randomUUID(),
@@ -43,6 +43,7 @@ export function createDocument(title = "Untitled"): Document {
     content: "",
     createdAt: now,
     updatedAt: now,
+    ...(parentId ? { parentId } : {}),
   };
   const docs = readAll();
   docs.push(doc);

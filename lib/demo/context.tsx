@@ -66,7 +66,7 @@ interface DemoContextValue {
   simulatedPeople: SimulatedPerson[];
 
   setCurrentDocumentId: (id: string) => void;
-  createDocument: () => string;
+  createDocument: (parentId?: string) => string;
   updateDocumentContent: (docId: string, content: string) => void;
 
   /** Store the editor JSON snapshot for a document (preserves custom nodes) */
@@ -89,6 +89,9 @@ interface DemoContextValue {
 
   simulatedTasks: SimulatedTask[];
   presence: PresenceEntry[];
+
+  /** Returns ancestor chain from root to the given doc (inclusive) */
+  getAncestorChain: (docId: string) => DemoDocument[];
 
   editCount: number;
   mentionCount: number;
@@ -188,7 +191,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setCurrentDocId(id);
   }, []);
 
-  const createDocument = useCallback((): string => {
+  const createDocument = useCallback((parentId?: string): string => {
     docIdCounter.current += 1;
     const id = `demo-new-${docIdCounter.current}`;
     const now = new Date().toISOString();
@@ -199,6 +202,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       content: "",
       createdAt: now,
       updatedAt: now,
+      ...(parentId ? { parentId } : {}),
     };
     setDocuments((prev) => [...prev, newDoc]);
     setCurrentDocId(id);
@@ -234,6 +238,18 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const clearPendingScroll = useCallback(() => {
     setPendingScrollTaskId(null);
   }, []);
+
+  const getAncestorChain = useCallback((docId: string): DemoDocument[] => {
+    const chain: DemoDocument[] = [];
+    let current = documents.find((d) => d.id === docId);
+    while (current) {
+      chain.unshift(current);
+      current = current.parentId
+        ? documents.find((d) => d.id === current!.parentId)
+        : undefined;
+    }
+    return chain;
+  }, [documents]);
 
   const triggerAgentResponse = useCallback(
     async (
@@ -288,6 +304,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     navigateToTask,
     pendingScrollTaskId,
     clearPendingScroll,
+    getAncestorChain,
     simulatedTasks,
     presence,
     editCount,

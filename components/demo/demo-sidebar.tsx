@@ -13,9 +13,11 @@ import {
   Plus,
   User,
   Bot,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDemo, type SimulatedTask, type PresenceEntry } from "@/lib/demo/context";
+import type { DemoDocument } from "@/lib/demo/demo-data";
 
 function getInitial(name: string) {
   return name.charAt(0).toUpperCase();
@@ -118,6 +120,82 @@ function PresenceRow({
   );
 }
 
+function PageTreeItem({
+  doc,
+  allDocs,
+  activeId,
+  onSelect,
+  onAddChild,
+  depth = 0,
+}: {
+  doc: DemoDocument;
+  allDocs: DemoDocument[];
+  activeId: string | null;
+  onSelect: (id: string) => void;
+  onAddChild: (parentId: string) => void;
+  depth?: number;
+}) {
+  const children = allDocs.filter((d) => d.parentId === doc.id);
+  const hasChildren = children.length > 0;
+  const isActive = doc.id === activeId;
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div>
+      <div className="group flex items-center" style={{ paddingLeft: `${depth * 12}px` }}>
+        <button
+          onClick={() => hasChildren && setExpanded((p) => !p)}
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
+            hasChildren
+              ? "text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+              : "text-transparent pointer-events-none"
+          }`}
+        >
+          <ChevronRight
+            className={`h-3 w-3 transition-transform ${expanded && hasChildren ? "rotate-90" : ""}`}
+          />
+        </button>
+        <button
+          onClick={() => onSelect(doc.id)}
+          className={`flex flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm transition-colors min-w-0 ${
+            isActive
+              ? "bg-neutral-200/70 text-neutral-900 font-medium"
+              : "text-neutral-600 hover:bg-neutral-100"
+          }`}
+        >
+          <span className="text-xs shrink-0">{doc.icon}</span>
+          <span className="truncate text-[13px]">{doc.title}</span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddChild(doc.id);
+          }}
+          className="mr-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:bg-neutral-200 hover:text-neutral-600 group-hover:opacity-100"
+          title="Add sub-page"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
+      {expanded && hasChildren && (
+        <div>
+          {children.map((child) => (
+            <PageTreeItem
+              key={child.id}
+              doc={child}
+              allDocs={allDocs}
+              activeId={activeId}
+              onSelect={onSelect}
+              onAddChild={onAddChild}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type PresenceFilter = "all" | "people" | "agents";
 
 export function DemoSidebar() {
@@ -167,24 +245,19 @@ export function DemoSidebar() {
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="px-2 space-y-0.5">
-          {demo.documents.map((doc) => {
-            const isActive = doc.id === demo.currentDocument?.id;
-            return (
-              <button
+        <div className="px-1 space-y-0.5">
+          {demo.documents
+            .filter((doc) => !doc.parentId)
+            .map((doc) => (
+              <PageTreeItem
                 key={doc.id}
-                onClick={() => demo.setCurrentDocumentId(doc.id)}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-                  isActive
-                    ? "bg-neutral-200/70 text-neutral-900 font-medium"
-                    : "text-neutral-600 hover:bg-neutral-100"
-                }`}
-              >
-                <span className="text-sm">{doc.icon}</span>
-                <span className="truncate text-[13px]">{doc.title}</span>
-              </button>
-            );
-          })}
+                doc={doc}
+                allDocs={demo.documents}
+                activeId={demo.currentDocument?.id ?? null}
+                onSelect={(id) => demo.setCurrentDocumentId(id)}
+                onAddChild={(parentId) => demo.createDocument(parentId)}
+              />
+            ))}
         </div>
 
         {/* Online */}

@@ -1,13 +1,13 @@
 "use client";
 
-// ── Workspace Home ──
-// /w/[workspaceId] — Shows workspace document list.
-// Redirects to /knowledge with the workspace set as active.
-
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { setActiveWorkspaceId, getWorkspace } from "@/lib/workspaces/store";
+import {
+  setActiveWorkspaceId,
+  getWorkspace,
+} from "@/lib/workspaces/store";
+import { listDocuments, createDocument } from "@/lib/documents/store";
 
 export default function WorkspaceHomePage() {
   const params = useParams();
@@ -15,14 +15,20 @@ export default function WorkspaceHomePage() {
   const workspaceId = params.workspaceId as string;
 
   useEffect(() => {
-    // Set the active workspace and redirect to the main knowledge page
     const ws = getWorkspace(workspaceId);
-    if (ws) {
-      setActiveWorkspaceId(workspaceId);
-      router.replace("/knowledge");
-    } else {
-      // Unknown workspace — go to workspace list
+    if (!ws) {
       router.replace("/workspaces");
+      return;
+    }
+
+    setActiveWorkspaceId(workspaceId);
+
+    const docs = listDocuments();
+    if (docs.length > 0) {
+      router.replace(`/w/${workspaceId}/d/${docs[0].id}`);
+    } else {
+      const doc = createDocument("Untitled");
+      router.replace(`/w/${workspaceId}/d/${doc.id}`);
     }
   }, [workspaceId, router]);
 
