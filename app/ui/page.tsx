@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Brain, Cpu, Clock, Bot, MessageSquare, UserPlus, Edit3, Bell, Check, CheckCheck, Archive, X } from "lucide-react";
+import { Brain, Cpu, Clock, Bot, MessageSquare, UserPlus, Edit3, Bell, Check, CheckCheck, Archive, X, AtSign } from "lucide-react";
 import { InlineAgentPromptCard } from "@/components/ui-showcase/inline-agent-prompt-card";
 import { InlineAgentProcessingCard } from "@/components/ui-showcase/inline-agent-processing-card";
 import { InlineAgentResponseCard } from "@/components/ui-showcase/inline-agent-response-card";
@@ -224,7 +224,7 @@ export default function UIShowcasePage() {
             html.to.design
           </span>
         </div>
-        <p className="text-xs text-neutral-400">9 components · Public · No auth required</p>
+        <p className="text-xs text-neutral-400">11 components · Public · No auth required</p>
       </div>
 
       <div className="mx-auto max-w-6xl px-8 py-10 space-y-14">
@@ -462,6 +462,237 @@ export default function UIShowcasePage() {
               ))}
             </div>
           </Card>
+        </section>
+
+        {/* ── Section 8: Mention Badges ── */}
+        <section>
+          <SectionLabel
+            title="Mention Badges"
+            subtitle="Inline @mention nodes rendered in the editor — three variants depending on who mentioned whom"
+          />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+            {/* Human → User */}
+            <Card>
+              <div className="mb-4 flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">H</span>
+                <span className="text-xs font-medium text-neutral-600">Human → User</span>
+              </div>
+              <p className="mb-4 text-xs text-neutral-400">When a collaborator types @username in a document</p>
+              <div className="flex flex-wrap gap-2">
+                {["chris", "sarah", "alex"].map((name) => (
+                  <span
+                    key={name}
+                    className="mention-badge human-to-user"
+                  >
+                    <span
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                      style={{ backgroundColor: name === "chris" ? "#2563EB" : name === "sarah" ? "#9333ea" : "#16a34a" }}
+                    >
+                      {name[0].toUpperCase()}
+                    </span>
+                    @{name}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-5 rounded-lg bg-neutral-50 px-3 py-2.5 text-xs text-neutral-600 leading-relaxed">
+                Please review the Q4 roadmap{" "}
+                <span className="mention-badge human-to-user">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: "#2563EB" }}>C</span>
+                  @chris
+                </span>
+                {" "}and share your thoughts.
+              </div>
+            </Card>
+
+            {/* Agent → User */}
+            <Card>
+              <div className="mb-4 flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[10px] font-bold text-white">A</span>
+                <span className="text-xs font-medium text-neutral-600">Agent → User</span>
+              </div>
+              <p className="mb-4 text-xs text-neutral-400">When an AI agent @mentions a human in its response</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { agent: "Claw", user: "chris" },
+                  { agent: "Analyst", user: "sarah" },
+                  { agent: "Strategy Lead", user: "alex" },
+                ].map(({ agent, user }) => (
+                  <span key={user} className="mention-badge agent-to-user">
+                    <Bot className="h-3 w-3 shrink-0" />
+                    <span className="text-[11px] opacity-70">{agent} →</span>
+                    @{user}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-5 rounded-lg bg-neutral-50 px-3 py-2.5 text-xs text-neutral-600 leading-relaxed">
+                Analysis complete.{" "}
+                <span className="mention-badge agent-to-user">
+                  <Bot className="h-3 w-3 shrink-0" />
+                  <span className="text-[11px] opacity-70">Claw →</span>
+                  @chris
+                </span>
+                {" "}please review the findings above.
+              </div>
+            </Card>
+
+            {/* Agent → Agent */}
+            <Card>
+              <div className="mb-4 flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-600 text-[10px] font-bold text-white">A</span>
+                <span className="text-xs font-medium text-neutral-600">Agent → Agent</span>
+              </div>
+              <p className="mb-4 text-xs text-neutral-400">When an AI agent hands off to another agent (chained tasks)</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { from: "Claw", to: "analyst" },
+                  { from: "Strategy", to: "compliance" },
+                  { from: "Data", to: "designer" },
+                ].map(({ from, to }) => (
+                  <span key={to} className="mention-badge agent-to-agent">
+                    <Bot className="h-3 w-3 shrink-0" />
+                    <span className="text-[11px] opacity-70">{from} →</span>
+                    @{to}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-5 rounded-lg bg-neutral-50 px-3 py-2.5 text-xs text-neutral-600 leading-relaxed">
+                Research complete.{" "}
+                <span className="mention-badge agent-to-agent">
+                  <Bot className="h-3 w-3 shrink-0" />
+                  <span className="text-[11px] opacity-70">Claw →</span>
+                  @analyst
+                </span>
+                {" "}please analyze sentiment in these findings.
+              </div>
+            </Card>
+
+          </div>
+        </section>
+
+        {/* ── Section 9: Agent Notifications ── */}
+        <section>
+          <SectionLabel
+            title="Agent Notifications"
+            subtitle="How agent-generated @mentions appear in the Notification Center and toast — purple-accented, with 🤖 prefix"
+          />
+          <div className="flex gap-6 flex-wrap items-start">
+
+            {/* Notification panel with agent entries */}
+            <div className="w-80 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-neutral-600" />
+                  <span className="text-sm font-semibold text-neutral-900">Notifications</span>
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-600 px-1 text-[10px] font-bold text-white">3</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button className="rounded p-1 text-neutral-400 hover:bg-neutral-100"><CheckCheck className="h-3.5 w-3.5" /></button>
+                  <button className="rounded p-1 text-neutral-400 hover:bg-neutral-100"><Archive className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+              <div className="divide-y divide-neutral-50">
+
+                {/* Agent mention — unread */}
+                {[
+                  {
+                    isAgent: true,
+                    icon: <Bot className="h-3 w-3" />,
+                    actor: "Claw",
+                    message: 'mentioned you: "Analysis complete. @chris please review the Q4 findings above."',
+                    time: "2m",
+                    read: false,
+                  },
+                  {
+                    isAgent: true,
+                    icon: <Check className="h-3 w-3" />,
+                    actor: "Data Analyst",
+                    message: "asked @analyst to continue: \"Research complete. Found 3 anomalies...\"",
+                    time: "15m",
+                    read: false,
+                  },
+                  {
+                    isAgent: false,
+                    icon: <AtSign className="h-3 w-3" />,
+                    actor: "Sarah",
+                    message: "mentioned you in Q1 2026 Sprint Plan",
+                    time: "45m",
+                    read: false,
+                  },
+                  {
+                    isAgent: false,
+                    icon: <UserPlus className="h-3 w-3" />,
+                    actor: "Alex",
+                    message: "shared Q4 Go-To-Market Strategy with you",
+                    time: "2h",
+                    read: true,
+                  },
+                ].map((notif, i) => (
+                  <div
+                    key={i}
+                    className={`group flex items-start gap-3 px-4 py-3 hover:bg-neutral-50 transition-colors ${!notif.read ? "bg-purple-50/40" : ""}`}
+                  >
+                    <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                      notif.isAgent ? "bg-purple-100 text-purple-600" : "bg-neutral-100 text-neutral-500"
+                    }`}>
+                      {notif.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs leading-relaxed text-neutral-700">
+                        <span className={`font-medium ${notif.isAgent ? "text-purple-700" : ""}`}>
+                          {notif.isAgent && "🤖 "}{notif.actor}{" "}
+                        </span>
+                        {notif.message}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-neutral-400">{notif.time}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!notif.read && <button className="rounded p-1 text-neutral-300 hover:bg-neutral-100"><Check className="h-3 w-3" /></button>}
+                      <button className="rounded p-1 text-neutral-300 hover:bg-neutral-100"><Archive className="h-3 w-3" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Toast examples */}
+            <div className="flex flex-col gap-3 flex-1 min-w-60 max-w-sm">
+              <p className="text-xs font-medium text-neutral-500">Toast variants</p>
+
+              {/* Agent toast */}
+              <div className="flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-lg">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-200 text-purple-700">
+                  <Bot className="h-3 w-3" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-neutral-700">
+                    <span className="font-medium text-purple-700">🤖 Claw </span>
+                    mentioned you: "Analysis complete. @chris please review."
+                  </p>
+                </div>
+                <button className="shrink-0 rounded p-0.5 text-neutral-400 hover:text-neutral-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+
+              {/* Human toast */}
+              <div className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-lg">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                  <AtSign className="h-3 w-3" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-neutral-700">
+                    <span className="font-medium">Sarah </span>
+                    mentioned you in Q1 2026 Sprint Plan
+                  </p>
+                </div>
+                <button className="shrink-0 rounded p-0.5 text-neutral-400 hover:text-neutral-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+
+              <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
+                Agent toasts use a <span className="font-mono text-purple-600">purple-50</span> background + <span className="font-mono text-purple-600">border-purple-200</span>. Human toasts stay white. Both slide in from the bottom-right.
+              </p>
+            </div>
+
+          </div>
         </section>
 
         {/* Footer */}

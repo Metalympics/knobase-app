@@ -33,8 +33,10 @@ interface NotificationCenterProps {
   defaultOpen?: boolean;
 }
 
-const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
+const TYPE_ICONS: Record<NotificationType | string, React.ReactNode> = {
   mention: <span className="text-[10px] font-bold">@</span>,
+  "agent-mentioned-you": <Bot className="h-3 w-3" />,
+  "agent-completed-task": <Check className="h-3 w-3" />,
   comment: <MessageSquare className="h-3 w-3" />,
   share: <UserPlus className="h-3 w-3" />,
   "agent-suggestion": <Bot className="h-3 w-3" />,
@@ -193,60 +195,68 @@ export function NotificationCenter({
                     </p>
                   </div>
                 ) : (
-                  notifications.slice(0, 20).map((notif) => (
-                    <div
-                      key={notif.id}
-                      className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-neutral-50 ${
-                        !notif.read ? "bg-purple-50/40" : ""
-                      }`}
-                    >
-                      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500">
-                        {TYPE_ICONS[notif.type]}
-                      </div>
-                      <button
-                        onClick={() => {
-                          handleMarkRead(notif.id);
-                          if (notif.documentId) {
-                            onNavigate?.(notif.documentId);
-                            setOpen(false);
-                          }
-                        }}
-                        className="min-w-0 flex-1 text-left"
+                  notifications.slice(0, 20).map((notif) => {
+                    const isAgent = notif.actorType === "agent";
+                    return (
+                      <div
+                        key={notif.id}
+                        className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-neutral-50 ${
+                          !notif.read ? "bg-purple-50/40" : ""
+                        }`}
                       >
-                        <p className="text-xs leading-relaxed text-neutral-700">
-                          {notif.actorName && (
-                            <span className="font-medium">
-                              {notif.actorName}{" "}
-                            </span>
-                          )}
-                          {notif.message}
-                        </p>
-                        <p className="mt-0.5 text-[10px] text-neutral-400">
-                          {timeAgo(notif.timestamp)}
-                        </p>
-                      </button>
-                      <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                        {!notif.read && (
-                          <button
-                            onClick={() => handleMarkRead(notif.id)}
-                            className="rounded p-1 text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500"
-                            title="Mark as read"
-                            aria-label="Mark as read"
-                          >
-                            <Check className="h-3 w-3" />
-                          </button>
-                        )}
+                        <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                          isAgent
+                            ? "bg-purple-100 text-purple-600"
+                            : "bg-neutral-100 text-neutral-500"
+                        }`}>
+                          {TYPE_ICONS[notif.type] || TYPE_ICONS["mention"]}
+                        </div>
                         <button
-                          onClick={() => handleArchive(notif.id)}
-                          className="rounded p-1 text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500"
-                          title="Archive"
-                          aria-label="Archive"
+                          onClick={() => {
+                            handleMarkRead(notif.id);
+                            if (notif.documentId) {
+                              onNavigate?.(notif.documentId);
+                              setOpen(false);
+                            }
+                          }}
+                          className="min-w-0 flex-1 text-left"
                         >
-                          <Archive className="h-3 w-3" />
+                          <p className="text-xs leading-relaxed text-neutral-700">
+                            {notif.actorName && (
+                              <span className={`font-medium ${isAgent ? "text-purple-700" : ""}`}>
+                                {isAgent && "🤖 "}
+                                {notif.actorName}{" "}
+                              </span>
+                            )}
+                            {notif.message}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-neutral-400">
+                            {timeAgo(notif.timestamp)}
+                          </p>
                         </button>
+                        <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                          {!notif.read && (
+                            <button
+                              onClick={() => handleMarkRead(notif.id)}
+                              className="rounded p-1 text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500"
+                              title="Mark as read"
+                              aria-label="Mark as read"
+                            >
+                              <Check className="h-3 w-3" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleArchive(notif.id)}
+                            className="rounded p-1 text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500"
+                            title="Archive"
+                            aria-label="Archive"
+                          >
+                            <Archive className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </motion.div>
@@ -261,15 +271,26 @@ export function NotificationCenter({
             initial={{ opacity: 0, y: 20, x: 20 }}
             animate={{ opacity: 1, y: 0, x: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-4 right-4 z-[60] flex items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-lg"
+            className={`fixed bottom-4 right-4 z-[60] flex items-start gap-3 rounded-xl border p-4 shadow-lg ${
+              toast.actorType === "agent"
+                ? "border-purple-200 bg-purple-50"
+                : "border-neutral-200 bg-white"
+            }`}
           >
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-              {TYPE_ICONS[toast.type]}
+            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+              toast.actorType === "agent"
+                ? "bg-purple-200 text-purple-700"
+                : "bg-purple-100 text-purple-600"
+            }`}>
+              {TYPE_ICONS[toast.type] || TYPE_ICONS["mention"]}
             </div>
             <div className="min-w-0 max-w-xs">
               <p className="text-xs text-neutral-700">
                 {toast.actorName && (
-                  <span className="font-medium">{toast.actorName} </span>
+                  <span className={`font-medium ${toast.actorType === "agent" ? "text-purple-700" : ""}`}>
+                    {toast.actorType === "agent" && "🤖 "}
+                    {toast.actorName}{" "}
+                  </span>
                 )}
                 {toast.message}
               </p>

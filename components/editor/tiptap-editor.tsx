@@ -24,6 +24,7 @@ import { TableBlock } from "./blocks/TableBlock";
 import { TaskListBlock } from "./blocks/TaskListBlock";
 import { SearchExtension } from "@/lib/search/search-extension";
 import { InlineAgent, setOnSuggestionCallback } from "./extensions/inline-agent";
+import { MentionNode } from "./extensions/mention-node";
 import { AgentSelector } from "./extensions/agent-selector";
 import { AgentCursorOverlay } from "./agent-cursor";
 import { OpenClawStatus } from "./openclaw-status";
@@ -192,6 +193,7 @@ export function TiptapEditor({
             class: "inline-agent-node",
           },
         }),
+        MentionNode,
         ...(ydoc
           ? [
               Collaboration.configure({ document: ydoc }),

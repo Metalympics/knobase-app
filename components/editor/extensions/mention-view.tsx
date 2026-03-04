@@ -1,12 +1,13 @@
 "use client";
 
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import { PendingBlock } from "@/components/editor/pending-block";
 import { useDocumentTasks } from "@/hooks/use-agent-tasks";
 import { toDisplayTask } from "@/lib/agents/task-types";
 import type { Mention } from "@/lib/mentions/types";
 import { getInitial } from "@/lib/mentions/store";
+import { Bot } from "lucide-react";
 
 export function MentionNodeView({ node }: NodeViewProps) {
   const mention = node.attrs.mention as Mention;
@@ -15,7 +16,7 @@ export function MentionNodeView({ node }: NodeViewProps) {
     return (
       <NodeViewWrapper className="inline mention-node">
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
+          className="mention-badge human-to-user"
           contentEditable={false}
         >
           <span
@@ -30,8 +31,44 @@ export function MentionNodeView({ node }: NodeViewProps) {
     );
   }
 
-  // AI mention - show pending block
-  return <AITaskMention taskId={mention.taskId} documentId={node.attrs.documentId as string | undefined} />;
+  if (mention.type === 'agent-to-human') {
+    return (
+      <NodeViewWrapper className="inline mention-node">
+        <span
+          className="mention-badge agent-to-user"
+          contentEditable={false}
+          title={`${mention.sourceAgentName} mentioned ${mention.targetName}`}
+        >
+          <Bot className="h-3 w-3 shrink-0" />
+          <span className="text-[11px] opacity-70">{mention.sourceAgentName} →</span>
+          <span className="text-sm font-medium">@{mention.targetName}</span>
+        </span>
+      </NodeViewWrapper>
+    );
+  }
+
+  if (mention.type === 'agent-to-agent') {
+    return (
+      <NodeViewWrapper className="inline mention-node">
+        <span
+          className="mention-badge agent-to-agent"
+          contentEditable={false}
+          title={`${mention.sourceAgentName} mentioned ${mention.targetAgentName}`}
+        >
+          <Bot className="h-3 w-3 shrink-0" />
+          <span className="text-[11px] opacity-70">{mention.sourceAgentName} →</span>
+          <span className="text-sm font-medium">@{mention.targetAgentName}</span>
+        </span>
+      </NodeViewWrapper>
+    );
+  }
+
+  // AI mention (type === 'ai') - show pending block
+  if (mention.type === 'ai') {
+    return <AITaskMention taskId={mention.taskId} documentId={node.attrs.documentId as string | undefined} />;
+  }
+
+  return null;
 }
 
 function AITaskMention({ taskId, documentId }: { taskId?: string; documentId?: string }) {

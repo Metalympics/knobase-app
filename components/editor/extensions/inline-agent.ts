@@ -12,7 +12,7 @@ import {
 } from "@/lib/agents/stream-handler";
 import type { InlineSuggestionData } from "@/components/agent/inline-suggestion";
 import { InlineAgentNodeView } from "./inline-agent-view";
-import type { MentionableUser, HumanMention, AIMention } from "@/lib/mentions/types";
+import type { MentionableUser, HumanMention, AIMention, Mention } from "@/lib/mentions/types";
 import { notifyMentionedUser } from "@/lib/mentions/store";
 import { getCurrentUserId } from "@/lib/workspaces/store";
 import type { Agent } from "@/lib/agents/store";
@@ -35,7 +35,7 @@ declare module "@tiptap/core" {
     inlineAgent: {
       insertInlineAgent: (taskId: string) => ReturnType;
       updateInlineAgent: (taskId: string, updates: Partial<AgentTask>) => ReturnType;
-      insertMention: (mention: HumanMention | AIMention) => ReturnType;
+      insertMention: (mention: Mention) => ReturnType;
     };
   }
   
@@ -148,7 +148,7 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
           return updated;
         },
       insertMention:
-        (mention: HumanMention | AIMention) =>
+        (mention: Mention) =>
         ({ commands }) => {
           return commands.insertContent({
             type: this.name,

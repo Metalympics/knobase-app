@@ -1,4 +1,4 @@
-export type MentionType = 'human' | 'ai';
+export type MentionType = 'human' | 'ai' | 'agent-to-human' | 'agent-to-agent';
 
 export interface BaseMention {
   type: MentionType;
@@ -21,7 +21,24 @@ export interface AIMention extends BaseMention {
   taskId?: string;
 }
 
-export type Mention = HumanMention | AIMention;
+export interface AgentToHumanMention extends BaseMention {
+  type: 'agent-to-human';
+  targetUserId: string;
+  targetName: string;
+  targetAvatar?: string;
+  sourceAgentId: string;
+  sourceAgentName: string;
+}
+
+export interface AgentToAgentMention extends BaseMention {
+  type: 'agent-to-agent';
+  targetAgentId: string;
+  targetAgentName: string;
+  sourceAgentId: string;
+  sourceAgentName: string;
+}
+
+export type Mention = HumanMention | AIMention | AgentToHumanMention | AgentToAgentMention;
 
 export interface MentionableUser {
   userId: string;
@@ -35,6 +52,6 @@ export interface MentionableAgent {
   id: string;
   model: string;
   provider: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   description: string;
 }

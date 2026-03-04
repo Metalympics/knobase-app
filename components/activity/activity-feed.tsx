@@ -62,6 +62,16 @@ const TYPE_CONFIG: Record<
     color: "bg-rose-100 text-rose-600",
     label: "Roles",
   },
+  "agent-mentioned-you": {
+    icon: <Bot className="h-3 w-3" />,
+    color: "bg-purple-100 text-purple-600",
+    label: "Agent Mention",
+  },
+  "agent-completed-task": {
+    icon: <Bot className="h-3 w-3" />,
+    color: "bg-green-100 text-green-600",
+    label: "Agent Task",
+  },
 };
 
 function timeAgo(timestamp: string): string {

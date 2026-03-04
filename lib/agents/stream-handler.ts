@@ -8,6 +8,9 @@ import {
 import { createProposal } from "@/lib/supabase/proposals";
 import { agentActivity } from "@/lib/activity/logger";
 import type { InlineSuggestionData } from "@/components/agent/inline-suggestion";
+import { detectMentions, type DetectedMention } from "@/lib/mentions/detector";
+import { addNotification } from "@/lib/notifications/store";
+import type { AgentToHumanMention, AgentToAgentMention } from "@/lib/mentions/types";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -345,7 +348,7 @@ export function createEditorStreamHandler(
       // Could be used to update the pending block UI
     },
 
-    onDone(result) {
+    async onDone(result) {
       // If we never got deltas (e.g., suggestion-only flow), insert the result
       if (!streamNodeDeleted && nodePos !== null && result) {
         try {
@@ -360,6 +363,59 @@ export function createEditorStreamHandler(
           // Best effort
         }
       }
+
+      // Process mentions in the final result
+      // This enables agent -> user and agent -> agent notifications
+      const finalText = result || "";
+      if (finalText.includes("@")) {
+        try {
+          const contextRes = await fetch(
+            `/api/agent/context?workspaceId=${config.workspaceId || ""}&documentId=${config.documentId}`,
+          );
+          if (contextRes.ok) {
+            const context = await contextRes.json();
+            
+            const { mentions } = detectMentions(
+              finalText,
+              context.workspaceMembers || [],
+              context.availableAgents || [],
+              {
+                sourceAgentId: config.agentId,
+                sourceAgentName: config.agentName,
+              },
+            );
+
+            for (const mention of mentions) {
+              if (mention.targetType === "user") {
+                addNotification({
+                  type: "agent-mentioned-you",
+                  message: `mentioned you: "${mention.context.slice(0, 100)}${mention.context.length > 100 ? "..." : ""}"`,
+                  actorName: config.agentName,
+                  actorType: "agent",
+                  documentId: config.documentId,
+                  link: `/knowledge?doc=${config.documentId}`,
+                });
+              } else if (mention.targetType === "agent") {
+                addNotification({
+                  type: "agent-suggestion",
+                  message: `asked ${mention.targetName} to continue: "${mention.context.slice(0, 80)}..."`,
+                  actorName: config.agentName,
+                  actorType: "agent",
+                  documentId: config.documentId,
+                  link: `/knowledge?doc=${config.documentId}`,
+                });
+              }
+            }
+
+            // Replace @mention plain text with styled mention nodes in editor
+            if (mentions.length > 0 && editor && !editor.isDestroyed) {
+              convertMentionsToNodes(editor, mentions, config, nodePos ?? 0);
+            }
+          }
+        } catch (err) {
+          console.error("[Mention] Failed to process mentions:", err);
+        }
+      }
     },
 
     onError(message) {
@@ -367,6 +423,95 @@ export function createEditorStreamHandler(
       // The task store update is handled by the stream handler itself
     },
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Helper: convert detected @mentions to styled mention nodes          */
+/* ------------------------------------------------------------------ */
+
+function convertMentionsToNodes(
+  editor: Editor,
+  mentions: DetectedMention[],
+  config: StreamHandlerConfig,
+  insertBasePos: number,
+) {
+  // Sort mentions in reverse order so replacing doesn't shift positions
+  const sorted = [...mentions].sort((a, b) => b.position.from - a.position.from);
+
+  const docText = editor.state.doc.textContent;
+
+  for (const mention of sorted) {
+    // Find the @mention text in the document starting from where agent text was inserted
+    const searchFrom = insertBasePos;
+    const textAfterInsert = docText.slice(searchFrom);
+    const idx = textAfterInsert.indexOf(mention.rawText);
+    if (idx === -1) continue;
+
+    const absFrom = searchFrom + idx;
+    const absTo = absFrom + mention.rawText.length;
+
+    // Map text offset to ProseMirror doc position
+    // Walk the doc to find the correct position
+    let pmFrom = -1;
+    let pmTo = -1;
+    let charCount = 0;
+
+    editor.state.doc.descendants((node, pos) => {
+      if (pmFrom !== -1 && pmTo !== -1) return false;
+      if (node.isText && node.text) {
+        const nodeStart = charCount;
+        const nodeEnd = charCount + node.text.length;
+        if (pmFrom === -1 && absFrom >= nodeStart && absFrom < nodeEnd) {
+          pmFrom = pos + (absFrom - nodeStart);
+        }
+        if (pmTo === -1 && absTo >= nodeStart && absTo <= nodeEnd) {
+          pmTo = pos + (absTo - nodeStart);
+        }
+        charCount += node.text.length;
+      } else if (node.isLeaf) {
+        charCount += 1;
+      }
+      return true;
+    });
+
+    if (pmFrom === -1 || pmTo === -1) continue;
+
+    const mentionAttrs =
+      mention.targetType === "user"
+        ? {
+            mention: {
+              type: "agent-to-human" as const,
+              id: crypto.randomUUID(),
+              targetUserId: mention.targetId,
+              targetName: mention.targetName,
+              targetAvatar: mention.targetAvatar,
+              sourceAgentId: config.agentId,
+              sourceAgentName: config.agentName,
+            } satisfies AgentToHumanMention,
+          }
+        : {
+            mention: {
+              type: "agent-to-agent" as const,
+              id: crypto.randomUUID(),
+              targetAgentId: mention.targetId,
+              targetAgentName: mention.targetName,
+              sourceAgentId: config.agentId,
+              sourceAgentName: config.agentName,
+            } satisfies AgentToAgentMention,
+          };
+
+    try {
+      const tr = editor.state.tr;
+      tr.delete(pmFrom, pmTo);
+      const mentionNode = editor.state.schema.nodes.mention?.create(mentionAttrs);
+      if (mentionNode) {
+        tr.insert(pmFrom, mentionNode);
+        editor.view.dispatch(tr);
+      }
+    } catch {
+      // Position may have shifted from a previous replacement — skip
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -5,7 +5,9 @@ export type NotificationType =
   | "agent-suggestion"
   | "doc-edit"
   | "member-joined"
-  | "role-changed";
+  | "role-changed"
+  | "agent-mentioned-you"
+  | "agent-completed-task";
 
 export interface Notification {
   id: string;
@@ -16,6 +18,8 @@ export interface Notification {
   timestamp: string;
   link?: string;
   actorName?: string;
+  /** Type of actor who triggered the notification (user or agent) */
+  actorType?: "user" | "agent";
   documentId?: string;
 }
 
