@@ -67,7 +67,7 @@ export function processMentions(
         message: `mentioned you in a comment`,
         actorName: authorName,
         documentId,
-        link: `/knowledge?doc=${documentId}`,
+        link: `/d/${documentId}`,
       });
     }
   });

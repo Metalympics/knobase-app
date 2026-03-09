@@ -8,38 +8,34 @@ export async function middleware(request: NextRequest) {
     request: { headers: request.headers },
   });
 
-  // ── Public routes — resolve before touching Supabase ──
+  // ── Public routes — no auth required ──
   const publicPaths = [
-    "/demo",
-    "/ui",
-    "/d/",
-    "/auth/",
-    "/tos",
-    "/privacy",
-    "/pricing",
-    "/api/",
-    "/invite/",
+    "/demo",           // Demo mode
+    "/ui",             // UI components
+    "/auth",           // All auth pages (login, signup, callback)
+    "/tos",            // Terms of service
+    "/privacy",        // Privacy policy
+    "/pricing",        // Pricing page
+    "/api",            // API routes (handle auth internally)
+    "/invite",         // Invite acceptance (public token-based)
+    "/",               // Root (redirects to login or dashboard)
   ];
 
-  // Tag demo routes and return immediately
+  // Check if path is public
+  const isPublicPath = publicPaths.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  
+  // Demo routes — tagged and public
   if (pathname.startsWith("/demo")) {
     response.headers.set("x-demo-mode", "true");
     return response;
   }
 
-  // Invite routes — always public
-  if (pathname.startsWith("/invite/")) {
-    return response;
-  }
-
-  // All other public paths
-  const isPublicPath = publicPaths.some((p) => pathname.startsWith(p));
+  // Public paths allow through
   if (isPublicPath) {
     return response;
   }
 
-  // ── Auth-required routes — need Supabase ──
-  // Guard against missing env vars (e.g. local dev without .env)
+  // ── Auth check for protected routes ──
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     return response;
   }
@@ -74,30 +70,30 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // ── Protected routes — require authentication ──
-  const protectedPaths = [
-    "/knowledge",
-    "/settings",
-    "/workspaces",
-    "/w/",
-    "/onboarding",
-  ];
-  const isProtectedPath = protectedPaths.some((p) => pathname.startsWith(p));
-
-  // ── Auth routes — redirect if already authenticated ──
+  // ── Auth routes handling ──
   const authPaths = ["/auth/login", "/auth/signup"];
   const isAuthPath = authPaths.some((p) => pathname.startsWith(p));
 
-  // Redirect to login if trying to access protected route without auth
+  // Redirect authenticated users away from auth pages
+  if (isAuthPath && user) {
+    return NextResponse.redirect(new URL("/s/default", request.url));
+  }
+
+  // ── Protected routes require auth ──
+  const protectedPaths = [
+    "/s/",             // School workspace routes
+    "/d/",             // Document routes (universal)
+    "/settings",       // User settings
+    "/onboarding",     // Onboarding flow
+  ];
+  
+  const isProtectedPath = protectedPaths.some((p) => pathname.startsWith(p));
+
+  // Redirect to login if accessing protected route without auth
   if (isProtectedPath && !user) {
     const redirectUrl = new URL("/auth/login", request.url);
     redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
-  }
-
-  // Redirect to knowledge if accessing auth pages while already logged in
-  if (isAuthPath && user) {
-    return NextResponse.redirect(new URL("/knowledge", request.url));
   }
 
   return response;
@@ -105,13 +101,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public (public files)
-     */
     "/((?!_next/static|_next/image|favicon.ico|public).*)",
   ],
 };

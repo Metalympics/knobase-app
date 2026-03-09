@@ -143,16 +143,6 @@ export function WorkspaceSwitcher({
               <button
                 onClick={() => {
                   setOpen(false);
-                  router.push("/workspaces");
-                }}
-                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-neutral-700"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                New Workspace
-              </button>
-              <button
-                onClick={() => {
-                  setOpen(false);
                   router.push("/settings/workspace");
                 }}
                 className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-neutral-700"

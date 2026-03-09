@@ -35,17 +35,17 @@ export default function OnboardingPage() {
   );
 }
 
-type Step = "workspace" | "persona" | "invite" | "complete";
-const STEPS: Step[] = ["workspace", "persona", "invite", "complete"];
+type Step = "school" | "persona" | "invite" | "complete";
+const STEPS: Step[] = ["school", "persona", "invite", "complete"];
 
 function OnboardingWizard() {
   const router = useRouter();
 
-  const [step, setStep] = useState<Step>("workspace");
+  const [step, setStep] = useState<Step>("school");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Step 1: Workspace
-  const [workspaceName, setWorkspaceName] = useState("My Knowledge");
+  // Step 1: School
+  const [schoolName, setSchoolName] = useState("My Knowledge");
 
   // Step 2: Persona
   const [persona, setPersona] = useState<string | null>(null);
@@ -57,14 +57,14 @@ function OnboardingWizard() {
   const progress = ((stepIndex + 1) / STEPS.length) * 100;
 
   // Auto-generate slug from name
-  const workspaceSlug = useMemo(
+  const schoolSlug = useMemo(
     () =>
-      workspaceName
+      schoolName
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") || "my-knowledge",
-    [workspaceName]
+    [schoolName]
   );
 
   const goNext = () => {
@@ -100,17 +100,17 @@ function OnboardingWizard() {
     if (!publicUser) {
       // Shouldn't happen — auth callback creates the profile
       console.error("No public.users record found");
-      router.push("/knowledge");
+      router.push("/s/default");
       return;
     }
 
-    // Create workspace in Supabase
+    // Create school in Supabase
     const inviteCode = crypto.randomUUID().slice(0, 8).toUpperCase();
-    const { data: workspace, error: wsError } = await supabase
-      .from("workspaces")
+    const { data: school, error: schoolError } = await supabase
+      .from("schools")
       .insert({
-        name: workspaceName.trim() || "My Knowledge",
-        slug: workspaceSlug,
+        name: schoolName.trim() || "My Knowledge",
+        slug: schoolSlug,
         owner_id: publicUser.id,
         invite_code: inviteCode,
         settings: { persona: persona || "general" },
@@ -118,18 +118,17 @@ function OnboardingWizard() {
       .select("id")
       .single();
 
-    if (wsError) {
-      console.error("Failed to create workspace:", wsError);
-      // Fall through — workspace might already exist, etc.
+    if (schoolError) {
+      console.error("Failed to create school:", schoolError);
+      // Fall through — school might already exist, etc.
     }
 
-    if (workspace) {
-      // Add owner as admin member
-      await supabase.from("workspace_members").insert({
-        workspace_id: workspace.id,
-        user_id: publicUser.id,
-        role: "admin" as const,
-      });
+    if (school) {
+      // Update user's school_id
+      await supabase
+        .from("users")
+        .update({ school_id: school.id })
+        .eq("id", publicUser.id);
 
       // Send invites (best-effort)
       const validEmails = inviteEmails.filter(
@@ -139,7 +138,7 @@ function OnboardingWizard() {
         await supabase.from("invites").insert({
           token: crypto.randomUUID(),
           email: email.trim(),
-          workspace_id: workspace.id,
+          school_id: school.id,
           invited_by: publicUser.id,
           role: "editor",
           expires_at: new Date(
@@ -149,13 +148,13 @@ function OnboardingWizard() {
       }
     }
 
-    // Also persist workspace name to localStorage for offline mode
+    // Also persist school name to localStorage for offline mode
     localStorage.setItem(
-      "knobase-app:workspace",
-      workspaceName.trim() || "My Knowledge"
+      "knobase-app:school",
+      schoolName.trim() || "My Knowledge"
     );
 
-    router.push("/knowledge");
+    router.push("/s/default");
   };
 
   return (
@@ -182,11 +181,11 @@ function OnboardingWizard() {
         </div>
 
         {/* Step content */}
-        {step === "workspace" && (
-          <WorkspaceStep
-            name={workspaceName}
-            slug={workspaceSlug}
-            onNameChange={setWorkspaceName}
+        {step === "school" && (
+          <SchoolStep
+            name={schoolName}
+            slug={schoolSlug}
+            onNameChange={setSchoolName}
             onNext={goNext}
           />
         )}
@@ -208,7 +207,7 @@ function OnboardingWizard() {
         )}
         {step === "complete" && (
           <CompleteStep
-            workspaceName={workspaceName}
+            schoolName={schoolName}
             isLoading={isLoading}
             onComplete={handleComplete}
             onBack={goBack}
@@ -232,9 +231,9 @@ function OnboardingWizard() {
   );
 }
 
-// ── Step 1: Workspace Setup ──
+// ── Step 1: School Setup ──
 
-function WorkspaceStep({
+function SchoolStep({
   name,
   slug,
   onNameChange,
@@ -248,7 +247,7 @@ function WorkspaceStep({
   return (
     <div>
       <h1 className="text-center text-2xl font-semibold tracking-tight text-neutral-900">
-        Create your workspace
+        Create your school
       </h1>
       <p className="mt-2 text-center text-sm text-neutral-500">
         Give your knowledge base a name to get started.
@@ -263,7 +262,7 @@ function WorkspaceStep({
       >
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-neutral-700">
-            Workspace name
+            School name
           </label>
           <Input
             type="text"
@@ -491,12 +490,12 @@ function InviteStep({
 // ── Step 4: Ready ──
 
 function CompleteStep({
-  workspaceName,
+  schoolName,
   isLoading,
   onComplete,
   onBack,
 }: {
-  workspaceName: string;
+  schoolName: string;
   isLoading: boolean;
   onComplete: () => void;
   onBack: () => void;
@@ -510,7 +509,7 @@ function CompleteStep({
         You&apos;re all set!
       </h1>
       <p className="mt-2 text-sm text-neutral-500">
-        <span className="font-medium text-neutral-700">{workspaceName}</span> is
+        <span className="font-medium text-neutral-700">{schoolName}</span> is
         ready. Your first document is waiting for you.
       </p>
 
@@ -527,7 +526,7 @@ function CompleteStep({
             </span>
           ) : (
             <>
-              Open my workspace
+              Open my school
               <ArrowRight className="ml-1 h-4 w-4" />
             </>
           )}

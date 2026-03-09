@@ -10,9 +10,7 @@ export type AuthUser = {
 };
 
 export type UserProfile = Database["public"]["Tables"]["users"]["Row"];
-export type Workspace = Database["public"]["Tables"]["workspaces"]["Row"];
-export type WorkspaceMember =
-  Database["public"]["Tables"]["workspace_members"]["Row"];
+export type School = Database["public"]["Tables"]["schools"]["Row"];
 export type Document = Database["public"]["Tables"]["documents"]["Row"];
 
 /* ------------------------------------------------------------------ */
@@ -88,17 +86,17 @@ export type AgentSessionStatus = AgentSession["status"];
 export type EditProposalStatus = AgentEditProposal["status"];
 export type EditType = AgentEditProposal["edit_type"];
 
-export type WorkspaceWithMembers = Workspace & {
-  members: (WorkspaceMember & { user: UserProfile })[];
+export type SchoolWithMembers = School & {
+  members: UserProfile[];
 };
 
 export type DocumentWithCreator = Document & {
   creator: UserProfile;
 };
 
-export type WorkspaceRole = "admin" | "editor" | "viewer";
+export type SchoolRole = "admin" | "editor" | "viewer";
 
-export type CreateWorkspaceInput = {
+export type CreateSchoolInput = {
   name: string;
   icon?: string;
   color?: string;
@@ -112,7 +110,7 @@ export type CreateWorkspaceInput = {
 export type CreateDocumentInput = {
   title: string;
   content: string;
-  workspace_id: string;
+  school_id: string;
   visibility?: "private" | "shared" | "public";
 };
 
@@ -127,10 +125,10 @@ export type UpdateProfileInput = {
   avatar_url?: string;
 };
 
-export type AddWorkspaceMemberInput = {
-  workspace_id: string;
+export type AddSchoolMemberInput = {
+  school_id: string;
   user_id: string;
-  role: WorkspaceRole;
+  role: SchoolRole;
 };
 
 export type PermissionCheck = {
@@ -139,3 +137,71 @@ export type PermissionCheck = {
   canDelete: boolean;
   canManageMembers: boolean;
 };
+
+/* ------------------------------------------------------------------ */
+/* Collaborator Discovery types                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Extended agent profile with discovery fields
+ */
+export type AgentWithDiscovery = Agent & {
+  description?: string | null;
+  expertise?: string[];
+  availability?: 'online' | 'busy' | 'offline';
+  total_invocations?: number;
+  successful_invocations?: number;
+  success_rate?: number;
+  avg_response_time_ms?: number | null;
+  primary_persona_id?: string | null;
+};
+
+/**
+ * Extended user profile with discovery fields
+ */
+export type UserWithDiscovery = UserProfile & {
+  description?: string | null;
+  capabilities?: string[];
+  expertise?: string[];
+  availability?: 'online' | 'busy' | 'offline';
+  last_active_at?: string | null;
+};
+
+/**
+ * Workspace member (unified view of users and agents)
+ */
+export type WorkspaceMember = {
+  workspace_id: string;
+  member_id: string;
+  member_type: 'human' | 'agent';
+  name: string;
+  avatar_url: string | null;
+  description: string | null;
+  capabilities: string[];
+  expertise: string[];
+  availability: 'online' | 'busy' | 'offline';
+  last_active_at: string | null;
+  created_at: string;
+  
+  // Human-specific fields (null for agents)
+  role?: 'admin' | 'editor' | 'viewer' | null;
+  email?: string | null;
+  joined_at?: string | null;
+  
+  // Agent-specific fields (null for humans)
+  agent_id?: string | null;
+  agent_type?: 'openclaw' | 'knobase_ai' | 'custom' | null;
+  version?: string | null;
+  platform?: string | null;
+  hostname?: string | null;
+  total_invocations?: number | null;
+  successful_invocations?: number | null;
+  success_rate?: number | null;
+  avg_response_time_ms?: number | null;
+  primary_persona_id?: string | null;
+};
+
+/**
+ * Workspace role type (for compatibility)
+ */
+export type WorkspaceRole = "admin" | "editor" | "viewer";

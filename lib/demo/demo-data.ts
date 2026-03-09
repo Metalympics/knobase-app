@@ -567,6 +567,224 @@ This shift positions Knobase against Notion AI and Confluence AI — both of whi
     updatedAt: now,
   },
   {
+    id: "demo-harrow",
+    title: "Alexander Chen — Living Profile",
+    icon: "🎓",
+    content: `# Alexander Chen — Living Student Profile
+
+**Year Group:** Year 10  |  **House:** Churchill  |  **Form Tutor:** Ms. R. Hartley  |  **Head of House:** Mr. J. Davies
+
+**SEN Status:** Mild SpLD (reading fluency / processing speed) — IEP active  |  **Boarding Status:** Full boarder
+
+**Profile Last Updated:** 3 hours ago by @pastoral-care
+
+> 💡 **This is a Living Profile.** The AI agents below are actively reading, analysing, and writing to this document in real time. Each agent specialises in a different aspect of Alexander's education — from maths remediation to pastoral well-being to university counselling.
+
+\u00A0
+
+\u00A0
+
+\u00A0
+
+---
+
+## Student Overview
+
+| Field | Detail |
+|-------|--------|
+| Date of Birth | 14 March 2011 |
+| Nationality | British / Hong Kong SAR (dual) |
+| Languages | English (native), Cantonese (fluent), Mandarin (intermediate) |
+| Entry Year | Year 7 (September 2022) |
+| Scholarship | Academic Exhibition |
+| Duke of Edinburgh | Silver Award (in progress) |
+
+**Parent / Guardian Contact:** Mr. & Mrs. David Chen — david.chen@email.com | +852 9XXX XXXX
+
+---
+
+## Academic Trajectory — Michaelmas Term 2025
+
+### Current Subject Overview
+
+| Subject | Teacher | Current Grade | Year 9 Final | Trend | Notes |
+|---------|---------|---------------|-------------|-------|-------|
+| Physics | Dr. A. Kapoor | A (81%) | A (79%) | ✅ Improving | Top quartile of cohort |
+| Further Maths | Mr. L. Okonkwo | C+ (65%) | B+ (78%) | 🔻 Declining | See @math-tutor remediation below |
+| English Literature | Ms. R. Hartley | B- (62%) | B (70%) | 🔻 Declining | Reading comprehension drop flagged |
+| Computer Science | Dr. S. Patel | A* (88%) | A (83%) | ✅ Improving | Exceptional coursework project |
+| Chemistry | Mrs. F. Bolton | B+ (74%) | B+ (73%) | ➡️ Stable | — |
+| Geography | Mr. T. Reeves | B (71%) | B (72%) | ➡️ Stable | — |
+| History | Ms. K. Chambers | B (69%) | B- (66%) | ✅ Improving | Strong essay structure development |
+| Mandarin | Ms. Y. Liu | A- (77%) | B+ (75%) | ✅ Improving | Heritage speaker advantage |
+
+### Grade Trajectory — Further Maths (Diagnostic Assessments)
+
+| Assessment | Date | Score | Topic | Trend |
+|-----------|------|-------|-------|-------|
+| Diagnostic 4 | 12 Sep | 82% | Algebra & Functions | ✅ |
+| Diagnostic 5 | 3 Oct | 76% | Trigonometric Identities | ✅ |
+| Diagnostic 6 | 24 Oct | 71% | Introduction to Calculus | ⚠️ |
+| Diagnostic 7 | 14 Nov | 65% | Differentiation & Chain Rule | 🔻 |
+
+---
+
+## Extracurricular & Leadership
+
+| Activity | Role | Status | Achievements |
+|----------|------|--------|-------------|
+| VEX Robotics Club | **Team Captain** | Active | Led team to APAC Regional Semi-Finals (2025); designed autonomous line-follower |
+| School Orchestra | Second Violin | Active | Performed at the annual Harrow Schools Music Festival |
+| Duke of Edinburgh | Participant | Silver (in progress) | Completed Bronze (Year 9); expedition planning underway |
+| Debating Society | Member | Active | Reached quarter-finals, Harrow Inter-House Debating Cup |
+| Cricket | House team | Seasonal | Churchill House U15 squad |
+
+### Teacher Comment — VEX Robotics (Dr. S. Patel, Nov 2025)
+
+> Alexander has shown exceptional leadership this term. He restructured the team's workflow into subsystem groups (chassis, sensors, programming) and introduced weekly design reviews — a level of project management unusual for a Year 10 student. His technical write-up for the regional competition was the strongest I've seen in five years of supervising the club.
+
+---
+
+## Inclusive Education — Current Accommodations
+
+**Identified Need:** Mild Specific Learning Difficulty (SpLD) — primarily affecting reading fluency and processing speed.
+
+| Accommodation | Status | Last Reviewed |
+|--------------|--------|---------------|
+| +25% extra time on timed assessments | ✅ Active | Sep 2025 |
+| Preferential seating (front-centre) | ✅ Active | Sep 2025 |
+| Assistive technology (Read&Write) | ✅ Active | Sep 2025 |
+| Audiobook access for set texts | ✅ Active | Nov 2025 |
+| Visual organiser templates | 📋 Pending | Recommended by @inclusive-ed |
+
+**Reading Age:** 13.8 years (target: 14.5 by March 2026)  |  **Processing Speed:** 42nd percentile  |  **Verbal Comprehension:** 78th percentile
+
+---
+
+## Active Agent Workflows
+
+The following AI agents are actively monitoring and contributing to Alexander's Living Profile. Each agent reads and writes to this document as new data arrives. Their latest interactions appear at the top of this profile.
+
+| Agent | Role | Current Status |
+|-------|------|---------------|
+| @pastoral-care | Weekly pulse checks and well-being monitoring | ⏳ Processing a cross-reference of attendance and boarding house data |
+| @math-tutor | Maths diagnostics and personalised remediation | ✅ Generated a 3-week calculus remediation plan |
+| @inclusive-ed | SEN support and differentiated learning | 📋 Queued — adjusting Year 10 English reading list |
+| @uni-counselor | University pathway and subject selection guidance | ✅ Recommended Year 11 subject adjustments and shortlisted universities |
+
+---
+
+## Profile Timeline
+
+| Date | Agent / Person | Event |
+|------|---------------|-------|
+| 14 Nov 2025 | @math-tutor | Diagnostic 7 score (65%) triggered automatic remediation plan generation |
+| 12 Nov 2025 | @pastoral-care | Flagged cross-subject decline + boarding house withdrawal pattern |
+| 10 Nov 2025 | Ms. Hartley | Requested @inclusive-ed to adjust English reading list |
+| 8 Nov 2025 | @uni-counselor | Generated Year 11 subject selection recommendation |
+| 3 Nov 2025 | Dr. Patel | Updated VEX Robotics teacher comment |
+| 24 Oct 2025 | @math-tutor | Noted initial calculus score dip — monitoring status |
+| Sep 2025 | SEN Dept. | Annual IEP review completed — accommodations renewed |
+| Sep 2025 | System | Michaelmas Term 2025 academic data sync from iSAMS |
+
+---
+
+*This is a Living Profile — it evolves continuously from Year 7 intake through to graduation. Every agent interaction, grade update, and pastoral note is permanently recorded, creating a 12-year longitudinal record of Alexander's intellectual and personal journey.*
+
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  {
+    id: "demo-harrow-academics",
+    title: "Full Academic History",
+    icon: "📚",
+    parentId: "demo-harrow",
+    content: `# Alexander Chen — Full Academic History
+
+## Year 9 Final Results (2024–2025)
+
+| Subject | Final Grade | Exam % | Teacher Comment |
+|---------|------------|--------|----------------|
+| Physics | A (79%) | 81% | "Alexander demonstrates excellent practical skills and strong conceptual understanding." |
+| Maths | B+ (78%) | 76% | "Very capable. Needs to show more working in exam conditions." |
+| English Literature | B (70%) | 68% | "Thoughtful analysis but reading fluency remains a barrier in timed conditions." |
+| Computer Science | A (83%) | 85% | "Outstanding. Year 9 project was the best in cohort — a self-navigating robot." |
+| Chemistry | B+ (73%) | 71% | "Solid grasp of theory. Lab technique is excellent." |
+| Geography | B (72%) | 70% | "Good fieldwork skills. Written responses could be more structured." |
+| History | B- (66%) | 64% | "Improving steadily. Essay structure has developed well this year." |
+| Mandarin | B+ (75%) | 78% | "Heritage speaker advantage evident. Written characters need practice." |
+
+## Year 8 Summary (2023–2024)
+
+Overall position: 48th / 160 (top 30%). Commended for excellence in Science and Computing. Awarded the Year 8 STEM Prize.
+
+## Year 7 Summary (2022–2023)
+
+Overall position: 62nd / 158. Adjustment period noted (first term boarding). Strong improvement in Lent and Summer terms. Identified for SpLD screening in Michaelmas term — formal diagnosis confirmed February 2023.
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  {
+    id: "demo-harrow-extracurricular",
+    title: "Extracurricular Portfolio",
+    icon: "🏆",
+    parentId: "demo-harrow",
+    content: `# Alexander Chen — Extracurricular Portfolio
+
+## VEX Robotics Club
+
+**Role:** Team Captain (elected Sep 2025)  |  **Supervisor:** Dr. S. Patel
+
+### Competition Record
+
+| Event | Date | Result | Alexander's Role |
+|-------|------|--------|-----------------|
+| Harrow Inter-House Robotics | Mar 2024 | 🥇 1st (Churchill) | Lead programmer |
+| APAC VEX Qualifier (Hong Kong) | Jun 2024 | 🥈 2nd | Driver & programmer |
+| UK VEX Regional — South East | Nov 2025 | Semi-finalist | Team Captain, systems integrator |
+
+### Current Project: Autonomous Navigation Robot
+
+Alexander is leading the design of a robot that uses LIDAR sensors and a custom pathfinding algorithm (A*) for autonomous warehouse navigation. The project integrates his interests in Physics (sensor physics), Computer Science (algorithm design), and Maths (coordinate geometry).
+
+---
+
+## Duke of Edinburgh Award
+
+| Level | Status | Completed |
+|-------|--------|-----------|
+| Bronze | ✅ Complete | June 2024 |
+| Silver | 🔄 In Progress | Expected March 2026 |
+
+**Silver components:**
+- Volunteering: Coding mentor at local primary school (12 weeks)
+- Physical: Cricket training and house matches
+- Skill: Learning Mandarin calligraphy
+- Expedition: Peak District — route planning in progress
+
+---
+
+## Music — School Orchestra
+
+**Instrument:** Violin (Grade 6, ABRSM)  |  **Section:** Second Violin
+
+Performances: Annual Harrow Schools Music Festival (Dec 2024, Dec 2025), Churchill House Concert (termly)
+
+---
+
+## Debating Society
+
+Quarter-finalist in the Harrow Inter-House Debating Cup (Michaelmas 2025). Motion: "This house believes AI will do more harm than good in education." Alexander spoke for the proposition.
+`,
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  {
     id: "demo-join",
     title: "Join Knobase",
     icon: "🚀",

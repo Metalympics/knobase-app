@@ -103,7 +103,7 @@ function UniversalDocumentContent() {
               Try the demo
             </Button>
           </Link>
-          <Link href="/knowledge">
+          <Link href="/s/default">
             <Button
               size="sm"
               className="bg-neutral-900 text-white hover:bg-neutral-800"
@@ -139,7 +139,7 @@ function UniversalDocumentContent() {
             </Button>
           </Link>
         ) : (
-          <Link href="/knowledge">
+          <Link href="/s/default">
             <Button variant="ghost" size="sm" className="text-neutral-600">
               Open in workspace
               <ArrowRight className="ml-1 h-3.5 w-3.5" />

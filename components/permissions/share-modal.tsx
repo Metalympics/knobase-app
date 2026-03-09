@@ -87,7 +87,7 @@ export function ShareModal({
   }, [email, workspaceId, selectedRole, ws]);
 
   const handleCopyLink = useCallback(() => {
-    const link = `${window.location.origin}/knowledge?doc=${documentId}&invite=${ws?.inviteCode ?? ""}`;
+    const link = `${window.location.origin}/d/${documentId}?invite=${ws?.inviteCode ?? ""}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -294,7 +294,7 @@ export function ShareModal({
               >
                 <Link2 className="h-4 w-4 shrink-0 text-neutral-400" />
                 <span className="flex-1 truncate text-xs text-neutral-500">
-                  {window.location.origin}/knowledge?doc=
+                  {window.location.origin}/d/
                   {documentId.slice(0, 8)}...
                 </span>
                 {copied ? (

@@ -293,6 +293,131 @@ Section 3 states data is "encrypted at rest (AES-256)" but omits in-transit encr
     documentId: "demo-gtm",
     createdAt: new Date(Date.now() - 15 * 60_000),
   },
+
+  // ── AISL Harrow / Living Student Profile seed tasks ──
+  {
+    id: "seed-task-harrow-0",
+    agentId: "pastoral-care",
+    agentName: "Pastoral Care",
+    agentAvatar: "/pastoral-care.svg",
+    agentColor: "#7C3AED",
+    prompt: "Generate this week's Living Profile pulse for Alexander Chen — summarise all active flags and agent recommendations",
+    status: "completed",
+    response: `**Weekly Profile Pulse — Alexander Chen — Week 9, Michaelmas 2025**
+
+⚠️ **2 active flags this week:**
+
+1. **Academic — Further Maths declining** (flagged by @math-tutor)
+   65% on Diagnostic 7, down from 82% in September. 3-week remediation plan generated and awaiting teacher approval.
+
+2. **Well-being — Possible pastoral concern** (flagged by @pastoral-care)
+   Cross-subject engagement drop + 2× missed enrichment sessions + boarding house withdrawal noted. Pastoral check-in recommended within 48 hours.
+
+✅ **Strengths this week:**
+- Physics: stable at 81% (top quartile)
+- Computer Science: coursework score 88%
+- VEX Robotics: team progressed to regional semi-finals under Alexander's captaincy
+
+📋 **Pending actions:**
+- @inclusive-ed: Adjusted reading list awaiting Ms. Hartley's review
+- @uni-counselor: Year 11 subject change recommendation sent to parents
+- Mr. Davies: Pastoral check-in to be scheduled`,
+    documentId: "demo-harrow",
+    createdAt: new Date(Date.now() - 65 * 60_000),
+  },
+  {
+    id: "seed-task-harrow-1",
+    agentId: "math-tutor",
+    agentName: "Maths Tutor",
+    agentAvatar: "/math-tutor.svg",
+    agentColor: "#2563EB",
+    prompt: "Alexander scored 65% on his last Further Maths diagnostic. Based on his historical data in this profile, generate a personalised 3-week remediation plan focusing on his specific weak points.",
+    status: "completed",
+    response: `**Personalised Remediation Plan — Alexander Chen (Year 10)**
+
+I've cross-referenced Alexander's last three Further Maths diagnostics against his longitudinal profile. His overall trajectory is strong (Year 9 average: 78%), but there is a clear dip in **differential calculus** over the past four weeks.
+
+**Identified Weak Points:**
+1. Chain rule application on composite functions (scored 42% on Diagnostic 7)
+2. Implicit differentiation — consistently skipping the dy/dx step
+3. Word-problem translation — strong on pure algebra, struggles mapping real-world scenarios to derivatives
+
+**3-Week Remediation Plan:**
+
+| Week | Focus | Activities | Target Score |
+|------|-------|------------|--------------|
+| 1 | Chain rule foundations | 4× guided problem sets (15 min each), 1× worked-video review | ≥ 60% |
+| 2 | Implicit differentiation | 3× scaffolded worksheets + 1× peer tutoring session | ≥ 65% |
+| 3 | Applied calculus problems | 2× real-world modelling tasks + 1× timed mini-assessment | ≥ 70% |
+
+**Auto-generated practice test attached.** I've created a 25-question adaptive test targeting these three areas. Questions are calibrated to Alexander's current level and increase in difficulty.
+
+I'll re-run the diagnostic at the end of Week 3 and update this profile automatically.`,
+    documentId: "demo-harrow",
+    createdAt: new Date(Date.now() - 20 * 60_000),
+  },
+  {
+    id: "seed-task-harrow-2",
+    agentId: "pastoral-care",
+    agentName: "Pastoral Care",
+    agentAvatar: "/pastoral-care.svg",
+    agentColor: "#7C3AED",
+    prompt: "Cross-reference Alexander's recent attendance logs with his boarding house behavioural reports. His reading comprehension has dropped from 74% to 58% — analyse whether there are underlying well-being concerns.",
+    status: "processing",
+    documentId: "demo-harrow",
+    createdAt: new Date(Date.now() - 4 * 60_000),
+  },
+  {
+    id: "seed-task-harrow-3",
+    agentId: "inclusive-ed",
+    agentName: "Inclusive Ed",
+    agentAvatar: "/inclusive-ed.svg",
+    agentColor: "#0891B2",
+    prompt: "Alexander's reading comprehension has dropped to 58%. Please adjust the Year 10 English reading list to accommodate his visual-spatial learning style and provide audiobook alternatives for the set texts.",
+    status: "queued",
+    documentId: "demo-harrow",
+    createdAt: new Date(Date.now() - 2 * 60_000),
+  },
+  {
+    id: "seed-task-harrow-4",
+    agentId: "uni-counselor",
+    agentName: "Uni Counsellor",
+    agentAvatar: "/uni-counselor.svg",
+    agentColor: "#059669",
+    prompt: "Based on Alexander's strong trajectory in Physics and his recent leadership role in VEX Robotics, recommend Year 11 subject adjustments and generate a preliminary university shortlist.",
+    status: "completed",
+    response: `**University Pathway Recommendation — Alexander Chen (Year 10)**
+
+Based on Alexander's full Living Profile, I've analysed his academic trajectory, extracurricular record, and stated interests to recommend optimal Year 11 subject selections and university positioning.
+
+**Profile Strengths:**
+- Physics: consistently top-quartile (Year 10 average: 81%)
+- VEX Robotics Club: elected Team Captain, led team to regional semi-finals
+- Computer Science coursework: scored 88% on the Year 10 project (autonomous line-following robot)
+- Duke of Edinburgh: Silver Award in progress
+
+**Recommended Year 11 Subject Adjustments:**
+
+| Current Selection | Recommended Change | Reason |
+|-------------------|-------------------|--------|
+| Design & Technology | → Advanced Computer Science | Stronger alignment with engineering pathway; DT skills transferable |
+| Geography | Keep | Provides breadth for top-tier university applications |
+| Further Maths | Keep (with remediation support) | Essential for engineering/CS admissions despite current dip |
+
+**Target University Shortlist (Preliminary):**
+
+| University | Programme | Typical Offer | Fit Score |
+|-----------|-----------|---------------|----------|
+| Imperial College London | MEng Computing | A*A*A | 🟡 High stretch |
+| UCL | BEng Electronic Engineering | A*AA | 🟢 Strong match |
+| University of Edinburgh | BSc Computer Science | A*AA | 🟢 Strong match |
+| University of Bristol | MEng Robotics | AAA | 🟢 Safety-plus |
+
+**Next Steps:**
+I have drafted a parent communication email outlining this recommendation and the rationale. It includes a suggested meeting date for the Year 11 options evening.`,
+    documentId: "demo-harrow",
+    createdAt: new Date(Date.now() - 35 * 60_000),
+  },
 ];
 
 function buildPresence(docs: DemoDocument[]): PresenceEntry[] {
@@ -309,16 +434,23 @@ function buildPresence(docs: DemoDocument[]): PresenceEntry[] {
     { id: "cursor", name: "Cursor", type: "agent", color: "#2563EB", avatar: "/cursor.png", documentId: "demo-roadmap", documentTitle: docMap.get("demo-roadmap") ?? "" },
     { id: "strategy-lead", name: "Strategy Lead", type: "agent", color: "#7C3AED", avatar: "/strategy-lead.svg", documentId: "demo-gtm", documentTitle: docMap.get("demo-gtm") ?? "" },
     { id: "data-analyst", name: "Data Analyst", type: "agent", color: "#2563EB", avatar: "/data-analyst.svg", documentId: "demo-gtm", documentTitle: docMap.get("demo-gtm") ?? "" },
+    { id: "math-tutor", name: "Maths Tutor", type: "agent", color: "#2563EB", avatar: "/math-tutor.svg", documentId: "demo-harrow", documentTitle: docMap.get("demo-harrow") ?? "" },
+    { id: "pastoral-care", name: "Pastoral Care", type: "agent", color: "#7C3AED", avatar: "/pastoral-care.svg", documentId: "demo-harrow", documentTitle: docMap.get("demo-harrow") ?? "" },
+    { id: "inclusive-ed", name: "Inclusive Ed", type: "agent", color: "#0891B2", avatar: "/inclusive-ed.svg", documentId: "demo-harrow", documentTitle: docMap.get("demo-harrow") ?? "" },
+    { id: "uni-counselor", name: "Uni Counsellor", type: "agent", color: "#059669", avatar: "/uni-counselor.svg", documentId: "demo-harrow", documentTitle: docMap.get("demo-harrow") ?? "" },
   ];
 }
 
-export function DemoProvider({ children }: { children: ReactNode }) {
+export function DemoProvider({ children, initialDocId }: { children: ReactNode; initialDocId?: string }) {
   const [documents, setDocuments] = useState<DemoDocument[]>(
     () => DEMO_DOCUMENTS
   );
-  const [currentDocId, setCurrentDocId] = useState<string>(
-    DEMO_DOCUMENTS[0]?.id ?? ""
-  );
+  const [currentDocId, setCurrentDocId] = useState<string>(() => {
+    if (initialDocId && DEMO_DOCUMENTS.some((d) => d.id === initialDocId)) {
+      return initialDocId;
+    }
+    return DEMO_DOCUMENTS[0]?.id ?? "";
+  });
   const [agentTyping, setAgentTyping] = useState<SimulatedAgent | null>(null);
   const [simulatedTasks, setSimulatedTasks] = useState<SimulatedTask[]>(() => SEED_TASKS);
   const [editCount, setEditCount] = useState(0);

@@ -374,7 +374,7 @@ export default function ImportPage() {
 
           <div className="flex gap-3">
             <Button
-              onClick={() => router.push(`/workspaces`)}
+              onClick={() => router.push(`/s/default`)}
               className="flex-1"
             >
               Open Workspace

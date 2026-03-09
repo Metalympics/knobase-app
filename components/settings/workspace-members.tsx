@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { UserPlus, Copy, Check, RefreshCw } from "lucide-react";
 import {
-  getWorkspace,
-  addMember,
-  regenerateInviteCode,
-} from "@/lib/workspaces/store";
-import type { WorkspaceRole } from "@/lib/workspaces/types";
+  loadSchool,
+  getSchoolMembers,
+  regenerateSchoolInviteCode,
+} from "@/lib/schools/store";
+import type { School, SchoolMember } from "@/lib/schools/types";
 import { MemberList } from "@/components/permissions/member-list";
 import { ROLE_LABELS } from "@/lib/permissions/acl";
 
@@ -21,56 +21,64 @@ export function WorkspaceMembers({
   onUpdate,
 }: WorkspaceMembersProps) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<WorkspaceRole>("editor");
+  const [role, setRole] = useState<"admin" | "editor" | "viewer">("editor");
   const [bulkEmails, setBulkEmails] = useState("");
   const [showBulk, setShowBulk] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
   const [copied, setCopied] = useState(false);
-  const ws = getWorkspace(workspaceId);
+  const [school, setSchool] = useState<School | null>(null);
+  const [members, setMembers] = useState<SchoolMember[]>([]);
+
+  useEffect(() => {
+    loadSchool(workspaceId).then((data) => {
+      if (data) setSchool(data);
+    });
+    getSchoolMembers(workspaceId).then(setMembers);
+  }, [workspaceId]);
+
+  const refresh = useCallback(async () => {
+    const [schoolData, membersData] = await Promise.all([
+      loadSchool(workspaceId),
+      getSchoolMembers(workspaceId),
+    ]);
+    if (schoolData) setSchool(schoolData);
+    setMembers(membersData);
+    onUpdate?.();
+  }, [workspaceId, onUpdate]);
 
   const handleInvite = useCallback(() => {
     if (!email.trim()) return;
-    addMember(workspaceId, {
-      userId: crypto.randomUUID(),
-      displayName: email.trim(),
-      role,
-    });
     setEmail("");
     setInviteSent(true);
     setTimeout(() => setInviteSent(false), 2000);
-    onUpdate?.();
-  }, [email, role, workspaceId, onUpdate]);
+    refresh();
+  }, [email, refresh]);
 
   const handleBulkInvite = useCallback(() => {
     const emails = bulkEmails
       .split(/[,\n]/)
       .map((e) => e.trim())
       .filter(Boolean);
-    emails.forEach((em) => {
-      addMember(workspaceId, {
-        userId: crypto.randomUUID(),
-        displayName: em,
-        role,
-      });
-    });
     setBulkEmails("");
     setShowBulk(false);
-    onUpdate?.();
-  }, [bulkEmails, role, workspaceId, onUpdate]);
+    refresh();
+  }, [bulkEmails, refresh]);
 
   const handleCopyCode = useCallback(() => {
-    if (!ws) return;
-    navigator.clipboard.writeText(ws.inviteCode);
+    if (!school) return;
+    navigator.clipboard.writeText(school.inviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [ws]);
+  }, [school]);
 
-  const handleRegenerateCode = useCallback(() => {
-    regenerateInviteCode(workspaceId);
-    onUpdate?.();
-  }, [workspaceId, onUpdate]);
+  const handleRegenerateCode = useCallback(async () => {
+    const newCode = await regenerateSchoolInviteCode(workspaceId);
+    if (newCode) {
+      await refresh();
+    }
+  }, [workspaceId, refresh]);
 
-  if (!ws) return null;
+  if (!school) return null;
 
   return (
     <div className="space-y-6">
@@ -125,7 +133,7 @@ export function WorkspaceMembers({
                 />
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as WorkspaceRole)}
+                  onChange={(e) => setRole(e.target.value as "admin" | "editor" | "viewer")}
                   className="h-9 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-600 outline-none focus:border-purple-300"
                   aria-label="Select role"
                 >
@@ -165,7 +173,7 @@ export function WorkspaceMembers({
           </div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm font-medium tracking-wider text-neutral-700">
-              {ws.inviteCode}
+              {school.inviteCode}
             </span>
             <button
               onClick={handleCopyCode}
@@ -192,7 +200,7 @@ export function WorkspaceMembers({
 
       {/* Member list */}
       <div className="rounded-lg border border-neutral-200 bg-white px-4 py-4">
-        <MemberList workspaceId={workspaceId} onUpdate={onUpdate} />
+        <MemberList workspaceId={workspaceId} onUpdate={refresh} />
       </div>
     </div>
   );

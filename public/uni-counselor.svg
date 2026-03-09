@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#059669"/>
+  <!-- Graduation cap  university counsellor icon -->
+  <g fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Cap top (diamond shape) -->
+    <polygon points="32,18 48,26 32,34 16,26" fill="rgba(255,255,255,0.15)"/>
+    <!-- Tassel line -->
+    <line x1="48" y1="26" x2="48" y2="38"/>
+    <circle cx="48" cy="40" r="2" fill="white" stroke="none"/>
+    <!-- Cap sides hanging down -->
+    <path d="M22 28 L22 38 C22 42 27 44 32 44 C37 44 42 42 42 38 L42 28"/>
+  </g>
+</svg>

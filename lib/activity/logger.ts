@@ -115,7 +115,7 @@ class AgentActivityLogger {
           actorName: agentName,
           documentId: options?.documentId,
           link: options?.documentId
-            ? `/knowledge?doc=${options.documentId}`
+            ? `/d/${options.documentId}`
             : undefined,
         });
       }

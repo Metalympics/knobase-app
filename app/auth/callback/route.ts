@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const inviteToken = searchParams.get("invite");
 
   // Default destination
-  const destination = redirect || "/knowledge";
+  const destination = redirect || "/s/default";
 
   if (code) {
     const response = NextResponse.redirect(new URL(destination, origin));
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
           // Look up the invite
           const { data: invite } = await supabase
             .from("invites")
-            .select("id, workspace_id, document_id, role, expires_at, used_at")
+            .select("id, school_id, document_id, role, expires_at, used_at")
             .eq("token", inviteToken)
             .maybeSingle();
 
@@ -104,16 +104,12 @@ export async function GET(request: NextRequest) {
               .eq("auth_id", user.id)
               .single();
 
-            if (publicUser && invite.workspace_id) {
-              // Add user to workspace
-              await supabase.from("workspace_members").upsert(
-                {
-                  workspace_id: invite.workspace_id,
-                  user_id: publicUser.id,
-                  role: (invite.role as "admin" | "editor" | "viewer") || "editor",
-                },
-                { onConflict: "workspace_id,user_id" }
-              );
+            if (publicUser && invite.school_id) {
+              // Update user's school_id
+              await supabase
+                .from("users")
+                .update({ school_id: invite.school_id })
+                .eq("id", publicUser.id);
 
               // Mark invite as used
               await supabase
@@ -121,15 +117,15 @@ export async function GET(request: NextRequest) {
                 .update({ used_at: new Date().toISOString() })
                 .eq("id", invite.id);
 
-              // Redirect to the invited document or workspace
+              // Redirect to the invited document or school
               if (invite.document_id) {
                 return NextResponse.redirect(
                   new URL(`/d/${invite.document_id}`, origin)
                 );
               }
-              // Redirect to workspace
+              // Redirect to school
               return NextResponse.redirect(
-                new URL(`/w/${invite.workspace_id}`, origin)
+                new URL(`/s/${invite.school_id}`, origin)
               );
             }
           }

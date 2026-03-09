@@ -17,19 +17,20 @@ export default function Home() {
       } = await supabase.auth.getUser();
 
       if (user) {
-        // Authenticated → go to main knowledge dashboard
-        router.replace("/knowledge");
+        // Authenticated → fetch user's school and redirect
+        const { data: userData } = await supabase
+          .from("users")
+          .select("school_id")
+          .eq("id", user.id)
+          .single();
+        
+        const schoolId = userData?.school_id || "default";
+        router.replace(`/s/${schoolId}`);
         return;
       }
 
-      // Not authenticated — check for legacy localStorage onboarding
-      const workspace = localStorage.getItem("knobase-app:workspace");
-      if (workspace) {
-        router.replace("/knowledge");
-      } else {
-        // Not onboarded → send to demo (zero-friction)
-        router.replace("/demo");
-      }
+      // Not authenticated → send to login
+      router.replace("/auth/login");
       setChecking(false);
     }
     resolve();

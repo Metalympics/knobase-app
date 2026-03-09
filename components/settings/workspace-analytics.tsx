@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   FileText,
   Users,
@@ -9,15 +9,19 @@ import {
   TrendingUp,
   Clock,
 } from "lucide-react";
-import { listDocuments } from "@/lib/documents/store";
-import { getWorkspace } from "@/lib/workspaces/store";
-import { listNotifications } from "@/lib/notifications/store";
-import { listTags } from "@/lib/tags/store";
-import { listCollections } from "@/lib/collections/store";
-import type { DocumentMeta } from "@/lib/documents/types";
+import { createClient } from "@/lib/supabase/client";
+import { loadSchool, getSchoolMembers } from "@/lib/schools/store";
+import type { School, SchoolMember } from "@/lib/schools/types";
 
 interface WorkspaceAnalyticsProps {
   workspaceId: string;
+}
+
+interface DocumentMeta {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 function timeAgo(date: string): string {
@@ -34,13 +38,45 @@ function timeAgo(date: string): string {
 export function WorkspaceAnalytics({
   workspaceId,
 }: WorkspaceAnalyticsProps) {
-  const [docs] = useState<DocumentMeta[]>(listDocuments);
+  const [docs, setDocs] = useState<DocumentMeta[]>([]);
+  const [school, setSchool] = useState<School | null>(null);
+  const [members, setMembers] = useState<SchoolMember[]>([]);
+  const [loading, setLoading] = useState(true);
   const [now] = useState(() => Date.now());
 
-  const ws = getWorkspace(workspaceId);
-  const notifications = useMemo(() => listNotifications(), []);
-  const tags = useMemo(() => listTags(), []);
-  const collections = useMemo(() => listCollections(), []);
+  useEffect(() => {
+    const fetchData = async () => {
+      const supabase = createClient();
+      
+      const [schoolData, membersData, docsData] = await Promise.all([
+        loadSchool(workspaceId),
+        getSchoolMembers(workspaceId),
+        supabase
+          .from("documents")
+          .select("id, title, created_at, updated_at")
+          .eq("workspace_id", workspaceId)
+          .order("updated_at", { ascending: false }),
+      ]);
+
+      if (schoolData) setSchool(schoolData);
+      setMembers(membersData);
+      
+      if (docsData.data) {
+        setDocs(
+          docsData.data.map((d) => ({
+            id: d.id,
+            title: d.title,
+            createdAt: d.created_at,
+            updatedAt: d.updated_at,
+          }))
+        );
+      }
+      
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [workspaceId]);
 
   const stats = useMemo(() => {
     const oneWeek = 7 * 24 * 60 * 60 * 1000;
@@ -53,22 +89,17 @@ export function WorkspaceAnalytics({
       (d) => now - new Date(d.createdAt).getTime() < oneMonth
     );
 
-    const agentNotifs = notifications.filter(
-      (n) => n.type === "agent-suggestion"
-    );
-    const commentNotifs = notifications.filter((n) => n.type === "comment");
-
     return {
       totalDocs: docs.length,
       docsThisWeek: recentDocs.length,
       docsThisMonth: monthDocs.length,
-      totalMembers: ws?.members.length ?? 1,
-      totalComments: commentNotifs.length,
-      agentSuggestions: agentNotifs.length,
-      totalTags: tags.length,
-      totalCollections: collections.length,
+      totalMembers: members.length,
+      totalComments: 0,
+      agentSuggestions: 0,
+      totalTags: 0,
+      totalCollections: 0,
     };
-  }, [docs, ws, notifications, tags, collections, now]);
+  }, [docs, members, now]);
 
   const popularDocs = useMemo(() => {
     return [...docs]
@@ -77,11 +108,10 @@ export function WorkspaceAnalytics({
   }, [docs]);
 
   const activeMembers = useMemo(() => {
-    if (!ws) return [];
-    return [...ws.members]
+    return [...members]
       .sort((a, b) => b.joinedAt.localeCompare(a.joinedAt))
       .slice(0, 5);
-  }, [ws]);
+  }, [members]);
 
   // Document creation histogram (last 7 days)
   const histogram = useMemo(() => {
@@ -130,6 +160,14 @@ export function WorkspaceAnalytics({
       color: "text-purple-500 bg-purple-50",
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-neutral-500">Loading analytics...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -234,10 +272,10 @@ export function WorkspaceAnalytics({
                 {i + 1}
               </span>
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-medium text-neutral-600">
-                {member.displayName.charAt(0).toUpperCase()}
+                {member.user?.displayName?.charAt(0).toUpperCase() ?? "?"}
               </div>
               <span className="flex-1 truncate text-sm text-neutral-700">
-                {member.displayName}
+                {member.user?.displayName ?? member.user?.email ?? "Unknown"}
               </span>
               <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-500">
                 {member.role}

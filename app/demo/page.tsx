@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { Suspense, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Editor } from "@tiptap/react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { DemoProvider, useDemo, SEED_TASKS } from "@/lib/demo/context";
@@ -89,7 +90,18 @@ function scrollToInlineAgent(editor: Editor, taskId: string) {
 
 export default function DemoPage() {
   return (
-    <DemoProvider>
+    <Suspense>
+      <DemoPageInner />
+    </Suspense>
+  );
+}
+
+function DemoPageInner() {
+  const searchParams = useSearchParams();
+  const initialDocId = searchParams.get("doc") ?? undefined;
+
+  return (
+    <DemoProvider initialDocId={initialDocId}>
       <DemoPageContent />
     </DemoProvider>
   );
@@ -100,6 +112,17 @@ function DemoPageContent() {
   const editorRef = useRef<Editor | null>(null);
   const prevDocIdRef = useRef<string | null>(null);
   const seededDocsRef = useRef<Set<string>>(new Set());
+
+  // Keep the URL in sync with the active document so links are shareable.
+  useEffect(() => {
+    const docId = demo.currentDocument?.id;
+    if (!docId) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("doc") !== docId) {
+      url.searchParams.set("doc", docId);
+      window.history.replaceState(null, "", url.toString());
+    }
+  }, [demo.currentDocument?.id]);
 
   // When the current document changes, snapshot the old editor's JSON
   // so inline agent nodes survive the round-trip.

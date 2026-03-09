@@ -50,7 +50,7 @@ export function notifyMentionedUser(
     message: `mentioned you in "${documentTitle}"`,
     actorName: authorName,
     documentId,
-    link: `/knowledge?doc=${documentId}`,
+    link: `/d/${documentId}`,
   });
 }
 

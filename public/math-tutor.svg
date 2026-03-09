@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#2563EB"/>
+  <!-- Calculator / maths icon -->
+  <g fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Sigma symbol -->
+    <path d="M22 18 L38 18 L28 32 L38 46 L22 46"/>
+    <!-- Plus sign -->
+    <line x1="44" y1="22" x2="44" y2="30"/>
+    <line x1="40" y1="26" x2="48" y2="26"/>
+    <!-- Equals sign -->
+    <line x1="40" y1="38" x2="48" y2="38"/>
+    <line x1="40" y1="42" x2="48" y2="42"/>
+  </g>
+</svg>

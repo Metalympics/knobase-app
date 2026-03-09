@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#0891B2"/>
+  <!-- Open book with accessibility star  inclusive education icon -->
+  <g fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left page -->
+    <path d="M32 22 L32 44 C28 42 22 41 18 42 L18 22 C22 21 28 20 32 22Z" fill="rgba(255,255,255,0.12)"/>
+    <!-- Right page -->
+    <path d="M32 22 L32 44 C36 42 42 41 46 42 L46 22 C42 21 36 20 32 22Z" fill="rgba(255,255,255,0.12)"/>
+    <!-- Accessibility person symbol on left page -->
+    <circle cx="25" cy="28" r="2" fill="white" stroke="none"/>
+    <line x1="25" y1="30" x2="25" y2="36"/>
+    <line x1="22" y1="33" x2="28" y2="33"/>
+    <!-- Lines on right page -->
+    <line x1="36" y1="28" x2="42" y2="28"/>
+    <line x1="36" y1="32" x2="42" y2="32"/>
+    <line x1="36" y1="36" x2="40" y2="36"/>
+  </g>
+</svg>

@@ -42,7 +42,7 @@ export default function GlobalError({
           <RefreshCw className="h-3.5 w-3.5" />
           Try again
         </Button>
-        <Link href="/knowledge">
+        <Link href="/s/default">
           <Button className="gap-1.5 bg-neutral-900 text-white hover:bg-neutral-800">
             <Home className="h-3.5 w-3.5" />
             Go to dashboard

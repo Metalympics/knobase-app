@@ -60,15 +60,15 @@ export async function listTasksByDocument(
   return (data ?? []) as AgentTask[];
 }
 
-/** List tasks for a workspace */
-export async function listTasksByWorkspace(
-  workspaceId: string,
+/** List tasks for a school */
+export async function listTasksBySchool(
+  schoolId: string,
   options?: { status?: AgentTaskStatus[]; agentId?: string; limit?: number },
 ): Promise<AgentTask[]> {
   let query = supabase()
     .from("agent_tasks")
     .select("*")
-    .eq("workspace_id", workspaceId)
+    .eq("school_id", schoolId)
     .order("priority", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -83,14 +83,14 @@ export async function listTasksByWorkspace(
   }
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list workspace tasks: ${error.message}`);
+  if (error) throw new Error(`Failed to list school tasks: ${error.message}`);
   return (data ?? []) as AgentTask[];
 }
 
 /** List pending tasks for an agent (queue) */
 export async function getAgentQueue(
   agentId: string,
-  workspaceId?: string,
+  schoolId?: string,
 ): Promise<AgentTask[]> {
   let query = supabase()
     .from("agent_tasks")
@@ -100,8 +100,8 @@ export async function getAgentQueue(
     .order("priority", { ascending: true })
     .order("created_at", { ascending: true });
 
-  if (workspaceId) {
-    query = query.eq("workspace_id", workspaceId);
+  if (schoolId) {
+    query = query.eq("school_id", schoolId);
   }
 
   const { data, error } = await query;

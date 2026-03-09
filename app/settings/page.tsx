@@ -203,7 +203,7 @@ function SettingsPageInner() {
       <aside className="flex w-56 shrink-0 flex-col border-r border-neutral-200 bg-white">
         <div className="flex items-center gap-2 border-b border-neutral-200 px-4 py-4">
           <button
-            onClick={() => router.push("/knowledge")}
+            onClick={() => router.push("/s/default")}
             className="rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
           >
             <ArrowLeft className="h-4 w-4" />

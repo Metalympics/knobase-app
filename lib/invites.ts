@@ -9,7 +9,7 @@ type InviteRow = Database["public"]["Tables"]["invites"]["Row"];
 
 export interface CreateInviteParams {
   email: string;
-  workspaceId: string;
+  schoolId: string;
   documentId?: string;
   inviterId: string;
   role?: "admin" | "editor" | "viewer";
@@ -21,7 +21,7 @@ export interface CreateInviteParams {
  */
 export async function createInvite({
   email,
-  workspaceId,
+  schoolId,
   documentId,
   inviterId,
   role = "editor",
@@ -32,7 +32,7 @@ export async function createInvite({
   const { error } = await supabase.from("invites").insert({
     token,
     email,
-    workspace_id: workspaceId,
+    school_id: schoolId,
     document_id: documentId ?? null,
     invited_by: inviterId,
     role,
@@ -70,7 +70,7 @@ export async function validateInvite(
 }
 
 /**
- * Accept an invite: add user to workspace, mark invite as used.
+ * Accept an invite: update user's school_id, mark invite as used.
  * Should be called after the user is authenticated.
  */
 export async function acceptInvite(
@@ -84,7 +84,7 @@ export async function acceptInvite(
   if (!invite) {
     return {
       success: false,
-      redirectTo: "/knowledge",
+      redirectTo: "/s/default",
       error: "Invite is invalid or expired.",
     };
   }
@@ -99,30 +99,24 @@ export async function acceptInvite(
   if (!publicUser) {
     return {
       success: false,
-      redirectTo: "/knowledge",
+      redirectTo: "/s/default",
       error: "User profile not found.",
     };
   }
 
-  // 3. Add to workspace
-  if (invite.workspace_id) {
-    const { error: memberError } = await supabase
-      .from("workspace_members")
-      .upsert(
-        {
-          workspace_id: invite.workspace_id,
-          user_id: publicUser.id,
-          role: (invite.role as "admin" | "editor" | "viewer") || "editor",
-        },
-        { onConflict: "workspace_id,user_id" }
-      );
+  // 3. Update user's school_id
+  if (invite.school_id) {
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ school_id: invite.school_id })
+      .eq("id", publicUser.id);
 
-    if (memberError) {
-      console.error("Failed to add member:", memberError);
+    if (updateError) {
+      console.error("Failed to update user school:", updateError);
       return {
         success: false,
-        redirectTo: "/knowledge",
-        error: memberError.message,
+        redirectTo: "/s/default",
+        error: updateError.message,
       };
     }
   }
@@ -136,9 +130,9 @@ export async function acceptInvite(
   // 5. Determine redirect
   const redirectTo = invite.document_id
     ? `/d/${invite.document_id}`
-    : invite.workspace_id
-      ? `/w/${invite.workspace_id}`
-      : "/knowledge";
+    : invite.school_id
+      ? `/s/${invite.school_id}`
+      : "/s/default";
 
   return { success: true, redirectTo, error: null };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { DOMParser as ProseDOMParser } from "@tiptap/pm/model";
 import { useMemo, useCallback, useState, useRef, useEffect } from "react";
 
 /* ------------------------------------------------------------------ */
@@ -18,6 +19,7 @@ function markdownToHtml(md: string): string {
   let listType: "ul" | "ol" | null = null;
   let tableOpen = false;
   let tableBodyOpen = false;
+  let consecutiveBlanks = 0;
 
   const flushList = () => {
     if (listType) { out.push(`</${listType}>`); listType = null; }
@@ -30,6 +32,20 @@ function markdownToHtml(md: string): string {
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const line = raw.trimEnd();
+
+    // Blank line — the first one is just a paragraph separator (already
+    // handled by <p> spacing); extra consecutive blanks emit <br>.
+    if (line.trim() === "") {
+      flushList();
+      flushTable();
+      if (consecutiveBlanks > 0) {
+        out.push("<br>");
+      }
+      consecutiveBlanks++;
+      continue;
+    }
+
+    consecutiveBlanks = 0;
 
     // Headings
     const h3 = line.match(/^### (.+)/);
@@ -86,14 +102,6 @@ function markdownToHtml(md: string): string {
       if (listType === "ul") flushList();
       if (!listType) { out.push("<ol>"); listType = "ol"; }
       out.push(`<li>${applyInline(olMatch[1])}</li>`);
-      continue;
-    }
-
-    // Blank line — flush open blocks
-    if (line.trim() === "") {
-      flushList();
-      flushTable();
-      out.push("<br>");
       continue;
     }
 
@@ -318,20 +326,25 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
     if (!task?.result || !editor) return;
     try {
       let nodePos: number | null = null;
-      let nodeSize: number | null = null;
       editor.state.doc.descendants((n, p) => {
         if (n.type.name === "inlineAgent" && n.attrs.taskId === taskId && nodePos === null) {
           nodePos = p;
-          nodeSize = n.nodeSize;
         }
       });
-      if (nodePos !== null && nodeSize !== null) {
+      if (nodePos !== null) {
         const html = markdownToHtml(task.result);
-        editor
-          .chain()
-          .deleteRange({ from: nodePos, to: nodePos + nodeSize })
-          .insertContentAt(nodePos, html)
-          .run();
+        editor.chain().focus().command(({ tr, state }) => {
+          const $pos = state.doc.resolve(nodePos!);
+          const from = $pos.before($pos.depth);
+          const to = $pos.after($pos.depth);
+
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = html;
+          const parsed = ProseDOMParser.fromSchema(state.schema).parse(wrapper);
+
+          tr.replaceWith(from, to, parsed.content);
+          return true;
+        }).run();
       }
     } catch {
       deleteNode();

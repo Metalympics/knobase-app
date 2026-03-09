@@ -90,7 +90,7 @@ export function ShareDialog({
   }, [isPublic, access, documentId]);
 
   const handleCopyLink = useCallback(() => {
-    const link = `${window.location.origin}/knowledge?doc=${documentId}`;
+    const link = `${window.location.origin}/d/${documentId}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -109,7 +109,7 @@ export function ShareDialog({
     setTimeout(() => setTokenCreated(false), 2000);
 
     // Copy the guest link
-    const guestLink = `${window.location.origin}/knowledge?doc=${documentId}&token=${token.token}`;
+    const guestLink = `${window.location.origin}/d/${documentId}?token=${token.token}`;
     navigator.clipboard.writeText(guestLink);
   }, [workspaceId, currentUserId, tokenDuration, tokenLabel, documentId]);
 
@@ -193,8 +193,8 @@ export function ShareDialog({
               <div className="flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
                 <p className="truncate text-xs text-neutral-500">
                   {typeof window !== "undefined"
-                    ? `${window.location.origin}/knowledge?doc=${documentId}`
-                    : `*/knowledge?doc=${documentId}`}
+                    ? `${window.location.origin}/d/${documentId}`
+                    : `*/d/${documentId}`}
                 </p>
               </div>
               <button

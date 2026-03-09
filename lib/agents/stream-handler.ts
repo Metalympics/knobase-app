@@ -393,7 +393,7 @@ export function createEditorStreamHandler(
                   actorName: config.agentName,
                   actorType: "agent",
                   documentId: config.documentId,
-                  link: `/knowledge?doc=${config.documentId}`,
+                  link: `/d/${config.documentId}`,
                 });
               } else if (mention.targetType === "agent") {
                 addNotification({
@@ -402,7 +402,7 @@ export function createEditorStreamHandler(
                   actorName: config.agentName,
                   actorType: "agent",
                   documentId: config.documentId,
-                  link: `/knowledge?doc=${config.documentId}`,
+                  link: `/d/${config.documentId}`,
                 });
               }
             }

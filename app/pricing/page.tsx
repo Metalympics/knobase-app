@@ -70,7 +70,7 @@ export default function PricingPage() {
       <header className="border-b border-[#e5e5e5]">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-6 py-3">
           <button
-            onClick={() => router.push("/knowledge")}
+            onClick={() => router.push("/s/default")}
             className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
           >
             <ArrowLeft className="h-4 w-4" />

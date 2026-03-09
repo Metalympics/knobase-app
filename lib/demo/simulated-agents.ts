@@ -93,6 +93,39 @@ export const DEMO_AGENTS: SimulatedAgent[] = [
     description: "Search visibility and content strategy",
     status: "online",
   },
+  // ── AISL Harrow / Living Profile demo agents ──
+  {
+    id: "math-tutor",
+    name: "Maths Tutor",
+    avatar: "/math-tutor.svg",
+    color: "#2563EB",
+    description: "Personalised maths diagnostics and remediation",
+    status: "online",
+  },
+  {
+    id: "pastoral-care",
+    name: "Pastoral Care",
+    avatar: "/pastoral-care.svg",
+    color: "#7C3AED",
+    description: "Student well-being monitoring and early intervention",
+    status: "online",
+  },
+  {
+    id: "inclusive-ed",
+    name: "Inclusive Ed",
+    avatar: "/inclusive-ed.svg",
+    color: "#0891B2",
+    description: "SEN support and differentiated learning adjustments",
+    status: "online",
+  },
+  {
+    id: "uni-counselor",
+    name: "Uni Counsellor",
+    avatar: "/uni-counselor.svg",
+    color: "#059669",
+    description: "University counselling and admissions strategy",
+    status: "online",
+  },
 ];
 
 export const DEMO_PEOPLE: SimulatedPerson[] = [
@@ -500,6 +533,213 @@ const SEO_EXPERT_RESPONSES: CannedResponse[] = [
   },
 ];
 
+// ── AISL Harrow / Living Profile Agents ──
+
+const MATH_TUTOR_RESPONSES: CannedResponse[] = [
+  {
+    keywords: ["calculus", "dip", "diagnostic", "weak", "remediation", "practice", "further maths", "65%"],
+    response:
+      "**Personalised Remediation Plan — Alexander Chen (Year 10)**\n\n" +
+      "I've cross-referenced Alexander's last three Further Maths diagnostics against his longitudinal profile. His overall trajectory is strong (Year 9 average: 78%), but there is a clear dip in **differential calculus** over the past four weeks.\n\n" +
+      "**Identified Weak Points:**\n" +
+      "1. Chain rule application on composite functions (scored 42% on Diagnostic 7)\n" +
+      "2. Implicit differentiation — consistently skipping the dy/dx step\n" +
+      "3. Word-problem translation — strong on pure algebra, struggles mapping real-world scenarios to derivatives\n\n" +
+      "**3-Week Remediation Plan:**\n\n" +
+      "| Week | Focus | Activities | Target Score |\n" +
+      "|------|-------|------------|--------------|\n" +
+      "| 1 | Chain rule foundations | 4× guided problem sets (15 min each), 1× worked-video review | ≥ 60% |\n" +
+      "| 2 | Implicit differentiation | 3× scaffolded worksheets + 1× peer tutoring session | ≥ 65% |\n" +
+      "| 3 | Applied calculus problems | 2× real-world modelling tasks + 1× timed mini-assessment | ≥ 70% |\n\n" +
+      "**Auto-generated practice test attached.** I've created a 25-question adaptive test targeting these three areas. Questions are calibrated to Alexander's current level and increase in difficulty.\n\n" +
+      "I'll re-run the diagnostic at the end of Week 3 and update this profile automatically.",
+  },
+  {
+    keywords: ["progress", "grade", "improvement", "trajectory", "score"],
+    response:
+      "**Maths Progress Report — Alexander Chen**\n\n" +
+      "| Assessment | Date | Score | Trend |\n" +
+      "|-----------|------|-------|-------|\n" +
+      "| Diagnostic 4 — Algebra | Sep 12 | 82% | ✅ |\n" +
+      "| Diagnostic 5 — Trigonometry | Oct 3 | 76% | ✅ |\n" +
+      "| Diagnostic 6 — Intro Calculus | Oct 24 | 71% | ⚠️ |\n" +
+      "| Diagnostic 7 — Further Calculus | Nov 14 | 65% | 🔻 |\n\n" +
+      "**Analysis:** Scores are declining at an average of −5.7 points per assessment since the transition to calculus. " +
+      "This pattern is consistent with a foundational gap rather than effort decline — Alexander's homework completion remains at 94%.\n\n" +
+      "Recommend initiating the targeted remediation pathway.",
+  },
+  {
+    keywords: ["summarize", "summary", "overview"],
+    response:
+      "**Maths Summary — Alexander Chen (Year 10)**\n\n" +
+      "Overall standing: Above average (top 30% of cohort). " +
+      "Strength areas: algebra, number theory, statistics. " +
+      "Current concern: declining trajectory in calculus (−5.7 pts/assessment). " +
+      "Recommended action: 3-week remediation plan targeting chain rule and implicit differentiation.",
+  },
+];
+
+const PASTORAL_CARE_RESPONSES: CannedResponse[] = [
+  {
+    keywords: ["pulse", "summary", "weekly", "profile pulse", "digest", "overview", "status"],
+    response:
+      "**Weekly Profile Pulse — Alexander Chen — Week 9, Michaelmas 2025**\n\n" +
+      "⚠️ **2 active flags this week:**\n\n" +
+      "1. **Academic — Further Maths declining** (flagged by @math-tutor)\n" +
+      "   65% on Diagnostic 7, down from 82% in September. 3-week remediation plan generated and awaiting teacher approval.\n\n" +
+      "2. **Well-being — Possible pastoral concern** (flagged by @pastoral-care)\n" +
+      "   Cross-subject engagement drop + 2× missed enrichment sessions + boarding house withdrawal noted. Pastoral check-in recommended within 48 hours.\n\n" +
+      "✅ **Strengths this week:**\n" +
+      "- Physics: stable at 81% (top quartile)\n" +
+      "- Computer Science: coursework score 88%\n" +
+      "- VEX Robotics: team progressed to regional semi-finals under Alexander's captaincy\n\n" +
+      "📋 **Pending actions:**\n" +
+      "- @inclusive-ed: Adjusted reading list awaiting Ms. Hartley's review\n" +
+      "- @uni-counselor: Year 11 subject change recommendation sent to parents\n" +
+      "- Mr. Davies: Pastoral check-in to be scheduled",
+  },
+  {
+    keywords: ["reading", "comprehension", "drop", "well-being", "attendance", "behavioral", "flag", "concern"],
+    response:
+      "**Pastoral Alert — Alexander Chen (Year 10, Churchill House)**\n\n" +
+      "I've cross-referenced Alexander's recent academic data with his boarding house logs and attendance record. Here is my assessment:\n\n" +
+      "**Academic Signal:**\n" +
+      "- English reading comprehension dropped from 74% → 58% over the past half-term\n" +
+      "- Three late homework submissions in English (previously zero in Year 9)\n" +
+      "- Maths diagnostic scores also declining (see @math-tutor notes)\n\n" +
+      "**Attendance & Behavioural Data:**\n" +
+      "- 2 unexplained absences from Thursday afternoon enrichment (Weeks 6 & 8)\n" +
+      "- Boarding house log: Housemaster noted Alexander has been \"unusually withdrawn at evening prep\" on 3 occasions this month\n" +
+      "- No disciplinary incidents on record\n\n" +
+      "**Cross-Reference Analysis:**\n" +
+      "The pattern — declining engagement across multiple subjects combined with social withdrawal — is consistent with a well-being concern rather than a purely academic one. " +
+      "Corroborating signals: the withdrawal is most pronounced in unstructured settings (enrichment, evening prep) where academic pressure is lower.\n\n" +
+      "**Recommended Actions:**\n" +
+      "1. 🔴 **Priority:** Schedule a 1:1 pastoral check-in with Alexander's Head of House (Mr. Davies) within 48 hours\n" +
+      "2. 🟡 Notify form tutor Ms. Hartley to observe classroom engagement this week\n" +
+      "3. 🟡 Flag to parents via the next scheduled parent liaison update (not as an emergency — framed as routine well-being monitoring)\n" +
+      "4. 🟢 Re-assess in 2 weeks. If patterns persist, escalate to the school counsellor\n\n" +
+      "This flag has been logged to Alexander's Living Profile timeline.",
+  },
+  {
+    keywords: ["boarding", "house", "report", "behaviour", "social"],
+    response:
+      "**Boarding House Report — Alexander Chen (Churchill House)**\n\n" +
+      "| Week | Evening Prep Engagement | Social Participation | Notes |\n" +
+      "|------|------------------------|---------------------|-------|\n" +
+      "| 5 | Normal | Active in house quiz night | — |\n" +
+      "| 6 | Withdrawn | Skipped Thursday enrichment | Housemaster flagged |\n" +
+      "| 7 | Normal | Attended weekend sports | — |\n" +
+      "| 8 | Withdrawn | Skipped enrichment again | 2nd flag this term |\n\n" +
+      "Pattern: Intermittent disengagement, concentrated on Thursdays. Recommend investigating whether Thursday scheduling (double Further Maths period) is a contributing stressor.",
+  },
+  {
+    keywords: ["summarize", "summary", "overview"],
+    response:
+      "**Pastoral Summary — Alexander Chen**\n\n" +
+      "Overall well-being status: ⚠️ Monitor. " +
+      "Academic signals suggest mild disengagement across English and Maths. " +
+      "Boarding house data shows intermittent social withdrawal. " +
+      "No disciplinary concerns. Recommend pastoral check-in within 48 hours.",
+  },
+];
+
+const INCLUSIVE_ED_RESPONSES: CannedResponse[] = [
+  {
+    keywords: ["reading", "list", "adjust", "learning style", "differentiate", "sen", "accommodation", "visual", "dyslexia"],
+    response:
+      "**Differentiated Reading List — Alexander Chen (Year 10 English)**\n\n" +
+      "Based on Alexander's learning profile (Visual-Spatial learner, processing speed: 42nd percentile, verbal comprehension: 78th percentile), I've adjusted the Year 10 English reading list as follows:\n\n" +
+      "**Original Text → Adjusted Approach:**\n\n" +
+      "| # | Set Text | Adjustment | Rationale |\n" +
+      "|---|----------|------------|-----------|\n" +
+      "| 1 | *Great Expectations* (Dickens) | Provide audiobook + annotated edition with visual chapter summaries | Dense Victorian prose; audio scaffolding supports processing speed |\n" +
+      "| 2 | *An Inspector Calls* (Priestley) | No adjustment needed — already short-form drama | Strong verbal comprehension handles dialogue well |\n" +
+      "| 3 | *Poetry Anthology* (AQA selection) | Supply colour-coded annotation guide + mind-map templates | Visual-spatial processing excels with graphical organisation |\n" +
+      "| 4 | *Noughts & Crosses* (Blackman) | Add graphic novel companion edition for pre-reading | Visual context reduces cognitive load for unfamiliar narratives |\n\n" +
+      "**Additional Accommodations:**\n" +
+      "- Extended time (+25%) on timed reading comprehension assessments\n" +
+      "- Seat placement: front-centre to reduce visual distraction\n" +
+      "- Digital text access via Read&Write for text-to-speech option during independent study\n\n" +
+      "These adjustments align with Alexander's existing Individual Education Plan (IEP) last reviewed in September. " +
+      "I recommend sharing this updated list with Ms. Hartley (English) and Mr. Davies (Head of House) for implementation by next Monday.",
+  },
+  {
+    keywords: ["iep", "education plan", "review", "assessment", "needs"],
+    response:
+      "**IEP Review Summary — Alexander Chen**\n\n" +
+      "Last formal review: Sep 2025 | Next scheduled: Mar 2026\n\n" +
+      "**Identified needs:** Mild specific learning difficulty (SpLD) — primarily affecting reading fluency and processing speed.\n\n" +
+      "**Current accommodations:** 25% extra time, preferential seating, assistive technology access.\n\n" +
+      "**Progress since last review:**\n" +
+      "- Reading age: improved from 13.2 → 13.8 years (target: 14.5 by Mar 2026)\n" +
+      "- Processing speed: stable at 42nd percentile\n" +
+      "- Self-advocacy: Alexander now independently requests text-to-speech in 3 of 4 lessons (up from 1 of 4)\n\n" +
+      "**Recommendation:** Maintain current accommodations. Add visual organiser templates for essay planning in English and History.",
+  },
+  {
+    keywords: ["summarize", "summary", "overview"],
+    response:
+      "**Inclusive Education Summary — Alexander Chen**\n\n" +
+      "SEN status: Mild SpLD (reading fluency / processing speed). " +
+      "Current accommodations in place and effective. " +
+      "Reading age progressing but below target. " +
+      "Key recommendation: differentiated reading lists with audiobook and visual scaffolding.",
+  },
+];
+
+const UNI_COUNSELOR_RESPONSES: CannedResponse[] = [
+  {
+    keywords: ["university", "subject", "selection", "recommend", "admission", "year 11", "physics", "computer science", "robotics"],
+    response:
+      "**University Pathway Recommendation — Alexander Chen (Year 10)**\n\n" +
+      "Based on Alexander's full Living Profile, I've analysed his academic trajectory, extracurricular record, and stated interests to recommend optimal Year 11 subject selections and university positioning.\n\n" +
+      "**Profile Strengths:**\n" +
+      "- Physics: consistently top-quartile (Year 10 average: 81%)\n" +
+      "- VEX Robotics Club: elected Team Captain, led team to regional semi-finals\n" +
+      "- Computer Science coursework: scored 88% on the Year 10 project (autonomous line-following robot)\n" +
+      "- Duke of Edinburgh: Silver Award in progress\n\n" +
+      "**Recommended Year 11 Subject Adjustments:**\n\n" +
+      "| Current Selection | Recommended Change | Reason |\n" +
+      "|-------------------|-------------------|--------|\n" +
+      "| Design & Technology | → Advanced Computer Science | Stronger alignment with engineering pathway; DT skills transferable |\n" +
+      "| Geography | Keep | Provides breadth for top-tier university applications |\n" +
+      "| Further Maths | Keep (with remediation support) | Essential for engineering/CS admissions despite current dip |\n\n" +
+      "**Target University Shortlist (Preliminary):**\n\n" +
+      "| University | Programme | Typical Offer | Fit Score |\n" +
+      "|-----------|-----------|---------------|----------|\n" +
+      "| Imperial College London | MEng Computing | A*A*A | 🟡 High stretch |\n" +
+      "| UCL | BEng Electronic Engineering | A*AA | 🟢 Strong match |\n" +
+      "| University of Edinburgh | BSc Computer Science | A*AA | 🟢 Strong match |\n" +
+      "| University of Bristol | MEng Robotics | AAA | 🟢 Safety-plus |\n\n" +
+      "**Next Steps:**\n" +
+      "I have drafted a parent communication email outlining this recommendation and the rationale. " +
+      "It includes a suggested meeting date for the Year 11 options evening.\n\n" +
+      "Shall I also cross-reference with the school's historical Oxbridge data to assess super-curricular positioning?",
+  },
+  {
+    keywords: ["personal statement", "ucas", "application", "draft"],
+    response:
+      "**UCAS Personal Statement Framework — Alexander Chen**\n\n" +
+      "Based on his Living Profile, here are the key narrative threads:\n\n" +
+      "1. **Opening hook:** The VEX Robotics competition moment — translating abstract maths into a physical, working system\n" +
+      "2. **Academic thread:** Physics → Computer Science → Further Maths pipeline, showing interdisciplinary thinking\n" +
+      "3. **Leadership:** Robotics Team Captain — managing a team of 6, delegating subsystem design, presenting to judges\n" +
+      "4. **Wider reading:** Link to Duke of Edinburgh expedition (problem-solving under uncertainty)\n" +
+      "5. **Closing:** Future ambition in AI/robotics engineering, connecting school experience to degree programme\n\n" +
+      "Recommend starting the draft process in Year 11 Michaelmas term.",
+  },
+  {
+    keywords: ["summarize", "summary", "overview"],
+    response:
+      "**University Counselling Summary — Alexander Chen**\n\n" +
+      "Pathway: Engineering / Computer Science. " +
+      "Target universities: Imperial, UCL, Edinburgh, Bristol. " +
+      "Key recommendation: swap DT for Advanced Computer Science in Year 11. " +
+      "Profile strengths: Physics, VEX Robotics leadership, strong CS coursework.",
+  },
+];
+
 const AGENT_RESPONSES: Record<string, CannedResponse[]> = {
   openclaw: OPENCLAW_RESPONSES,
   chatgpt: CHATGPT_RESPONSES,
@@ -510,6 +750,10 @@ const AGENT_RESPONSES: Record<string, CannedResponse[]> = {
   designer: DESIGNER_RESPONSES,
   "compliance-officer": COMPLIANCE_OFFICER_RESPONSES,
   "seo-expert": SEO_EXPERT_RESPONSES,
+  "math-tutor": MATH_TUTOR_RESPONSES,
+  "pastoral-care": PASTORAL_CARE_RESPONSES,
+  "inclusive-ed": INCLUSIVE_ED_RESPONSES,
+  "uni-counselor": UNI_COUNSELOR_RESPONSES,
 };
 
 const FALLBACK_RESPONSE =

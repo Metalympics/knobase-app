@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#7C3AED"/>
+  <!-- Heart with pulse line  well-being icon -->
+  <g fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Heart shape -->
+    <path d="M32 44 C24 38 16 32 16 25 C16 20 20 16 25 16 C28 16 30 18 32 20 C34 18 36 16 39 16 C44 16 48 20 48 25 C48 32 40 38 32 44Z" fill="rgba(255,255,255,0.12)"/>
+    <!-- Pulse line across heart -->
+    <polyline points="20,30 26,30 28,24 32,36 34,28 36,30 44,30" stroke-width="2"/>
+  </g>
+</svg>

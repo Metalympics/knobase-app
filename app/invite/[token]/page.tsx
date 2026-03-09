@@ -36,14 +36,14 @@ interface InviteData {
   id: string;
   token: string;
   email: string;
-  workspace_id: string | null;
+  school_id: string | null;
   document_id: string | null;
   role: string;
   expires_at: string;
   used_at: string | null;
   invited_by: string;
   // Joined data
-  workspace_name?: string;
+  school_name?: string;
   document_title?: string;
   inviter_name?: string;
 }
@@ -85,7 +85,7 @@ function InviteContent() {
         id: string;
         token: string;
         email: string;
-        workspace_id: string | null;
+        school_id: string | null;
         document_id: string | null;
         invited_by: string;
         role: string;
@@ -113,17 +113,17 @@ function InviteContent() {
       }
 
       // Fetch related data
-      let workspace_name: string | undefined;
+      let school_name: string | undefined;
       let document_title: string | undefined;
       let inviter_name: string | undefined;
 
-      if (inviteData.workspace_id) {
-        const { data: ws } = await supabase
-          .from("workspaces")
+      if (inviteData.school_id) {
+        const { data: school } = await supabase
+          .from("schools")
           .select("name")
-          .eq("id", inviteData.workspace_id)
+          .eq("id", inviteData.school_id)
           .maybeSingle();
-        workspace_name = ws?.name;
+        school_name = school?.name;
       }
 
       if (inviteData.document_id) {
@@ -146,7 +146,7 @@ function InviteContent() {
 
       setInvite({
         ...inviteData,
-        workspace_name,
+        school_name,
         document_title,
         inviter_name,
       });
@@ -174,20 +174,16 @@ function InviteContent() {
       .eq("auth_id", authUserId)
       .single();
 
-    if (!publicUser || !inviteData.workspace_id) {
+    if (!publicUser || !inviteData.school_id) {
       setAccepting(false);
       return;
     }
 
-    // Add to workspace
-    await supabase.from("workspace_members").upsert(
-      {
-        workspace_id: inviteData.workspace_id,
-        user_id: publicUser.id,
-        role: (inviteData.role as "admin" | "editor" | "viewer") || "editor",
-      },
-      { onConflict: "workspace_id,user_id" }
-    );
+    // Update user's school_id
+    await supabase
+      .from("users")
+      .update({ school_id: inviteData.school_id })
+      .eq("id", publicUser.id);
 
     // Mark used
     await supabase
@@ -199,7 +195,7 @@ function InviteContent() {
     if (inviteData.document_id) {
       router.push(`/d/${inviteData.document_id}`);
     } else {
-      router.push(`/w/${inviteData.workspace_id}`);
+      router.push(`/s/${inviteData.school_id}`);
     }
   };
 
@@ -248,7 +244,7 @@ function InviteContent() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-white">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
-        <p className="text-sm text-neutral-500">Joining workspace...</p>
+        <p className="text-sm text-neutral-500">Joining school...</p>
       </div>
     );
   }
@@ -289,7 +285,7 @@ function InviteContent() {
             <p className="text-xs text-green-600">
               We sent a login link to{" "}
               <span className="font-medium">{email}</span>. Click it to join the
-              workspace.
+              school.
             </p>
             <button
               onClick={() => setMagicLinkSent(false)}
@@ -324,12 +320,12 @@ function InviteContent() {
 
         {/* Invite details card */}
         <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-          {invite.workspace_name && (
+          {invite.school_name && (
             <div className="flex items-center gap-2 text-sm text-neutral-700">
               <Users className="h-4 w-4 text-neutral-400" />
               <span>
-                Workspace:{" "}
-                <span className="font-medium">{invite.workspace_name}</span>
+                School:{" "}
+                <span className="font-medium">{invite.school_name}</span>
               </span>
             </div>
           )}

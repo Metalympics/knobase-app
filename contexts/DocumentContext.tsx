@@ -8,7 +8,7 @@ import { createContext, useContext } from "react";
 
 export interface DocumentContextValue {
   documentId: string;
-  workspaceId: string;
+  schoolId: string;
   documentTitle: string;
   userId: string;
 }
@@ -19,7 +19,7 @@ export interface DocumentContextValue {
 
 const DocumentContext = createContext<DocumentContextValue>({
   documentId: "",
-  workspaceId: "",
+  schoolId: "",
   documentTitle: "",
   userId: "",
 });
@@ -30,14 +30,14 @@ const DocumentContext = createContext<DocumentContextValue>({
 
 export function DocumentContextProvider({
   documentId,
-  workspaceId,
+  schoolId,
   documentTitle,
   userId,
   children,
 }: DocumentContextValue & { children: React.ReactNode }) {
   return (
     <DocumentContext.Provider
-      value={{ documentId, workspaceId, documentTitle, userId }}
+      value={{ documentId, schoolId, documentTitle, userId }}
     >
       {children}
     </DocumentContext.Provider>

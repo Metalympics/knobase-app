@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   listTasksByDocument,
-  listTasksByWorkspace,
+  listTasksBySchool,
   getAgentQueue,
   subscribeToDocumentTasks,
   subscribeToAgentTasks,
@@ -87,25 +87,25 @@ export function useDocumentTasks(
 /* ------------------------------------------------------------------ */
 
 export function useWorkspaceTasks(
-  workspaceId: string | null,
+  schoolId: string | null,
   options?: { agentId?: string; status?: AgentTaskStatus[]; limit?: number },
 ) {
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!workspaceId) {
+    if (!schoolId) {
       setTasks([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    listTasksByWorkspace(workspaceId, options)
+    listTasksBySchool(schoolId, options)
       .then(setTasks)
       .catch(() => setTasks([]))
       .finally(() => setLoading(false));
-  }, [workspaceId, options?.agentId, options?.status?.join(","), options?.limit]);
+  }, [schoolId, options?.agentId, options?.status?.join(","), options?.limit]);
 
   return { tasks, loading };
 }

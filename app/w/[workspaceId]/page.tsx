@@ -17,7 +17,7 @@ export default function WorkspaceHomePage() {
   useEffect(() => {
     const ws = getWorkspace(workspaceId);
     if (!ws) {
-      router.replace("/workspaces");
+      router.replace("/s/default");
       return;
     }
 

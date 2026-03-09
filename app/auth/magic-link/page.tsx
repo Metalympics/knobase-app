@@ -41,7 +41,7 @@ function MagicLinkContent() {
       if (event === "SIGNED_IN" && session) {
         setStatus("verified");
         // Redirect after short delay
-        const redirect = searchParams.get("redirect") || "/knowledge";
+        const redirect = searchParams.get("redirect") || "/s/default";
         setTimeout(() => router.push(redirect), 1000);
       }
     });

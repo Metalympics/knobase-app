@@ -42,6 +42,7 @@
     "lib0": "^0.2.117",
     "lucide-react": "^0.574.0",
     "next": "16.1.6",
+    "playwright-core": "^1.58.2",
     "posthog-js": "^1.351.4",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
