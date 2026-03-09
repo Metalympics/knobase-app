@@ -10,7 +10,7 @@ import {
   deleteDocument,
 } from "./store";
 import { canCreateDocument } from "@/lib/subscription/store";
-import { getActiveWorkspaceId } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId } from "@/lib/schools/store";
 
 function initDocuments(): {
   docs: DocumentMeta[];

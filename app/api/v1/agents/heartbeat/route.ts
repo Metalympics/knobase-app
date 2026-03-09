@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   const { data: keyData, error: keyError } = await supabase
     .from("agent_api_keys")
-    .select("workspace_id, revoked_at, expires_at")
+    .select("school_id, revoked_at, expires_at")
     .eq("key_hash", keyHash)
     .is("revoked_at", null)
     .single();
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   }
 
   const kd = keyData as unknown as {
-    workspace_id: string;
+    school_id: string;
     revoked_at: string | null;
     expires_at: string | null;
   };
@@ -74,18 +74,19 @@ export async function POST(request: NextRequest) {
     return apiError("Missing or invalid 'agent_id'", "BAD_REQUEST", 400);
   }
 
-  // ── Update last_seen_at ──
+  // ── Update last_invoked_at via users table (type='agent') ──
   const now = new Date().toISOString();
   const { data: agent, error } = await supabase
-    .from("agents")
-    .update({ last_seen_at: now, is_active: true })
-    .eq("agent_id", body.agent_id)
-    .eq("workspace_id", kd.workspace_id)
-    .select("agent_id, name, last_seen_at")
+    .from("users")
+    .update({ last_invoked_at: now, availability: "online" })
+    .eq("bot_id", body.agent_id)
+    .eq("school_id", kd.school_id)
+    .eq("type", "agent")
+    .select("bot_id, name, last_invoked_at")
     .single();
 
   if (error || !agent) {
-    return apiError("Agent not found or not registered in this workspace", "NOT_FOUND", 404);
+    return apiError("Agent not found or not registered in this school", "NOT_FOUND", 404);
   }
 
   // Also update api key last_used_at
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
 
   return apiJson({
     ok: true,
-    agent_id: (agent as unknown as { agent_id: string }).agent_id,
+    agent_id: (agent as unknown as { bot_id: string }).bot_id,
     last_seen_at: now,
   });
 }

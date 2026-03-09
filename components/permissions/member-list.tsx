@@ -10,13 +10,13 @@ import {
   ChevronDown,
   Crown,
 } from "lucide-react";
-import type { Workspace, WorkspaceRole } from "@/lib/workspaces/types";
+import type { SchoolWithMembers, WorkspaceRole } from "@/lib/schools/types";
 import {
   removeMember,
   changeMemberRole,
   getCurrentUserId,
   getWorkspace,
-} from "@/lib/workspaces/store";
+} from "@/lib/schools/store";
 import { canManageMembers, ROLE_LABELS, ROLE_DESCRIPTIONS } from "@/lib/permissions/acl";
 
 interface MemberListProps {
@@ -37,15 +37,15 @@ const ROLE_COLORS: Record<WorkspaceRole, string> = {
 };
 
 export function MemberList({ workspaceId, onUpdate }: MemberListProps) {
-  const [ws, setWs] = useState<Workspace | null>(() =>
-    getWorkspace(workspaceId)
+  const [ws, setWs] = useState<SchoolWithMembers | null>(() =>
+    getWorkspace(workspaceId) as SchoolWithMembers | null
   );
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const userId = getCurrentUserId();
   const isAdmin = canManageMembers(workspaceId);
 
   const refresh = useCallback(() => {
-    setWs(getWorkspace(workspaceId));
+    setWs(getWorkspace(workspaceId) as SchoolWithMembers | null);
     onUpdate?.();
   }, [workspaceId, onUpdate]);
 
@@ -72,22 +72,24 @@ export function MemberList({ workspaceId, onUpdate }: MemberListProps) {
     <div className="space-y-1">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-xs font-medium uppercase tracking-wider text-neutral-400">
-          Members ({ws.members.length})
+          Members ({ws.members?.length ?? 0})
         </h3>
       </div>
 
-      {ws.members.map((member) => (
+      {(ws.members ?? []).map((member) => {
+        const displayName = member.user?.displayName ?? member.userId;
+        return (
         <div
           key={member.userId}
           className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-neutral-50"
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-xs font-medium text-neutral-600">
-            {member.displayName.charAt(0).toUpperCase()}
+            {displayName.charAt(0).toUpperCase()}
           </div>
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-neutral-800">
-              {member.displayName}
+              {displayName}
               {member.userId === userId && (
                 <span className="ml-1.5 text-[10px] text-neutral-400">
                   (you)
@@ -114,7 +116,7 @@ export function MemberList({ workspaceId, onUpdate }: MemberListProps) {
                 className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                   ROLE_COLORS[member.role]
                 }`}
-                aria-label={`Change role for ${member.displayName}`}
+                aria-label={`Change role for ${displayName}`}
               >
                 {ROLE_ICONS[member.role]}
                 {ROLE_LABELS[member.role]}
@@ -176,7 +178,8 @@ export function MemberList({ workspaceId, onUpdate }: MemberListProps) {
             </AnimatePresence>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

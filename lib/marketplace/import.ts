@@ -105,7 +105,7 @@ export async function importOpenclawPackage(
       .replace(/^-|-$/g, "");
 
     const { data: ws, error: wsErr } = await supabase
-      .from("workspaces")
+      .from("schools")
       .insert({
         name: options.newWorkspaceName,
         slug: `${slug}-${Date.now().toString(36)}`,
@@ -121,12 +121,11 @@ export async function importOpenclawPackage(
 
     workspaceId = (ws as unknown as { id: string }).id;
 
-    // Add creator as admin member
-    await supabase.from("workspace_members").insert({
-      workspace_id: workspaceId,
-      user_id: userId,
+    // Add creator as admin member by updating their school_id
+    await supabase.from("users").update({
+      school_id: workspaceId,
       role: "admin",
-    });
+    }).eq("id", userId);
   }
 
   if (!workspaceId) {
@@ -138,7 +137,7 @@ export async function importOpenclawPackage(
     .from("import_jobs")
     .insert({
       user_id: userId,
-      workspace_id: workspaceId,
+      school_id: workspaceId,
       source_type: options.sourceType,
       source_id: options.sourceId ?? null,
       original_filename: options.originalFilename ?? null,
@@ -172,7 +171,7 @@ export async function importOpenclawPackage(
       expertise: agent.expertise ?? [],
       instructions: agent.instructions ?? null,
       constraints: agent.constraints ?? [],
-      workspace_id: workspaceId,
+      school_id: workspaceId,
       created_by: userId,
     });
 
@@ -196,7 +195,7 @@ export async function importOpenclawPackage(
       .insert({
         title: doc.title,
         content: doc.content,
-        workspace_id: workspaceId,
+        school_id: workspaceId,
         created_by: userId,
         visibility: "shared" as const,
       })
@@ -245,7 +244,7 @@ export async function exportWorkspaceAsManifest(
 
   // Get workspace info
   const { data: workspace } = await supabase
-    .from("workspaces")
+    .from("schools")
     .select("name")
     .eq("id", workspaceId)
     .single();
@@ -256,13 +255,13 @@ export async function exportWorkspaceAsManifest(
   const { data: personas } = await supabase
     .from("agent_personas")
     .select("*")
-    .eq("workspace_id", workspaceId);
+    .eq("school_id", workspaceId);
 
   // Get documents
   const { data: docs } = await supabase
     .from("documents")
     .select("id, title, content")
-    .eq("workspace_id", workspaceId);
+    .eq("school_id", workspaceId);
 
   return {
     version: "1.0",

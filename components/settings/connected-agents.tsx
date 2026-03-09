@@ -14,20 +14,17 @@ import {
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
-/* Types (client-compatible mirror of Agent row)                       */
+/* Types (mirrors users row where type='agent')                        */
 /* ------------------------------------------------------------------ */
 
 interface ConnectedAgent {
   id: string;
-  agent_id: string;
-  name: string;
-  type: "openclaw" | "knobase_ai" | "custom";
-  version: string;
-  capabilities: string[];
-  platform: string | null;
-  hostname: string | null;
-  is_active: boolean;
-  last_seen_at: string | null;
+  bot_id: string | null;
+  name: string | null;
+  agent_type: string | null;
+  capabilities: string[] | null;
+  availability: string | null;
+  last_invoked_at: string | null;
   created_at: string;
 }
 
@@ -48,9 +45,11 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
       const { data, error: fetchErr } = await supabase
-        .from("agents")
-        .select("*")
-        .eq("workspace_id", workspaceId)
+        .from("users")
+        .select("id, bot_id, name, agent_type, capabilities, availability, last_invoked_at, created_at")
+        .eq("school_id", workspaceId)
+        .eq("type", "agent")
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (fetchErr) throw fetchErr;
@@ -72,9 +71,10 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
       try {
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
+        const nextAvailability = agent.availability === "offline" ? "online" : "offline";
         await supabase
-          .from("agents")
-          .update({ is_active: !agent.is_active })
+          .from("users")
+          .update({ availability: nextAvailability })
           .eq("id", agent.id);
         fetchAgents();
       } catch {
@@ -90,7 +90,7 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
       try {
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
-        await supabase.from("agents").delete().eq("id", agentId);
+        await supabase.from("users").update({ is_deleted: true }).eq("id", agentId);
         fetchAgents();
       } catch {
         setError("Failed to delete agent");
@@ -98,6 +98,10 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
     },
     [fetchAgents],
   );
+
+  function isActive(agent: ConnectedAgent): boolean {
+    return agent.availability !== "offline";
+  }
 
   function relativeTime(dateStr: string | null): string {
     if (!dateStr) return "Never";
@@ -201,7 +205,7 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
                 </div>
                 <div
                   className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${
-                    agent.is_active ? "bg-emerald-400" : "bg-neutral-300"
+                    isActive(agent) ? "bg-emerald-400" : "bg-neutral-300"
                   }`}
                 />
               </div>
@@ -209,30 +213,26 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
               {/* Info */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-medium text-neutral-900">{agent.name}</h4>
-                  <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
-                    {agent.type}
-                  </span>
-                  <span className="text-[10px] text-neutral-400">v{agent.version}</span>
+                  <h4 className="text-sm font-medium text-neutral-900">{agent.name ?? agent.bot_id}</h4>
+                  {agent.agent_type && (
+                    <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                      {agent.agent_type}
+                    </span>
+                  )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-3 text-xs text-neutral-400">
                   <span className="flex items-center gap-1">
-                    {agent.is_active ? (
+                    {isActive(agent) ? (
                       <Wifi className="h-3 w-3 text-emerald-500" />
                     ) : (
                       <WifiOff className="h-3 w-3" />
                     )}
-                    {agent.is_active ? "Active" : "Inactive"}
+                    {agent.availability === "busy" ? "Busy" : isActive(agent) ? "Active" : "Inactive"}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    Last seen: {relativeTime(agent.last_seen_at)}
+                    Last seen: {relativeTime(agent.last_invoked_at)}
                   </span>
-                  {agent.platform && (
-                    <span>
-                      {agent.platform}{agent.hostname ? ` · ${agent.hostname}` : ""}
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -241,12 +241,12 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
                 <button
                   onClick={() => handleToggle(agent)}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    agent.is_active
+                    isActive(agent)
                       ? "border border-neutral-200 text-neutral-600 hover:bg-neutral-50"
                       : "bg-purple-500 text-white hover:bg-purple-600"
                   }`}
                 >
-                  {agent.is_active ? "Disable" : "Enable"}
+                  {isActive(agent) ? "Disable" : "Enable"}
                 </button>
                 <button
                   onClick={() => handleDelete(agent.id)}
@@ -258,10 +258,10 @@ export function ConnectedAgents({ workspaceId }: { workspaceId: string | null })
             </div>
 
             {/* Capabilities */}
-            {agent.capabilities.length > 0 && (
+            {(agent.capabilities?.length ?? 0) > 0 && (
               <div className="border-t border-neutral-100 px-4 py-2">
                 <div className="flex flex-wrap gap-1.5">
-                  {agent.capabilities.map((cap) => (
+                  {(agent.capabilities ?? []).map((cap) => (
                     <span
                       key={cap}
                       className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-600"

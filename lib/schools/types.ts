@@ -65,3 +65,8 @@ export type SchoolUser = {
   type: 'human' | 'agent';
   createdAt: string;
 };
+
+// Backward-compat aliases (school = workspace)
+export type Workspace = School;
+export type WorkspaceRole = SchoolRole;
+export type WorkspaceWithMembers = SchoolWithMembers;

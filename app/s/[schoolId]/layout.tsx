@@ -8,17 +8,17 @@ import {
   getWorkspace,
   setActiveWorkspaceId,
   getOrCreateDefaultWorkspace,
-} from "@/lib/workspaces/store";
+} from "@/lib/schools/store";
 import { canCreateDocument } from "@/lib/subscription/store";
 import { TemplatePicker } from "@/components/templates/template-picker";
 import type { Template } from "@/lib/templates/defaults";
-import type { Workspace } from "@/lib/workspaces/types";
+import type { Workspace } from "@/lib/schools/types";
 import { Crown } from "lucide-react";
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const params = useParams();
   const router = useRouter();
-  const workspaceId = params.workspaceId as string;
+  const workspaceId = params.schoolId as string;
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -41,13 +41,13 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
       setMounted(true);
     } else {
       const defaultWs = getOrCreateDefaultWorkspace();
-      router.replace(`/w/${defaultWs.id}`);
+      router.replace(`/s/${defaultWs.id}`);
     }
   }, [workspaceId, router]);
 
   const handleSelect = useCallback(
     (docId: string) => {
-      router.push(`/w/${workspaceId}/d/${docId}`);
+      router.push(`/s/${workspaceId}/d/${docId}`);
     },
     [router, workspaceId],
   );
@@ -65,7 +65,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
       const doc = addDocument(template.name);
       if (doc) {
         saveContent(doc.id, template.defaultContent);
-        router.push(`/w/${workspaceId}/d/${doc.id}`);
+        router.push(`/s/${workspaceId}/d/${doc.id}`);
       }
       setShowTemplatePicker(false);
     },
@@ -75,7 +75,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const handleBlankDocument = useCallback(() => {
     const doc = addDocument();
     if (doc) {
-      router.push(`/w/${workspaceId}/d/${doc.id}`);
+      router.push(`/s/${workspaceId}/d/${doc.id}`);
     }
     setShowTemplatePicker(false);
   }, [addDocument, router, workspaceId]);
@@ -85,7 +85,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
       removeDocument(id);
       const remaining = documents.filter((d) => d.id !== id);
       if (remaining.length > 0) {
-        router.replace(`/w/${workspaceId}/d/${remaining[0].id}`);
+        router.replace(`/s/${workspaceId}/d/${remaining[0].id}`);
       }
     },
     [removeDocument, documents, router, workspaceId],
@@ -93,7 +93,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 
   const handleNavigateToTask = useCallback(
     (documentId: string) => {
-      router.push(`/w/${workspaceId}/d/${documentId}`);
+      router.push(`/s/${workspaceId}/d/${documentId}`);
     },
     [router, workspaceId],
   );
@@ -121,7 +121,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         onWorkspaceSwitch={(ws) => {
           setWorkspace(ws);
           setActiveWorkspaceId(ws.id);
-          router.push(`/w/${ws.id}`);
+          router.push(`/s/${ws.id}`);
         }}
       />
 

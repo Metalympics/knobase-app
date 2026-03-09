@@ -18,7 +18,7 @@ export async function GET(
 
   const { id } = await params;
   const supabase = createAdminClient();
-  const workspaceId = auth.apiKey.workspace_id;
+  const workspaceId = auth.apiKey.school_id;
 
   const { data, error } = await supabase
     .from("workspace_files")
@@ -50,7 +50,7 @@ export async function PATCH(
 
   const { id } = await params;
   const supabase = createAdminClient();
-  const workspaceId = auth.apiKey.workspace_id;
+  const workspaceId = auth.apiKey.school_id;
 
   let body: Record<string, unknown>;
   try {
@@ -122,7 +122,7 @@ export async function DELETE(
 
   const { id } = await params;
   const supabase = createAdminClient();
-  const workspaceId = auth.apiKey.workspace_id;
+  const workspaceId = auth.apiKey.school_id;
 
   // Fetch file to get storage path
   const { data: file, error: fetchError } = await supabase

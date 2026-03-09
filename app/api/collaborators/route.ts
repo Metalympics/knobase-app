@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 import {
   findCollaborators,
   getAllWorkspaceMembers,
@@ -35,7 +35,7 @@ const SearchRequestSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Authenticate user
     const {
@@ -50,35 +50,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's workspace
+    // Get user's school
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id')
+      .select('id, school_id')
       .eq('auth_id', user.id)
       .single();
 
-    if (userError || !userData) {
+    if (userError || !userData || !userData.school_id) {
       return NextResponse.json(
         { error: 'User profile not found' },
         { status: 404 }
       );
     }
 
-    // Get workspace from membership
-    const { data: membership, error: membershipError } = await supabase
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', userData.id)
-      .single();
-
-    if (membershipError || !membership) {
-      return NextResponse.json(
-        { error: 'No workspace found' },
-        { status: 404 }
-      );
-    }
-
-    const workspaceId = membership.workspace_id;
+    const workspaceId = userData.school_id;
 
     // Parse query params
     const searchParams = request.nextUrl.searchParams;
@@ -136,7 +122,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Authenticate user or API key
     const apiKey = request.headers.get('x-api-key');
@@ -146,7 +132,7 @@ export async function POST(request: NextRequest) {
       // Authenticate via API key
       const { data: keyData, error: keyError } = await supabase
         .from('agent_api_keys')
-        .select('workspace_id')
+        .select('school_id')
         .eq('key_hash', apiKey)
         .is('revoked_at', null)
         .single();
@@ -158,7 +144,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      workspaceId = keyData.workspace_id;
+      workspaceId = keyData.school_id;
     } else {
       // Authenticate via session
       const {
@@ -173,34 +159,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Get user's workspace
+      // Get user's school
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id')
+        .select('id, school_id')
         .eq('auth_id', user.id)
         .single();
 
-      if (userError || !userData) {
+      if (userError || !userData || !userData.school_id) {
         return NextResponse.json(
           { success: false, error: 'User profile not found' },
           { status: 404 }
         );
       }
 
-      const { data: membership, error: membershipError } = await supabase
-        .from('workspace_members')
-        .select('workspace_id')
-        .eq('user_id', userData.id)
-        .single();
-
-      if (membershipError || !membership) {
-        return NextResponse.json(
-          { success: false, error: 'No workspace found' },
-          { status: 404 }
-        );
-      }
-
-      workspaceId = membership.workspace_id;
+      workspaceId = userData.school_id;
     }
 
     // Parse and validate request body
@@ -246,7 +219,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Invalid request parameters',
-          details: error.errors,
+          details: error.issues,
         },
         { status: 400 }
       );

@@ -8,8 +8,8 @@ import {
   listWorkspaces,
   getActiveWorkspaceId,
   setActiveWorkspaceId,
-} from "@/lib/workspaces/store";
-import type { Workspace } from "@/lib/workspaces/types";
+} from "@/lib/schools/store";
+import type { Workspace } from "@/lib/schools/types";
 
 interface WorkspaceSwitcherProps {
   currentWorkspace: Workspace;
@@ -129,7 +129,7 @@ export function WorkspaceSwitcher({
                     </p>
                     <p className="flex items-center gap-1 text-[11px] text-neutral-400">
                       <Users className="h-2.5 w-2.5" />
-                      {ws.members.length}
+                      {(ws as import("@/lib/schools/types").SchoolWithMembers).members?.length ?? 0}
                     </p>
                   </div>
                   {ws.id === currentWorkspace.id && (

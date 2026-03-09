@@ -1,5 +1,5 @@
 // ── URL Navigation Helpers ──
-// Dual URL strategy: /d/[id] (universal/shareable) and /w/[workspaceId]/d/[id] (contextual/sidebar)
+// Dual URL strategy: /d/[id] (universal/shareable) and /s/[schoolId]/d/[id] (contextual/sidebar)
 
 const APP_ORIGIN =
   typeof window !== "undefined"
@@ -22,14 +22,14 @@ export function getInternalLink(
   docId: string,
   workspaceId: string
 ): string {
-  return `/w/${workspaceId}/d/${docId}`;
+  return `/s/${workspaceId}/d/${docId}`;
 }
 
 /**
  * Workspace home link.
  */
 export function getWorkspaceLink(workspaceId: string): string {
-  return `/w/${workspaceId}`;
+  return `/s/${workspaceId}`;
 }
 
 /**
@@ -56,15 +56,15 @@ export function getLoginLink(redirect?: string): string {
 }
 
 /**
- * Determine if a URL pattern is the universal (/d/) or contextual (/w/) form.
+ * Determine if a URL pattern is the universal (/d/) or contextual (/s/) form.
  */
 export function parseDocumentUrl(pathname: string): {
   docId: string | null;
   workspaceId: string | null;
   mode: "universal" | "contextual" | "unknown";
 } {
-  // /w/[workspaceId]/d/[docId]
-  const contextual = pathname.match(/^\/w\/([^/]+)\/d\/(.+)$/);
+  // /s/[workspaceId]/d/[docId]
+  const contextual = pathname.match(/^\/s\/([^/]+)\/d\/(.+)$/);
   if (contextual) {
     return {
       workspaceId: contextual[1],

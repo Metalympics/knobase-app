@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   const { data: keyData, error: keyError } = await supabase
     .from("agent_api_keys")
-    .select("workspace_id, revoked_at, expires_at")
+    .select("school_id, revoked_at, expires_at")
     .eq("key_hash", keyHash)
     .is("revoked_at", null)
     .single();
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Check key expiry
-  const kd = keyData as unknown as { workspace_id: string; revoked_at: string | null; expires_at: string | null };
+  const kd = keyData as unknown as { school_id: string; revoked_at: string | null; expires_at: string | null };
   if (kd.expires_at && new Date(kd.expires_at) < new Date()) {
     return apiError("API key has expired", "UNAUTHORIZED", 401);
   }
@@ -92,39 +92,72 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
+  const now = new Date().toISOString();
+  const schoolId = kd.school_id;
 
-  // ── Upsert agent ──
-  const { data: agent, error } = await supabase
-    .from("agents")
-    .upsert(
-      {
-        agent_id: data.agent_id,
-        workspace_id: kd.workspace_id,
-        name: data.name,
-        type: data.type,
-        version: data.version,
-        capabilities: data.capabilities,
-        platform: data.platform ?? null,
-        hostname: data.hostname ?? null,
-        is_active: true,
-        last_seen_at: new Date().toISOString(),
-      },
-      { onConflict: "agent_id", ignoreDuplicates: false },
-    )
-    .select()
+  // ── Upsert agent as users row (type='agent') ──
+  // Check if this bot_id already has a user record in this school
+  const { data: existing } = await supabase
+    .from("users")
+    .select("id")
+    .eq("bot_id", data.agent_id)
+    .eq("school_id", schoolId)
     .single();
 
-  if (error) {
-    console.error("[Agent Register] Error:", error);
-    return apiError("Failed to register agent", "INTERNAL_ERROR", 500);
+  const existingRow = existing as unknown as { id: string } | null;
+
+  let agentUser: unknown;
+
+  if (existingRow) {
+    const { data: updated, error } = await supabase
+      .from("users")
+      .update({
+        name: data.name,
+        agent_type: data.type,
+        capabilities: data.capabilities,
+        availability: "online",
+        last_invoked_at: now,
+      })
+      .eq("id", existingRow.id)
+      .select("id, bot_id, school_id, name, agent_type, created_at")
+      .single();
+
+    if (error) {
+      console.error("[Agent Register] Update error:", error);
+      return apiError("Failed to register agent", "INTERNAL_ERROR", 500);
+    }
+    agentUser = updated;
+  } else {
+    const { data: inserted, error } = await supabase
+      .from("users")
+      .insert({
+        auth_id: crypto.randomUUID(),
+        email: `${data.agent_id}@bot.internal`,
+        name: data.name,
+        type: "agent",
+        bot_id: data.agent_id,
+        school_id: schoolId,
+        agent_type: data.type,
+        capabilities: data.capabilities,
+        availability: "online",
+        last_invoked_at: now,
+      })
+      .select("id, bot_id, school_id, name, agent_type, created_at")
+      .single();
+
+    if (error) {
+      console.error("[Agent Register] Insert error:", error);
+      return apiError("Failed to register agent", "INTERNAL_ERROR", 500);
+    }
+    agentUser = inserted;
   }
 
-  const row = agent as unknown as {
+  const row = agentUser as {
     id: string;
-    agent_id: string;
-    workspace_id: string;
+    bot_id: string;
+    school_id: string;
     name: string;
-    type: string;
+    agent_type: string;
     created_at: string;
   };
 
@@ -132,10 +165,10 @@ export async function POST(request: NextRequest) {
     success: true,
     agent: {
       id: row.id,
-      agent_id: row.agent_id,
-      workspace_id: row.workspace_id,
+      agent_id: row.bot_id,
+      school_id: row.school_id,
       name: row.name,
-      type: row.type,
+      type: row.agent_type,
       created_at: row.created_at,
     },
   });

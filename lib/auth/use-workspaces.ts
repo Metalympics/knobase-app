@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./provider";
 import { createClient } from "@/lib/supabase/client";
-import type { Workspace } from "@/lib/supabase/types";
+import type { School } from "@/lib/supabase/types";
+
+export type Workspace = School;
 
 export function useWorkspaces() {
   const { user, loading: authLoading } = useAuth();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspaces, setWorkspaces] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -25,33 +27,27 @@ export function useWorkspaces() {
 
         const { data: profile } = await supabase
           .from("users")
-          .select("id")
+          .select("id, school_id")
           .eq("auth_id", user.id)
           .single();
 
-        if (!profile) {
-          throw new Error("User profile not found");
+        if (!profile?.school_id) {
+          setWorkspaces([]);
+          setLoading(false);
+          return;
         }
 
         const { data, error: fetchError } = await supabase
-          .from("workspaces")
-          .select(
-            `
-            *,
-            workspace_members!inner (
-              role,
-              joined_at
-            )
-          `
-          )
-          .eq("workspace_members.user_id", profile.id)
+          .from("schools")
+          .select("*")
+          .eq("id", profile.school_id)
           .order("created_at", { ascending: false });
 
         if (fetchError) {
           throw new Error(fetchError.message);
         }
 
-        setWorkspaces(data as Workspace[]);
+        setWorkspaces((data as School[]) ?? []);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err : new Error("Unknown error"));
@@ -75,33 +71,26 @@ export function useWorkspaces() {
 
       const { data: profile } = await supabase
         .from("users")
-        .select("id")
+        .select("id, school_id")
         .eq("auth_id", user.id)
         .single();
 
-      if (!profile) {
-        throw new Error("User profile not found");
+      if (!profile?.school_id) {
+        setWorkspaces([]);
+        return;
       }
 
       const { data, error: fetchError } = await supabase
-        .from("workspaces")
-        .select(
-          `
-          *,
-          workspace_members!inner (
-            role,
-            joined_at
-          )
-        `
-        )
-        .eq("workspace_members.user_id", profile.id)
+        .from("schools")
+        .select("*")
+        .eq("id", profile.school_id)
         .order("created_at", { ascending: false });
 
       if (fetchError) {
         throw new Error(fetchError.message);
       }
 
-      setWorkspaces(data as Workspace[]);
+      setWorkspaces((data as School[]) ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err : new Error("Unknown error"));

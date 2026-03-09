@@ -67,7 +67,7 @@ import { TagManager } from "@/components/tags/tag-manager";
 import { ActivityFeed } from "@/components/activity/activity-feed";
 import { OfflineIndicator } from "@/components/editor/offline-indicator";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { getWorkspace } from "@/lib/workspaces/store";
+import { getWorkspace } from "@/lib/schools/store";
 import type { Document } from "@/lib/documents/types";
 
 function getAncestorChain(
@@ -90,7 +90,7 @@ type RightPanel = "none" | "comments" | "history" | "metadata" | "activity";
 export default function WorkspaceDocumentPage() {
   const params = useParams();
   const router = useRouter();
-  const workspaceId = params.workspaceId as string;
+  const workspaceId = params.schoolId as string;
   const docId = params.id as string;
 
   const workspace = typeof window !== "undefined" ? getWorkspace(workspaceId) : null;
@@ -109,7 +109,7 @@ export default function WorkspaceDocumentPage() {
     if (doc) {
       setActiveDoc(doc);
     } else {
-      router.replace(`/w/${workspaceId}`);
+      router.replace(`/s/${workspaceId}`);
     }
   }, [docId, workspaceId, router]);
 
@@ -148,7 +148,7 @@ export default function WorkspaceDocumentPage() {
   const commentCount = getCommentCount(docId);
 
   const navigateToDoc = useCallback(
-    (id: string) => router.push(`/w/${workspaceId}/d/${id}`),
+    (id: string) => router.push(`/s/${workspaceId}/d/${id}`),
     [router, workspaceId],
   );
 
@@ -491,7 +491,7 @@ export default function WorkspaceDocumentPage() {
               {isReady && (
                 <DocumentContextProvider
                   documentId={docId}
-                  workspaceId={workspaceId}
+                  schoolId={workspaceId}
                   documentTitle={activeDoc.title ?? "Untitled"}
                   userId={user?.id ?? ""}
                 >

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Key } from "lucide-react";
 import { ApiKeysManager } from "@/components/settings/api-keys-manager";
 import { SettingsSubNav } from "@/components/settings/settings-sub-nav";
-import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
 
 export default function ApiKeysPage() {
   const router = useRouter();

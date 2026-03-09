@@ -27,7 +27,7 @@ import {
   getDocumentAccess,
   setDocumentAccess,
 } from "@/lib/permissions/acl";
-import { getWorkspace } from "@/lib/workspaces/store";
+import { getWorkspace } from "@/lib/schools/store";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -75,7 +75,7 @@ export function ShareDialog({
   const [tokenDuration, setTokenDuration] = useState(24);
   const [tokenCreated, setTokenCreated] = useState(false);
 
-  const ws = getWorkspace(workspaceId);
+  const ws = getWorkspace(workspaceId) as import("@/lib/schools/types").SchoolWithMembers | null;
 
   useEffect(() => {
     setGuestTokens(listGuestTokens(workspaceId));
@@ -217,23 +217,25 @@ export function ShareDialog({
           </div>
 
           {/* Workspace members */}
-          {ws && ws.members.length > 0 && (
+          {ws && (ws.members?.length ?? 0) > 0 && (
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-neutral-600">
                 <Users className="h-3.5 w-3.5" />
                 Workspace Members
               </label>
               <div className="max-h-32 overflow-y-auto rounded-lg border border-neutral-200 divide-y divide-neutral-50">
-                {ws.members.map((member) => (
+                {(ws.members ?? []).map((member) => {
+                  const displayName = member.user?.displayName ?? member.userId;
+                  return (
                   <div
                     key={member.userId}
                     className="flex items-center gap-3 px-3 py-2"
                   >
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-medium text-neutral-600">
-                      {member.displayName.charAt(0).toUpperCase()}
+                      {displayName.charAt(0).toUpperCase()}
                     </div>
                     <span className="flex-1 truncate text-xs text-neutral-700">
-                      {member.displayName}
+                      {displayName}
                     </span>
                     <span className="flex items-center gap-1 text-[10px] text-neutral-400">
                       {member.role === "admin" && <Shield className="h-3 w-3" />}
@@ -242,7 +244,8 @@ export function ShareDialog({
                       {member.role}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

@@ -5,7 +5,7 @@
 
 export {
   createApiKey,
-  listApiKeysByWorkspace,
+  listApiKeysBySchool,
   findApiKeyByRawToken,
   revokeApiKey,
 } from "@/lib/supabase/api-keys";

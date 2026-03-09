@@ -30,43 +30,48 @@ export async function getCurrentUser(
 export async function getUserWorkspaces(
   supabase: SupabaseClient<Database>,
   userId: string
-): Promise<Tables<"workspaces">[]> {
+): Promise<Tables<"schools">[]> {
+  const { data: profile } = await supabase
+    .from("users")
+    .select("school_id")
+    .eq("id", userId)
+    .single();
+
+  if (!profile?.school_id) return [];
+
   const { data, error } = await supabase
-    .from("workspaces")
-    .select(
-      `
-      *,
-      workspace_members!inner(*)
-    `
-    )
-    .eq("workspace_members.user_id", userId);
+    .from("schools")
+    .select("*")
+    .eq("id", profile.school_id);
 
   if (error) {
-    console.error("Error fetching workspaces:", error);
+    console.error("Error fetching schools:", error);
     return [];
   }
 
-  return data as unknown as Tables<"workspaces">[];
+  return (data ?? []) as unknown as Tables<"schools">[];
 }
 
 export async function getUserWorkspaceRole(
   supabase: SupabaseClient<Database>,
-  workspaceId: string,
+  schoolId: string,
   userId: string
 ): Promise<"admin" | "editor" | "viewer" | null> {
   const { data, error } = await supabase
-    .from("workspace_members")
-    .select("role")
-    .eq("workspace_id", workspaceId)
-    .eq("user_id", userId)
+    .from("users")
+    .select("role, school_id")
+    .eq("id", userId)
     .single();
 
-  if (error) {
-    console.error("Error fetching workspace role:", error);
+  if (error || !data) {
+    console.error("Error fetching user role:", error);
     return null;
   }
 
-  return (data as unknown as { role: "admin" | "editor" | "viewer" }).role;
+  const user = data as unknown as { role: string | null; school_id: string | null };
+  if (user.school_id !== schoolId) return null;
+
+  return (user.role as "admin" | "editor" | "viewer") ?? null;
 }
 
 export async function canEditDocument(
@@ -76,7 +81,7 @@ export async function canEditDocument(
 ): Promise<boolean> {
   const { data: docData, error: docError } = await supabase
     .from("documents")
-    .select("workspace_id, created_by")
+    .select("school_id, created_by")
     .eq("id", documentId)
     .single();
 
@@ -84,12 +89,12 @@ export async function canEditDocument(
     return false;
   }
 
-  const doc = docData as unknown as { workspace_id: string; created_by: string };
+  const doc = docData as unknown as { school_id: string; created_by: string };
   if (doc.created_by === userId) {
     return true;
   }
 
-  const role = await getUserWorkspaceRole(supabase, doc.workspace_id, userId);
+  const role = await getUserWorkspaceRole(supabase, doc.school_id, userId);
   return role === "admin" || role === "editor";
 }
 
@@ -100,7 +105,7 @@ export async function canDeleteDocument(
 ): Promise<boolean> {
   const { data: docData2, error: docError } = await supabase
     .from("documents")
-    .select("workspace_id, created_by")
+    .select("school_id, created_by")
     .eq("id", documentId)
     .single();
 
@@ -108,80 +113,73 @@ export async function canDeleteDocument(
     return false;
   }
 
-  const doc2 = docData2 as unknown as { workspace_id: string; created_by: string };
+  const doc2 = docData2 as unknown as { school_id: string; created_by: string };
   if (doc2.created_by === userId) {
     return true;
   }
 
-  const role = await getUserWorkspaceRole(supabase, doc2.workspace_id, userId);
+  const role = await getUserWorkspaceRole(supabase, doc2.school_id, userId);
   return role === "admin";
 }
 
 export async function isWorkspaceAdmin(
   supabase: SupabaseClient<Database>,
-  workspaceId: string,
+  schoolId: string,
   userId: string
 ): Promise<boolean> {
-  const { data: workspace, error: wsError } = await supabase
-    .from("workspaces")
+  const { data: school, error: wsError } = await supabase
+    .from("schools")
     .select("owner_id")
-    .eq("id", workspaceId)
+    .eq("id", schoolId)
     .single();
 
-  if (wsError || !workspace) {
+  if (wsError || !school) {
     return false;
   }
 
-  if ((workspace as unknown as { owner_id: string }).owner_id === userId) {
+  if ((school as unknown as { owner_id: string }).owner_id === userId) {
     return true;
   }
 
-  const role = await getUserWorkspaceRole(supabase, workspaceId, userId);
+  const role = await getUserWorkspaceRole(supabase, schoolId, userId);
   return role === "admin";
 }
 
 export async function getUsersByWorkspace(
   supabase: SupabaseClient<Database>,
-  workspaceId: string
-): Promise<
-  Array<Tables<"users"> & { role: "admin" | "editor" | "viewer" }>
-> {
+  schoolId: string
+): Promise<Array<Tables<"users"> & { role: "admin" | "editor" | "viewer" }>> {
   const { data, error } = await supabase
-    .from("workspace_members")
-    .select(
-      `
-      role,
-      users (*)
-    `
-    )
-    .eq("workspace_id", workspaceId);
+    .from("users")
+    .select("*")
+    .eq("school_id", schoolId);
 
   if (error) {
-    console.error("Error fetching workspace users:", error);
+    console.error("Error fetching school users:", error);
     return [];
   }
 
-  return data.map((item: any) => ({
-    ...item.users,
-    role: item.role,
+  return (data ?? []).map((item: any) => ({
+    ...item,
+    role: (item.role ?? "viewer") as "admin" | "editor" | "viewer",
   }));
 }
 
 export async function getWorkspaceDocuments(
   supabase: SupabaseClient<Database>,
-  workspaceId: string,
-  userId: string
+  schoolId: string,
+  _userId: string
 ): Promise<Tables<"documents">[]> {
   const { data, error } = await supabase
     .from("documents")
     .select("*")
-    .eq("workspace_id", workspaceId)
+    .eq("school_id", schoolId)
     .order("updated_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching workspace documents:", error);
+    console.error("Error fetching school documents:", error);
     return [];
   }
 
-  return data as unknown as Tables<"documents">[];
+  return (data ?? []) as unknown as Tables<"documents">[];
 }

@@ -6,7 +6,7 @@ import { Bot } from "lucide-react";
 import { ConnectedAgents } from "@/components/settings/connected-agents";
 import { AgentPersonaSettings } from "@/components/settings/agent-persona";
 import { SettingsSubNav } from "@/components/settings/settings-sub-nav";
-import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
 
 export default function AgentsPage() {
   const router = useRouter();

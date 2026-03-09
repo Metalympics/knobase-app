@@ -5,7 +5,7 @@ import { useDropzone } from "react-dropzone";
 import { useFiles, type SortField, type SortOrder, type ViewMode } from "@/hooks/use-files";
 import { uploadFile, deleteFile, deleteFiles } from "@/lib/files/upload";
 import { SUPPORTED_MIME_TYPES, formatFileSize } from "@/lib/files/types";
-import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
 import { FilesHeader } from "./files-header";
 import { FilesGrid } from "./files-grid";
 import { FilesList } from "./files-list";

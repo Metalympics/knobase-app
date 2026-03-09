@@ -42,7 +42,7 @@ import { ApiKeysManager } from "@/components/settings/api-keys-manager";
 import { openClawBridge, type OpenClawConnectionStatus } from "@/lib/sync/openclaw-bridge";
 import { getSubscription, getUsage, refreshUsage, updateSubscriptionTier, cancelSubscription } from "@/lib/subscription/store";
 import { PLANS } from "@/lib/subscription/plans";
-import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
 import type { PlanTier, Subscription, UsageRecord } from "@/lib/subscription/types";
 
 type Tab = "integration" | "import" | "export" | "marketplace" | "apikeys" | "subscription" | "agents" | "analytics" | "webhooks" | "mcp" | "credentials";

@@ -11,14 +11,15 @@ export type AuthUser = {
 
 export type UserProfile = Database["public"]["Tables"]["users"]["Row"];
 export type School = Database["public"]["Tables"]["schools"]["Row"];
+export type Workspace = School;
 export type Document = Database["public"]["Tables"]["documents"]["Row"];
 
 /* ------------------------------------------------------------------ */
 /* Agent coordination types                                            */
 /* ------------------------------------------------------------------ */
-export type Agent = Database["public"]["Tables"]["agents"]["Row"];
-export type AgentInsert = Database["public"]["Tables"]["agents"]["Insert"];
-export type AgentUpdate = Database["public"]["Tables"]["agents"]["Update"];
+export type Agent = Database["public"]["Tables"]["users"]["Row"];
+export type AgentInsert = Database["public"]["Tables"]["users"]["Insert"];
+export type AgentUpdate = Database["public"]["Tables"]["users"]["Update"];
 
 export type AgentTask = Database["public"]["Tables"]["agent_tasks"]["Row"];
 export type AgentTaskInsert = Database["public"]["Tables"]["agent_tasks"]["Insert"];
@@ -89,12 +90,14 @@ export type EditType = AgentEditProposal["edit_type"];
 export type SchoolWithMembers = School & {
   members: UserProfile[];
 };
+export type WorkspaceWithMembers = SchoolWithMembers;
 
 export type DocumentWithCreator = Document & {
   creator: UserProfile;
 };
 
 export type SchoolRole = "admin" | "editor" | "viewer";
+export type WorkspaceRole = SchoolRole;
 
 export type CreateSchoolInput = {
   name: string;
@@ -130,6 +133,8 @@ export type AddSchoolMemberInput = {
   user_id: string;
   role: SchoolRole;
 };
+export type AddWorkspaceMemberInput = AddSchoolMemberInput;
+export type CreateWorkspaceInput = CreateSchoolInput;
 
 export type PermissionCheck = {
   canRead: boolean;
@@ -201,7 +206,3 @@ export type WorkspaceMember = {
   primary_persona_id?: string | null;
 };
 
-/**
- * Workspace role type (for compatibility)
- */
-export type WorkspaceRole = "admin" | "editor" | "viewer";

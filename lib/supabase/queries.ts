@@ -1,6 +1,6 @@
 // Supabase queries for schools-based multi-tenancy
 
-import { createClient } from "./server";
+import { createServerClient as createClient } from "./server";
 import type { TypedSupabaseClient } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -43,7 +43,7 @@ export async function getUserSchool(userId: string) {
     .single();
     
   if (userError) throw userError;
-  return user.schools;
+  return (user as unknown as Record<string, any>).schools;
 }
 
 export async function getSchoolMembers(schoolId: string) {
@@ -178,7 +178,7 @@ export async function createDocument(params: {
   content?: string;
   school_id: string;
   created_by: string;
-  visibility?: string;
+  visibility?: "private" | "shared" | "public";
 }) {
   const supabase = await createClient();
   
@@ -197,7 +197,7 @@ export async function updateDocument(
   updates: {
     title?: string;
     content?: string;
-    visibility?: string;
+    visibility?: "private" | "shared" | "public";
   }
 ) {
   const supabase = await createClient();
@@ -344,7 +344,9 @@ export async function acceptInvite(inviteId: string, userId: string) {
   if (!invite) throw new Error("Invite not found");
   
   // Update user's school
-  await updateUserSchool(userId, invite.school_id);
+  if (invite.school_id) {
+    await updateUserSchool(userId, invite.school_id);
+  }
   
   // Mark invite as used
   await supabase

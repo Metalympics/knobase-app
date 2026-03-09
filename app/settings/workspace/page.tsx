@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -48,7 +48,7 @@ const WORKSPACE_ICONS = [
   "⚡",
 ];
 
-export default function WorkspaceSettingsPage() {
+function WorkspaceSettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("general");
@@ -468,5 +468,13 @@ export default function WorkspaceSettingsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function WorkspaceSettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <WorkspaceSettingsContent />
+    </Suspense>
   );
 }

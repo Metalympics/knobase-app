@@ -16,14 +16,14 @@ import {
   Unplug,
   Loader2,
 } from "lucide-react";
-import type { WorkspaceRole } from "@/lib/workspaces/types";
+import type { WorkspaceRole } from "@/lib/schools/types";
 import {
   type DocumentAccess,
   getDocumentAccess,
   setDocumentAccess,
   ROLE_LABELS,
 } from "@/lib/permissions/acl";
-import { getWorkspace, addMember } from "@/lib/workspaces/store";
+import { getWorkspace, addMember } from "@/lib/schools/store";
 
 type Tab = "people" | "agent";
 
@@ -76,11 +76,7 @@ export function ShareModal({
 
   const handleInvite = useCallback(() => {
     if (!email.trim() || !ws) return;
-    addMember(workspaceId, {
-      userId: crypto.randomUUID(),
-      displayName: email.trim(),
-      role: selectedRole,
-    });
+    addMember(workspaceId, crypto.randomUUID(), selectedRole);
     setEmail("");
     setInviteSent(true);
     setTimeout(() => setInviteSent(false), 2000);

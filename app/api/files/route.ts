@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
   const { searchParams } = request.nextUrl;
 
-  const workspaceId = auth.apiKey.workspace_id;
+  const workspaceId = auth.apiKey.school_id;
   const folderPath = searchParams.get("folder_path");
   const fileType = searchParams.get("file_type");
   const search = searchParams.get("search");
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
-  const workspaceId = auth.apiKey.workspace_id;
+  const workspaceId = auth.apiKey.school_id;
 
   let formData: FormData;
   try {
@@ -205,7 +205,7 @@ export async function DELETE(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
-  const workspaceId = auth.apiKey.workspace_id;
+  const workspaceId = auth.apiKey.school_id;
 
   let body: { ids?: string[] };
   try {

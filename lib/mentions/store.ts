@@ -1,13 +1,14 @@
 import type { MentionableUser, MentionableAgent, HumanMention } from './types';
-import { getWorkspace, getCurrentUserId } from '@/lib/workspaces/store';
+import type { SchoolWithMembers } from '@/lib/schools/types';
+import { getWorkspace, getCurrentUserId } from '@/lib/schools/store';
 import { addNotification } from '@/lib/notifications/store';
 
 /**
  * Get all mentionable users in a workspace
  */
 export function getWorkspaceUsers(workspaceId: string): MentionableUser[] {
-  const workspace = getWorkspace(workspaceId);
-  if (!workspace) return [];
+  const workspace = getWorkspace(workspaceId) as SchoolWithMembers | null;
+  if (!workspace?.members?.length) return [];
   
   const currentUserId = getCurrentUserId();
   
@@ -15,7 +16,7 @@ export function getWorkspaceUsers(workspaceId: string): MentionableUser[] {
     .filter(member => member.userId !== currentUserId)
     .map(member => ({
       userId: member.userId,
-      displayName: member.displayName,
+      displayName: member.user?.displayName ?? member.userId,
       role: member.role,
       color: hashToColor(member.userId),
     }));

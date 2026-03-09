@@ -247,7 +247,7 @@ export function AgentSelector({
             agentColor: agentOption.color ?? agentOption.agent!.color,
             documentId,
             documentTitle,
-            workspaceId,
+            schoolId: workspaceId,
             userId: userId ?? "",
           },
         })

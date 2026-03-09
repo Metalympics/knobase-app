@@ -13,7 +13,7 @@ import type { AgentApiKey } from "@/lib/supabase/types";
 export interface ResolvedApiKey {
   id: string;
   name: string;
-  workspace_id: string;
+  school_id: string;
   agent_id: string | null;
   scopes: string[];
   tier: "free" | "pro" | "enterprise";
@@ -28,7 +28,7 @@ function toResolvedKey(row: AgentApiKey): ResolvedApiKey {
   return {
     id: row.id,
     name: row.name,
-    workspace_id: row.workspace_id,
+    school_id: row.school_id,
     agent_id: row.agent_id,
     scopes,
     tier,

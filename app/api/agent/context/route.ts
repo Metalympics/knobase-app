@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch workspace members
     const { data: members, error: membersError } = await supabase
-      .from("workspace_members")
+      .from("users")
       .select(`
         user_id,
         role,

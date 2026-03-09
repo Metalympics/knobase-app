@@ -32,7 +32,7 @@ export interface StreamHandlerConfig {
   /** OpenClaw API key (from localStorage) */
   openclawApiKey?: string;
   /** Workspace ID for Supabase coordination */
-  workspaceId?: string;
+  schoolId?: string;
 }
 
 export interface StreamCallbacks {
@@ -370,7 +370,7 @@ export function createEditorStreamHandler(
       if (finalText.includes("@")) {
         try {
           const contextRes = await fetch(
-            `/api/agent/context?workspaceId=${config.workspaceId || ""}&documentId=${config.documentId}`,
+            `/api/agent/context?schoolId=${config.schoolId || ""}&documentId=${config.documentId}`,
           );
           if (contextRes.ok) {
             const context = await contextRes.json();

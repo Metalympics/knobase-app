@@ -1,5 +1,5 @@
-import type { WorkspaceRole } from "@/lib/workspaces/types";
-import { getMyRole } from "@/lib/workspaces/store";
+import type { WorkspaceRole } from "@/lib/schools/types";
+import { getMyRole } from "@/lib/schools/store";
 
 export type Permission =
   | "read"

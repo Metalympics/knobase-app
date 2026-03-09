@@ -8,7 +8,7 @@ import type {
   ExportTemplateData,
 } from "./types";
 import { generateExportHTML, getBaseStyles } from "./templates";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@/lib/supabase/server";
 
 /**
  * Export a document to image or PDF
@@ -111,12 +111,14 @@ async function fetchExportMetadata(
     return null;
   }
 
+  const docData = doc as unknown as Record<string, any>;
+
   return {
-    documentTitle: doc.title || "Untitled Document",
-    authorName: (doc.users as any)?.display_name || "Unknown Author",
-    schoolName: (doc.schools as any)?.name || "Unknown School",
+    documentTitle: docData.title || "Untitled Document",
+    authorName: docData.users?.display_name || "Unknown Author",
+    schoolName: docData.schools?.name || "Unknown School",
     schoolLogo: options.includeLogo
-      ? (doc.schools as any)?.logo_url || undefined
+      ? docData.schools?.logo_url || undefined
       : undefined,
     exportedAt: new Date().toISOString(),
     format: options.format,

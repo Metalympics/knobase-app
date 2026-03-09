@@ -9,7 +9,7 @@ import {
   getDocumentLimitInfo,
   getAgentLimitInfo,
 } from "./store";
-import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
 
 function resolveWorkspaceId(): string {
   return getActiveWorkspaceId() ?? getOrCreateDefaultWorkspace().id;

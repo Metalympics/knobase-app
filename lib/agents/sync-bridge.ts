@@ -24,7 +24,7 @@ import type { AgentTask as SupabaseAgentTask } from "@/lib/supabase/types";
 
 export interface SyncTaskParams {
   documentId: string;
-  workspaceId: string;
+  schoolId: string;
   /** Human-readable prompt / task description */
   prompt: string;
   /** Mentioned agent handle, e.g. "@claude" */
@@ -83,7 +83,7 @@ export async function syncTaskToSupabase(
     // ── Step 2: Persist to Supabase + fire webhook ────────────────
     const { task } = await handleMention({
       documentId: params.documentId,
-      workspaceId: params.workspaceId,
+      schoolId: params.schoolId,
       prompt: params.prompt,
       createdBy: params.userId,
       agentId: params.agentId,
@@ -118,7 +118,7 @@ export async function syncTaskToSupabase(
  * workers) that read from useTaskStore directly.
  */
 export function subscribeToSupabaseChanges(
-  _workspaceId: string,
+  _schoolId: string,
   documentId: string,
 ): () => void {
   const unsubscribe = subscribeToDocumentTasks(

@@ -368,7 +368,7 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
     const agentColor = (node.attrs.agentColor as string) || "#8B5CF6";
     const docId = (node.attrs.documentId as string) || "";
     const docTitle = (node.attrs.documentTitle as string) || "";
-    const wsId = (node.attrs.workspaceId as string) || "";
+    const wsId = (node.attrs.schoolId as string) || "";
     const uid = (node.attrs.userId as string) || "";
 
     const agents = listAgents();

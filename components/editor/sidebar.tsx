@@ -20,7 +20,7 @@ import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 import { CollectionSidebar } from "@/components/collections/collection-sidebar";
 import { TaskStatusPanel } from "@/components/sidebar/task-status-panel";
-import type { Workspace } from "@/lib/workspaces/types";
+import type { Workspace } from "@/lib/schools/types";
 import {
   getDocumentLimitInfo,
   getSubscription,

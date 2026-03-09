@@ -27,38 +27,37 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { agentId, workspaceId, name, scopes } = body as {
+    const { agentId, schoolId, name, scopes } = body as {
       agentId?: string;
-      workspaceId?: string;
+      schoolId?: string;
       name?: string;
       scopes?: string[];
     };
 
-    if (!agentId || !workspaceId) {
+    if (!agentId || !schoolId) {
       return NextResponse.json(
-        { error: "agentId and workspaceId are required" },
+        { error: "agentId and schoolId are required" },
         { status: 400 }
       );
     }
 
-    // Verify the caller is an admin of the workspace
-    const { data: membership } = await supabase
-      .from("workspace_members")
-      .select("role")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", user.id)
+    // Verify the caller is an admin of the school
+    const { data: callerUser } = await supabase
+      .from("users")
+      .select("role, school_id")
+      .eq("auth_id", user.id)
       .single();
 
-    if (!membership || membership.role !== "admin") {
+    if (!callerUser || callerUser.school_id !== schoolId || callerUser.role !== "admin") {
       return NextResponse.json(
-        { error: "Only workspace admins can generate API keys" },
+        { error: "Only school admins can generate API keys" },
         { status: 403 }
       );
     }
 
     // Create the key via existing CRUD module
     const { key, rawKey } = await createApiKey({
-      workspace_id: workspaceId,
+      school_id: schoolId,
       agent_id: agentId,
       name: name ?? `API Key for ${agentId}`,
       scopes: scopes ?? ["read", "write", "task"],

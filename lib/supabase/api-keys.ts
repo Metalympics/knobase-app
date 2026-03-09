@@ -36,7 +36,7 @@ function generateRawKey(): string {
  * Create a new API key. Returns the FULL key (only time it's visible).
  */
 export async function createApiKey(
-  data: Pick<AgentApiKeyInsert, "workspace_id" | "agent_id" | "name" | "tier" | "scopes" | "expires_at">
+  data: Pick<AgentApiKeyInsert, "school_id" | "agent_id" | "name" | "tier" | "scopes" | "expires_at">
 ): Promise<{ key: AgentApiKey; rawKey: string }> {
   const rawKey = generateRawKey();
   const keyHash = await sha256(rawKey);
@@ -46,7 +46,7 @@ export async function createApiKey(
   const { data: apiKey, error } = await supabase
     .from("agent_api_keys")
     .insert({
-      workspace_id: data.workspace_id,
+      school_id: data.school_id,
       agent_id: data.agent_id,
       name: data.name,
       key_hash: keyHash,
@@ -64,14 +64,14 @@ export async function createApiKey(
 /**
  * List all API keys for a workspace (never returns the raw key).
  */
-export async function listApiKeysByWorkspace(
-  workspaceId: string
+export async function listApiKeysBySchool(
+  schoolId: string
 ): Promise<AgentApiKey[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("agent_api_keys")
     .select("*")
-    .eq("workspace_id", workspaceId)
+    .eq("school_id", schoolId)
     .is("revoked_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;

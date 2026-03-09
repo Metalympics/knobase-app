@@ -7,7 +7,7 @@ import { Download, Star, Check, Crown } from "lucide-react";
 import { createAgent } from "@/lib/agents/store";
 import { incrementDownloads, type MarketplaceAgent } from "@/lib/marketplace/store";
 import { canCreateAgent } from "@/lib/subscription/store";
-import { getActiveWorkspaceId } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId } from "@/lib/schools/store";
 
 interface AgentCardProps {
   agent: MarketplaceAgent;

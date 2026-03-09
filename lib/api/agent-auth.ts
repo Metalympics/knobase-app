@@ -15,7 +15,7 @@ export interface AgentAuthContext {
   /** Authenticated agent ID (e.g. "claw") */
   agentId: string;
   /** Workspace the API key belongs to */
-  workspaceId: string;
+  schoolId: string;
   /** Granted scopes / permissions (e.g. ["read", "write", "task"]) */
   permissions: string[];
   /** Pricing tier that governs rate limits */
@@ -45,7 +45,7 @@ export type AgentAuthResult =
  * ```ts
  * const auth = await authenticateAgent(request);
  * if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
- * const { agentId, workspaceId, permissions } = auth.context;
+ * const { agentId, schoolId, permissions } = auth.context;
  * ```
  */
 export async function authenticateAgent(
@@ -86,7 +86,7 @@ function resolveAuth(result: AuthResult): AgentAuthResult {
     ok: true,
     context: {
       agentId: apiKey.agent_id ?? apiKey.name,
-      workspaceId: apiKey.workspace_id,
+      schoolId: apiKey.school_id,
       permissions: apiKey.scopes,
       tier: apiKey.tier,
       keyId: apiKey.id,

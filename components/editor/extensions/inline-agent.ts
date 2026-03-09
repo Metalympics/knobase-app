@@ -14,7 +14,7 @@ import type { InlineSuggestionData } from "@/components/agent/inline-suggestion"
 import { InlineAgentNodeView } from "./inline-agent-view";
 import type { MentionableUser, HumanMention, AIMention, Mention } from "@/lib/mentions/types";
 import { notifyMentionedUser } from "@/lib/mentions/store";
-import { getCurrentUserId } from "@/lib/workspaces/store";
+import { getCurrentUserId } from "@/lib/schools/store";
 import type { Agent } from "@/lib/agents/store";
 
 export interface InlineAgentOptions {
@@ -93,7 +93,7 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
       agentColor: { default: null, renderHTML: () => ({}) },
       documentId: { default: null, renderHTML: () => ({}) },
       documentTitle: { default: null, renderHTML: () => ({}) },
-      workspaceId: { default: null, renderHTML: () => ({}) },
+      schoolId: { default: null, renderHTML: () => ({}) },
       userId: { default: null, renderHTML: () => ({}) },
       submittedPrompt: { default: null, renderHTML: () => ({}) },
     };
@@ -309,7 +309,7 @@ export async function createInlineAgentTask(
   prompt: string,
   documentId: string,
   documentTitle: string,
-  workspaceId: string,
+  schoolId: string,
   userId?: string,
 ): Promise<string> {
   const { from } = editor.state.selection;
@@ -332,7 +332,7 @@ export async function createInlineAgentTask(
   try {
     const { taskId } = await syncTaskToSupabase({
       documentId,
-      workspaceId,
+      schoolId,
       prompt,
       mentionedAgent: `@${agent.name}`,
       agentId: agent.id,
@@ -349,7 +349,7 @@ export async function createInlineAgentTask(
   import("@/lib/agents/mention-handler").then(({ handleAgentMention }) => {
     handleAgentMention({
       documentId,
-      workspaceId,
+      schoolId,
       mentionedAgent: `@${agent.name}`,
       message: prompt,
       context: `${contextBefore}\n---\n${contextAfter}`,
@@ -388,7 +388,7 @@ export async function createInlineAgentTask(
       insertPos: from,
       openclawEndpoint: openclawConfig.endpoint ?? undefined,
       openclawApiKey: openclawConfig.apiKey ?? undefined,
-      workspaceId,
+      schoolId,
     },
     onSuggestionCallback ?? undefined,
   );
@@ -420,7 +420,7 @@ export function insertHumanMention(
   user: MentionableUser,
   documentId: string,
   documentTitle: string,
-  workspaceId: string
+  schoolId: string
 ): void {
   const mention: HumanMention = {
     type: 'human',

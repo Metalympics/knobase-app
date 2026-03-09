@@ -23,7 +23,7 @@ import { dispatchWebhookEvent } from "@/lib/webhooks/outbound";
 
 const agentWebhookSchema = z.object({
   agent_id: z.string().min(1).max(100),
-  workspace_id: z.string().uuid(),
+  school_id: z.string().uuid(),
   document_id: z.string().uuid().optional(),
   action: z.enum([
     "get_task",
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const { agent_id, workspace_id, document_id, action, payload } = parsed.data;
+  const { agent_id, school_id, document_id, action, payload } = parsed.data;
 
   try {
     switch (action) {
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Fire webhook notification
-        dispatchWebhookEvent(agent_id, workspace_id, "proposal.created", {
+        dispatchWebhookEvent(agent_id, school_id, "proposal.created", {
           proposal_id: proposal.id,
           task_id: cp.data.task_id,
           document_id: cp.data.document_id,
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
           agent_name: us.data.agent_name,
           agent_avatar: us.data.agent_avatar ?? "🤖",
           agent_color: us.data.agent_color ?? "#8B5CF6",
-          workspace_id,
+          school_id,
           document_id: us.data.document_id ?? document_id ?? null,
           status: us.data.status ?? "idle",
           current_section: us.data.current_section ?? null,

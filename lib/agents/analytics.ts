@@ -43,7 +43,7 @@ export interface DailyCount {
 }
 
 export interface WorkspaceAgentAnalytics {
-  workspaceId: string;
+  schoolId: string;
   agents: AgentMetrics[];
   totals: {
     totalTasks: number;
@@ -102,7 +102,7 @@ function buildDailyHistogram(
 
 /** Fetch all tasks for a workspace within the last N days */
 async function fetchWorkspaceTasks(
-  workspaceId: string,
+  schoolId: string,
   days: number = 30,
 ): Promise<AgentTask[]> {
   const since = new Date();
@@ -111,7 +111,7 @@ async function fetchWorkspaceTasks(
   const { data, error } = await supabase()
     .from("agent_tasks")
     .select("*")
-    .eq("workspace_id", workspaceId)
+    .eq("school_id", schoolId)
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: true });
 
@@ -119,7 +119,7 @@ async function fetchWorkspaceTasks(
   return (data ?? []) as AgentTask[];
 }
 
-/** Fetch proposals for a set of task IDs (proposals don't have workspace_id) */
+/** Fetch proposals for a set of task IDs (proposals don't have school_id) */
 async function fetchProposalsByTaskIds(
   taskIds: string[],
   days: number = 30,
@@ -148,7 +148,7 @@ function buildTaskToAgentMap(tasks: AgentTask[]): Map<string, string> {
 
 /** Fetch all sessions for a workspace within the last N days */
 async function fetchWorkspaceSessions(
-  workspaceId: string,
+  schoolId: string,
   days: number = 30,
 ): Promise<AgentSession[]> {
   const since = new Date();
@@ -157,7 +157,7 @@ async function fetchWorkspaceSessions(
   const { data, error } = await supabase()
     .from("agent_sessions")
     .select("*")
-    .eq("workspace_id", workspaceId)
+    .eq("school_id", schoolId)
     .gte("started_at", since.toISOString())
     .order("started_at", { ascending: true });
 
@@ -272,16 +272,16 @@ function computeAgentMetrics(
 
 /** Get analytics for all agents in a workspace */
 export async function getWorkspaceAgentAnalytics(
-  workspaceId: string,
+  schoolId: string,
   days: number = 30,
 ): Promise<WorkspaceAgentAnalytics> {
   // Fetch tasks and sessions in parallel
   const [tasks, sessions] = await Promise.all([
-    fetchWorkspaceTasks(workspaceId, days),
-    fetchWorkspaceSessions(workspaceId, days),
+    fetchWorkspaceTasks(schoolId, days),
+    fetchWorkspaceSessions(schoolId, days),
   ]);
 
-  // Proposals must be fetched via task_ids (no workspace_id column)
+  // Proposals must be fetched via task_ids (no school_id column)
   const taskIds = tasks.map((t) => t.id);
   const proposals = await fetchProposalsByTaskIds(taskIds, days);
   const taskToAgent = buildTaskToAgentMap(tasks);
@@ -335,7 +335,7 @@ export async function getWorkspaceAgentAnalytics(
     .slice(0, 10);
 
   return {
-    workspaceId,
+    schoolId,
     agents,
     totals: {
       totalTasks,
@@ -354,12 +354,12 @@ export async function getWorkspaceAgentAnalytics(
 /** Get analytics for a specific agent */
 export async function getAgentAnalytics(
   agentId: string,
-  workspaceId: string,
+  schoolId: string,
   days: number = 30,
 ): Promise<AgentMetrics> {
   const [tasks, sessions] = await Promise.all([
-    fetchWorkspaceTasks(workspaceId, days),
-    fetchWorkspaceSessions(workspaceId, days),
+    fetchWorkspaceTasks(schoolId, days),
+    fetchWorkspaceSessions(schoolId, days),
   ]);
 
   const taskIds = tasks.map((t) => t.id);

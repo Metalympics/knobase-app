@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type {
   School,
   SchoolMember,
+  SchoolRole,
   SchoolSettings,
   SchoolWithMembers,
   CreateSchoolInput,
@@ -64,7 +65,7 @@ export async function loadSchool(schoolId: string): Promise<School | null> {
   try {
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("workspaces")
+      .from("schools")
       .select("*")
       .eq("id", schoolId)
       .single();
@@ -114,7 +115,7 @@ export async function updateSchool(
     }
 
     const { data, error } = await supabase
-      .from("workspaces")
+      .from("schools")
       .update(updateData)
       .eq("id", schoolId)
       .select()
@@ -133,7 +134,7 @@ export async function updateSchool(
 }
 
 /**
- * Get school members (from workspace_members table)
+ * Get school members (from users table)
  */
 export async function getSchoolMembers(
   schoolId: string
@@ -141,7 +142,7 @@ export async function getSchoolMembers(
   try {
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("workspace_members")
+      .from("users")
       .select(`
         id,
         workspace_id,
@@ -252,7 +253,7 @@ export async function createSchool(
     };
 
     const { data, error } = await supabase
-      .from("workspaces")
+      .from("schools")
       .insert(insertData)
       .select()
       .single();
@@ -263,11 +264,10 @@ export async function createSchool(
     }
 
     if (data) {
-      await supabase.from("workspace_members").insert({
-        workspace_id: data.id,
-        user_id: userData.id,
+      await supabase.from("users").update({
+        school_id: data.id,
         role: "admin",
-      });
+      }).eq("id", userData.id);
     }
 
     return data ? rowToSchool(data) : null;
@@ -284,7 +284,7 @@ export async function deleteSchool(schoolId: string): Promise<boolean> {
   try {
     const supabase = createClient();
     const { error } = await supabase
-      .from("workspaces")
+      .from("schools")
       .delete()
       .eq("id", schoolId);
 
@@ -311,7 +311,7 @@ export async function regenerateSchoolInviteCode(
     const newCode = generateInviteCode();
 
     const { data, error } = await supabase
-      .from("workspaces")
+      .from("schools")
       .update({ invite_code: newCode, updated_at: new Date().toISOString() })
       .eq("id", schoolId)
       .select("invite_code")
@@ -348,15 +348,16 @@ export async function listUserSchools(): Promise<School[]> {
     if (!userData) return [];
 
     const { data: memberRows } = await supabase
-      .from("workspace_members")
-      .select("workspace_id")
-      .eq("user_id", userData.id);
+      .from("users")
+      .select("school_id")
+      .eq("id", userData.id);
 
     if (!memberRows || memberRows.length === 0) return [];
 
-    const workspaceIds = memberRows.map((r) => r.workspace_id);
+    const workspaceIds = memberRows.map((r) => r.school_id).filter(Boolean) as string[];
+    if (workspaceIds.length === 0) return [];
     const { data: workspaces } = await supabase
-      .from("workspaces")
+      .from("schools")
       .select("*")
       .in("id", workspaceIds);
 
@@ -372,14 +373,14 @@ export async function listUserSchools(): Promise<School[]> {
 /**
  * Get users in a school (from users table filtered by school_id)
  * Note: This assumes a future migration adds school_id to users table
- * For now, we'll use workspace_members join
+ * For now, we'll use users join
  */
 export async function getSchoolUsers(schoolId: string): Promise<SchoolUser[]> {
   try {
     const supabase = createClient();
     
     const { data, error } = await supabase
-      .from("workspace_members")
+      .from("users")
       .select(`
         users:user_id (
           id,
@@ -425,11 +426,10 @@ export async function addSchoolMember(
 ): Promise<boolean> {
   try {
     const supabase = createClient();
-    const { error } = await supabase.from("workspace_members").insert({
-      workspace_id: schoolId,
-      user_id: userId,
+    const { error } = await supabase.from("users").update({
+      school_id: schoolId,
       role,
-    });
+    }).eq("id", userId);
 
     if (error) {
       console.error("Error adding school member:", error);
@@ -453,7 +453,7 @@ export async function removeSchoolMember(
   try {
     const supabase = createClient();
     const { error } = await supabase
-      .from("workspace_members")
+      .from("users")
       .delete()
       .eq("workspace_id", schoolId)
       .eq("user_id", userId);
@@ -470,6 +470,11 @@ export async function removeSchoolMember(
   }
 }
 
+/** Backward-compat aliases */
+export const addMember = addSchoolMember;
+export const removeMember = removeSchoolMember;
+export const changeMemberRole = updateSchoolMemberRole;
+
 /**
  * Update member role
  */
@@ -481,7 +486,7 @@ export async function updateSchoolMemberRole(
   try {
     const supabase = createClient();
     const { error } = await supabase
-      .from("workspace_members")
+      .from("users")
       .update({ role })
       .eq("workspace_id", schoolId)
       .eq("user_id", userId);
@@ -496,4 +501,103 @@ export async function updateSchoolMemberRole(
     console.error("Error updating member role:", error);
     return false;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Synchronous localStorage compatibility layer                        */
+/* (replaces the old localStorage-based workspace store)               */
+/* ------------------------------------------------------------------ */
+
+const LS_SCHOOLS = "knobase-app:schools";
+const LS_ACTIVE_SCHOOL = "knobase-app:active-school-id";
+const LS_ROLE_PREFIX = "knobase-app:role:";
+
+function readSchoolsCache(): School[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LS_SCHOOLS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function cacheSchool(school: School): void {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = readSchoolsCache();
+    const idx = existing.findIndex((s) => s.id === school.id);
+    if (idx >= 0) existing[idx] = school;
+    else existing.push(school);
+    localStorage.setItem(LS_SCHOOLS, JSON.stringify(existing));
+  } catch {}
+}
+
+/** Synchronous read from local cache — use loadSchool() for fresh server data */
+export function getWorkspace(id: string): School | null {
+  return readSchoolsCache().find((s) => s.id === id) ?? null;
+}
+
+/** Synchronous list from local cache */
+export function listWorkspaces(): School[] {
+  return readSchoolsCache();
+}
+
+export function getActiveWorkspaceId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(LS_ACTIVE_SCHOOL);
+}
+
+export function setActiveWorkspaceId(id: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LS_ACTIVE_SCHOOL, id);
+}
+
+/** Returns first cached school or a placeholder; callers should redirect if placeholder */
+export function getOrCreateDefaultWorkspace(): School {
+  const schools = readSchoolsCache();
+  if (schools.length > 0) return schools[0];
+  const placeholder: School = {
+    id: "default",
+    name: "My School",
+    slug: "my-school",
+    ownerId: "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    settings: { isPublic: false, allowGuests: false, defaultAgent: null },
+    inviteCode: "",
+  };
+  return placeholder;
+}
+
+/** Reads current Supabase user ID from localStorage auth token */
+export function getCurrentUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const key = Object.keys(localStorage).find(
+      (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
+    );
+    if (!key) return null;
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "{}");
+    return parsed?.user?.id ?? parsed?.session?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the cached role for a user in a given school */
+export function getMyRole(schoolId: string): SchoolRole | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return (localStorage.getItem(`${LS_ROLE_PREFIX}${schoolId}`) as SchoolRole) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function setMyRole(schoolId: string, role: SchoolRole): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(`${LS_ROLE_PREFIX}${schoolId}`, role);
+  } catch {}
 }

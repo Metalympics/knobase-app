@@ -49,7 +49,7 @@ export interface CommonPatterns {
 export interface LearningEvent {
   type: "task_completed" | "proposal_accepted" | "proposal_rejected" | "proposal_modified";
   agentId: string;
-  workspaceId: string;
+  schoolId: string;
   taskType?: string;
   proposedContent?: string;
   modifiedContent?: string;
@@ -96,13 +96,13 @@ const supabase = () => createClient();
 
 async function getPersona(
   agentId: string,
-  workspaceId: string,
+  schoolId: string,
 ): Promise<AgentPersonaRow | null> {
   const { data, error } = await supabase()
     .from("agent_personas")
     .select("*")
     .eq("agent_id", agentId)
-    .eq("workspace_id", workspaceId)
+    .eq("school_id", schoolId)
     .order("is_default", { ascending: false })
     .limit(1)
     .single();
@@ -195,7 +195,7 @@ function inferLengthPreference(
  * and common_patterns fields.
  */
 export async function processLearningEvent(event: LearningEvent): Promise<void> {
-  const persona = await getPersona(event.agentId, event.workspaceId);
+  const persona = await getPersona(event.agentId, event.schoolId);
   if (!persona) return; // No persona to learn for
 
   const prefs: LearnedPreferences = {

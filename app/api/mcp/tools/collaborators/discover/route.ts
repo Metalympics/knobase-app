@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 import {
   findCollaborators,
   extractKeywordsFromQuery,
@@ -84,10 +84,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createServerClient();
 
-    // Verify API key and get workspace + agent context
+    // Verify API key and get school + agent context
     const { data: keyData, error: keyError } = await supabase
       .from('agent_api_keys')
-      .select('workspace_id, agent_id')
+      .select('school_id, agent_id')
       .eq('key_hash', apiKey)
       .is('revoked_at', null)
       .single();
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { workspace_id: workspaceId, agent_id: callingAgentId } = keyData;
+    const { school_id: workspaceId, agent_id: callingAgentId } = keyData;
 
     // Build search query
     let searchQuery: CollaboratorQuery = {
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
                 {
                   success: false,
                   error: 'Invalid parameters',
-                  details: error.errors,
+                  details: error.issues,
                 },
                 null,
                 2

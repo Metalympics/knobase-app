@@ -11,7 +11,7 @@ import {
 import {
   getActiveWorkspaceId,
   getOrCreateDefaultWorkspace,
-} from "@/lib/workspaces/store";
+} from "@/lib/schools/store";
 import type { PlanTier } from "@/lib/subscription/types";
 
 const VISIBLE_TIERS: PlanTier[] = ["free", "pro"];

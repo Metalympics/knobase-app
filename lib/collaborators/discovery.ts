@@ -5,7 +5,7 @@
  * (both humans and agents) based on capabilities, expertise, and availability.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 import {
   DEFAULT_RANKING_OPTIONS,
 } from './types';

@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@/lib/supabase/server";
 import { exportDocument } from "@/lib/export/service";
 
 const MCPExportSchema = z.object({
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
                 {
                   success: false,
                   error: "Invalid parameters",
-                  details: error.errors,
+                  details: error.issues,
                 },
                 null,
                 2

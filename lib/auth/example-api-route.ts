@@ -13,7 +13,7 @@ export async function GET() {
     }
 
     const { data: workspaces, error } = await supabase
-      .from("workspaces")
+      .from("schools")
       .select(
         `
         *,
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       .toUpperCase();
 
     const { data: workspaceData, error: insertError } = await supabase
-      .from("workspaces")
+      .from("schools")
       .insert({
         name,
         slug,
@@ -100,20 +100,17 @@ export async function POST(request: Request) {
 
     const workspace = workspaceData as unknown as { id: string };
     const { error: memberError } = await supabase
-      .from("workspace_members")
-      .insert({
-        workspace_id: workspace.id,
-        user_id: user.id,
-        role: "admin",
-      });
+      .from("users")
+      .update({ school_id: workspace.id, role: "admin" })
+      .eq("id", user.id);
 
     if (memberError) {
-      console.error("Error adding workspace member:", memberError);
+      console.error("Error adding school member:", memberError);
 
-      await supabase.from("workspaces").delete().eq("id", workspace.id);
+      await supabase.from("schools").delete().eq("id", workspace.id);
 
       return NextResponse.json(
-        { error: "Failed to set up workspace membership" },
+        { error: "Failed to set up school membership" },
         { status: 500 }
       );
     }

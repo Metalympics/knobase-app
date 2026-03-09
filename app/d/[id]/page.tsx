@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { getDocument as getLocalDocument } from "@/lib/documents/store";
 import { createClient } from "@/lib/supabase/client";
-import { getActiveWorkspaceId } from "@/lib/workspaces/store";
+import { getActiveWorkspaceId } from "@/lib/schools/store";
 import type { Document } from "@/lib/documents/types";
 import Link from "next/link";
 
@@ -55,7 +55,7 @@ function UniversalDocumentContent() {
           setStatus("found");
 
           const wsId = getActiveWorkspaceId();
-          if (wsId) setWorkspaceLink(`/w/${wsId}/d/${docId}`);
+          if (wsId) setWorkspaceLink(`/s/${wsId}/d/${docId}`);
           return;
         }
       } catch {
@@ -67,7 +67,7 @@ function UniversalDocumentContent() {
         setDoc(localDoc);
         setStatus("found");
         const wsId = getActiveWorkspaceId();
-        if (wsId) setWorkspaceLink(`/w/${wsId}/d/${docId}`);
+        if (wsId) setWorkspaceLink(`/s/${wsId}/d/${docId}`);
       } else {
         setStatus("not-found");
       }

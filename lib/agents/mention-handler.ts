@@ -1,6 +1,6 @@
 // ── Mention Handler ──
 // High-level handler for @agent mentions detected in documents.
-// Looks up the agent by name in the Supabase `agents` table,
+// Looks up the agent by name from users with type='agent',
 // creates a task, and dispatches a webhook notification.
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,7 +12,7 @@ import { dispatchWebhookEvent } from "@/lib/webhooks/outbound";
 
 export interface MentionData {
   documentId: string;
-  workspaceId: string;
+  schoolId: string;
   blockId?: string;
   /** The raw mention text including `@`, e.g. "@claw" */
   mentionedAgent: string;
@@ -48,34 +48,35 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
   // Extract agent name (remove @)
   const agentName = data.mentionedAgent.replace(/^@/, "").toLowerCase();
 
-  // ── 1. Find matching agent in workspace ──
+  // ── 1. Find matching agent in school (users with type='agent') ──
   const { data: agent, error: agentError } = await supabase
-    .from("agents")
-    .select("id, agent_id, name, type")
-    .eq("workspace_id", data.workspaceId)
+    .from("users")
+    .select("id, bot_id, name, agent_type")
+    .eq("school_id", data.schoolId)
+    .eq("type", "agent")
     .ilike("name", agentName)
-    .eq("is_active", true)
+    .neq("availability", "offline")
     .single();
 
   if (agentError || !agent) {
-    console.log(`[Mention] Agent "${data.mentionedAgent}" not found in workspace ${data.workspaceId}`);
+    console.log(`[Mention] Agent "${data.mentionedAgent}" not found in school ${data.schoolId}`);
     return { success: false, error: "Agent not found" };
   }
 
   const agentRow = agent as unknown as {
     id: string;
-    agent_id: string;
+    bot_id: string;
     name: string;
-    type: string;
+    agent_type: string;
   };
 
   // ── 2. Create a task for the agent ──
   const { data: task, error: taskError } = await supabase
     .from("agent_tasks")
     .insert({
-      workspace_id: data.workspaceId,
+      school_id: data.schoolId,
       document_id: data.documentId,
-      agent_id: agentRow.agent_id,
+      agent_id: agentRow.bot_id,
       task_type: "mention",
       prompt: data.message,
       title: `Mention from ${data.userName ?? data.userId}`,
@@ -102,8 +103,8 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
   // ── 3. Dispatch webhook notification ──
   try {
     await dispatchWebhookEvent(
-      agentRow.agent_id,
-      data.workspaceId,
+      agentRow.bot_id,
+      data.schoolId,
       "mention.created",
       {
         task_id: taskRow.id,
@@ -122,16 +123,16 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
     // Don't fail the mention — the task was still created
   }
 
-  // ── 4. Update agent last_seen_at ──
+  // ── 4. Update agent last activity ──
   supabase
-    .from("agents")
-    .update({ last_seen_at: new Date().toISOString() })
+    .from("users")
+    .update({ last_invoked_at: new Date().toISOString() })
     .eq("id", agentRow.id)
     .then(() => {});
 
   return {
     success: true,
     taskId: taskRow.id,
-    agentId: agentRow.agent_id,
+    agentId: agentRow.bot_id,
   };
 }

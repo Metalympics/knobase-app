@@ -55,7 +55,7 @@ import { dispatchWebhookEvent, notifyTaskCreated } from "@/lib/webhooks/outbound
 
 export interface MentionContext {
   documentId: string;
-  workspaceId: string;
+  schoolId: string;
   blockId?: string;
   yjsPosition?: number;
   contextBefore?: string;
@@ -102,7 +102,7 @@ export async function handleMention(ctx: MentionContext): Promise<{
     task_type: "mention",
     agent_id: agentId,
     document_id: ctx.documentId,
-    workspace_id: ctx.workspaceId,
+    school_id: ctx.schoolId,
     title: truncate(ctx.prompt, 100),
     prompt: ctx.prompt,
     target_context: {
@@ -162,7 +162,7 @@ export async function beginWork(
     agent_avatar: agent.agentAvatar ?? "🤖",
     agent_color: agent.agentColor ?? "#8B5CF6",
     document_id: task.document_id,
-    workspace_id: task.workspace_id,
+    school_id: task.school_id,
     current_task_id: task.id,
     status: "editing",
     current_block_id: (task.target_context as Record<string, unknown>)?.block_id as string | undefined,
@@ -231,7 +231,7 @@ export async function submitProposalsAndComplete(
   }).catch(() => {});
 
   // Fire webhook: task.completed + proposal.created
-  dispatchWebhookEvent(agent.agentId, task.workspace_id, "task.completed", {
+  dispatchWebhookEvent(agent.agentId, task.school_id, "task.completed", {
     task_id: task.id,
     result_summary: resultSummary,
     proposal_count: createdProposals.length,
@@ -263,7 +263,7 @@ export async function completeWithResult(
   processLearningEvent({
     type: "task_completed",
     agentId: agent.agentId,
-    workspaceId: task.workspace_id,
+    schoolId: task.school_id,
     taskType: task.task_type ?? undefined,
     completionTimeMs:
       task.started_at && task.completed_at
@@ -273,7 +273,7 @@ export async function completeWithResult(
   }).catch(() => {});
 
   // Fire webhook: task.completed
-  dispatchWebhookEvent(agent.agentId, task.workspace_id, "task.completed", {
+  dispatchWebhookEvent(agent.agentId, task.school_id, "task.completed", {
     task_id: task.id,
     result_summary: resultSummary,
   }).catch(() => {});
@@ -298,7 +298,7 @@ export async function handleFailure(
   }).catch(() => {});
 
   // Fire webhook: task.failed
-  dispatchWebhookEvent(agentId, task.workspace_id, "task.failed", {
+  dispatchWebhookEvent(agentId, task.school_id, "task.failed", {
     task_id: task.id,
     error_message: errorMessage,
   }).catch(() => {});
@@ -313,7 +313,7 @@ export async function handleCancellation(
   taskId: string,
   agentId: string,
   documentId: string,
-  workspaceId?: string,
+  schoolId?: string,
 ): Promise<void> {
   await cancelTask(taskId);
 
@@ -324,8 +324,8 @@ export async function handleCancellation(
   }
 
   // Fire webhook: task.cancelled
-  if (workspaceId) {
-    dispatchWebhookEvent(agentId, workspaceId, "task.cancelled", {
+  if (schoolId) {
+    dispatchWebhookEvent(agentId, schoolId, "task.cancelled", {
       task_id: taskId,
     }).catch(() => {});
   }
@@ -344,14 +344,14 @@ export async function acceptEdit(
 ): Promise<AgentEditProposal> {
   const proposal = await acceptProposal(proposalId, userId);
 
-  // Resolve agent_id and workspace_id from the associated task
+  // Resolve agent_id and school_id from the associated task
   const task = await getTask(proposal.task_id);
 
   // Fire learning event
   processLearningEvent({
     type: "proposal_accepted",
     agentId: task?.agent_id ?? "unknown",
-    workspaceId: task?.workspace_id ?? "unknown",
+    schoolId: task?.school_id ?? "unknown",
     proposedContent:
       typeof (proposal.proposed_content as Record<string, unknown>)?.text === "string"
         ? ((proposal.proposed_content as Record<string, unknown>).text as string)
@@ -361,7 +361,7 @@ export async function acceptEdit(
 
   // Fire webhook: proposal.decided
   if (task) {
-    dispatchWebhookEvent(task.agent_id, task.workspace_id, "proposal.decided", {
+    dispatchWebhookEvent(task.agent_id, task.school_id, "proposal.decided", {
       proposal_id: proposalId,
       task_id: proposal.task_id,
       decision: "accepted",
@@ -381,20 +381,20 @@ export async function rejectEdit(
 ): Promise<AgentEditProposal> {
   const proposal = await rejectProposal(proposalId, userId);
 
-  // Resolve agent_id and workspace_id from the associated task
+  // Resolve agent_id and school_id from the associated task
   const task = await getTask(proposal.task_id);
 
   // Fire learning event
   processLearningEvent({
     type: "proposal_rejected",
     agentId: task?.agent_id ?? "unknown",
-    workspaceId: task?.workspace_id ?? "unknown",
+    schoolId: task?.school_id ?? "unknown",
     timestamp: new Date().toISOString(),
   }).catch(() => {});
 
   // Fire webhook: proposal.decided
   if (task) {
-    dispatchWebhookEvent(task.agent_id, task.workspace_id, "proposal.decided", {
+    dispatchWebhookEvent(task.agent_id, task.school_id, "proposal.decided", {
       proposal_id: proposalId,
       task_id: proposal.task_id,
       decision: "rejected",
@@ -415,14 +415,14 @@ export async function acceptEditWithChanges(
 ): Promise<AgentEditProposal> {
   const proposal = await acceptWithModifications(proposalId, userId, modifiedContent);
 
-  // Resolve agent_id and workspace_id from the associated task
+  // Resolve agent_id and school_id from the associated task
   const task = await getTask(proposal.task_id);
 
   // Fire learning event with both original and modified content
   processLearningEvent({
     type: "proposal_modified",
     agentId: task?.agent_id ?? "unknown",
-    workspaceId: task?.workspace_id ?? "unknown",
+    schoolId: task?.school_id ?? "unknown",
     proposedContent:
       typeof (proposal.proposed_content as Record<string, unknown>)?.text === "string"
         ? ((proposal.proposed_content as Record<string, unknown>).text as string)
