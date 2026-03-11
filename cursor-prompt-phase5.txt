@@ -1,0 +1,40 @@
+Create a new database migration file at supabase/migrations/017_permission_system.sql with the following changes:
+
+1. **Create document_permissions table:**
+   - document_id (uuid, references documents.id)
+   - user_id (uuid, references users.id)
+   - permission (enum or text: 'full', 'edit', 'comment', 'view')
+   - granted_by (uuid, references users.id)
+   - created_at (timestamp with time zone, default now())
+   - Primary key: (document_id, user_id)
+   - Add indexes on document_id and user_id for fast lookups
+   - Add RLS policies for read/write access
+
+2. **Ensure users table has role column:**
+   - Add a check constraint to ensure role is one of: 'admin', 'editor', 'viewer'
+   - Set default role to 'viewer' if not already set
+   - Note: The role column should already exist, just add the constraint
+
+3. **Migration for existing agent scopes to roles:**
+   - If there's an agent_scopes table or similar, migrate the scopes to roles
+   - Logic:
+     - If agent had 'mcp:write' scope → role = 'editor'
+     - If agent had 'mcp:read' scope only → role = 'viewer'
+     - If agent had no scopes → role = 'viewer'
+   - Drop the old scopes-related columns or tables after migration
+
+4. **Create helper functions:**
+   - has_document_permission(document_id, user_id, permission) returns boolean
+   - get_document_permission(document_id, user_id) returns permission level
+
+5. **Add RLS policies:**
+   - Document owners can manage all permissions
+   - Users with 'full' permission can manage permissions
+   - Users can read their own permissions
+   - Workspace admins can manage all permissions in their workspace
+
+Make sure to:
+- Use IF NOT EXISTS for table creation to make the migration idempotent
+- Add appropriate comments to explain each section
+- Use proper foreign key constraints with ON DELETE CASCADE where appropriate
+- Follow the existing migration style in the project

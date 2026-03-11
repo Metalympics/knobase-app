@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Verify document access
     const { data: doc, error: docError } = await supabase
-      .from("documents")
+      .from("pages")
       .select("id, school_id")
       .eq("id", validated.documentId)
       .eq("school_id", publicUser.school_id)

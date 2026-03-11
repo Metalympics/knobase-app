@@ -13,6 +13,15 @@ index de4d1e6609bba2ffbc2a57048023cdf5bad44b18..576411bb6a15a42d46630e403547f469
    const y = ystate.doc;
    const decorations = [];
    if (
+@@ -2007,6 +2011,8 @@ const createDecorations = (
+       };
+       const updateCursorInfo = () => {
+         const ystate = ySyncPluginKey.getState(view.state);
++        // Guard: ystate may be undefined during two-phase editor init.
++        if (!ystate) return;
+         // @note We make implicit checks when checking for the cursor property
+         const current = awareness.getLocalState() || {};
+         if (view.hasFocus()) {
 diff --git a/src/plugins/cursor-plugin.js b/src/plugins/cursor-plugin.js
 index fde71ca21d91fa5abb6c345db1991df1fc32865f..7a94ed7d45e0b5c2e7d586df0b3e1d8c5da0ee76 100644
 --- a/src/plugins/cursor-plugin.js
@@ -28,3 +37,12 @@ index fde71ca21d91fa5abb6c345db1991df1fc32865f..7a94ed7d45e0b5c2e7d586df0b3e1d8c
    const y = ystate.doc
    const decorations = []
    if (
+@@ -207,6 +211,8 @@ export const createDecorations = (
+       }
+       const updateCursorInfo = () => {
+         const ystate = ySyncPluginKey.getState(view.state)
++        // Guard: ystate may be undefined during two-phase editor init.
++        if (!ystate) return
+         // @note We make implicit checks when checking for the cursor property
+         const current = awareness.getLocalState() || {}
+         if (view.hasFocus()) {

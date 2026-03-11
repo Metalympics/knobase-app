@@ -5,15 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
-  Plug,
+  Users,
   Key,
   Upload,
   Download,
   Store,
   Shield,
-  Wifi,
-  WifiOff,
-  RefreshCw,
   Copy,
   Check,
   Eye,
@@ -27,6 +24,7 @@ import {
   Webhook,
   Server,
   TrendingUp,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { OpenClawImport } from "@/components/settings/openclaw-import";
@@ -37,15 +35,14 @@ import WebhooksSettings from "@/components/settings/webhooks";
 import { MCPConfig } from "@/components/settings/mcp-config";
 import { CredentialsManager } from "@/components/settings/credentials-manager";
 import { AgentAnalyticsDashboard } from "@/components/settings/agent-analytics";
-import { ConnectedAgents } from "@/components/settings/connected-agents";
+import { TeammatesManager } from "@/components/settings/teammates-manager";
 import { ApiKeysManager } from "@/components/settings/api-keys-manager";
-import { openClawBridge, type OpenClawConnectionStatus } from "@/lib/sync/openclaw-bridge";
 import { getSubscription, getUsage, refreshUsage, updateSubscriptionTier, cancelSubscription } from "@/lib/subscription/store";
 import { PLANS } from "@/lib/subscription/plans";
 import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
 import type { PlanTier, Subscription, UsageRecord } from "@/lib/subscription/types";
 
-type Tab = "integration" | "import" | "export" | "marketplace" | "apikeys" | "subscription" | "agents" | "analytics" | "webhooks" | "mcp" | "credentials";
+type Tab = "teammates" | "import" | "export" | "marketplace" | "apikeys" | "subscription" | "analytics" | "webhooks" | "mcp" | "credentials";
 
 export default function SettingsPage() {
   return (
@@ -72,24 +69,13 @@ function SettingsSkeleton() {
 function SettingsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab) || "integration";
+  const initialTab = (searchParams.get("tab") as Tab) || "teammates";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
-  const [endpoint, setEndpoint] = useState(
-    () => (typeof window !== "undefined" ? localStorage.getItem("knobase-app:openclaw-endpoint") : null) ?? "http://localhost:3000/api/mcp"
-  );
-  const [apiKey, setApiKey] = useState(
-    () => (typeof window !== "undefined" ? localStorage.getItem("knobase-app:openclaw-apikey") : null) ?? ""
-  );
   const [mcpApiKey, setMcpApiKey] = useState(
     () => (typeof window !== "undefined" ? localStorage.getItem("knobase-app:mcp-api-key") : null) ?? ""
   );
-  const [showApiKey, setShowApiKey] = useState(false);
   const [showMcpKey, setShowMcpKey] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<OpenClawConnectionStatus>(
-    () => openClawBridge.connectionStatus
-  );
-  const [testing, setTesting] = useState(false);
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<UsageRecord | null>(null);
@@ -107,53 +93,6 @@ function SettingsPageInner() {
       setSubscription(getSubscription(ws.id));
       setUsage(refreshUsage(ws.id));
     }
-  }, []);
-
-  useEffect(() => {
-    const unsub = openClawBridge.onStatusChange(setConnectionStatus);
-    return unsub;
-  }, []);
-
-  const handleSaveConnection = useCallback(() => {
-    localStorage.setItem("knobase-app:openclaw-endpoint", endpoint);
-    localStorage.setItem("knobase-app:openclaw-apikey", apiKey);
-    openClawBridge.configure(endpoint, apiKey);
-  }, [endpoint, apiKey]);
-
-  const handleTestConnection = useCallback(async () => {
-    setTesting(true);
-    handleSaveConnection();
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: "test",
-          method: "ping",
-        }),
-      });
-      if (res.ok) {
-        setConnectionStatus("connected");
-      } else {
-        setConnectionStatus("disconnected");
-      }
-    } catch {
-      setConnectionStatus("disconnected");
-    }
-    setTesting(false);
-  }, [endpoint, apiKey, handleSaveConnection]);
-
-  const handleConnect = useCallback(() => {
-    handleSaveConnection();
-    openClawBridge.connect();
-  }, [handleSaveConnection]);
-
-  const handleDisconnect = useCallback(() => {
-    openClawBridge.disconnect();
   }, []);
 
   const handleSaveMcpKey = useCallback(() => {
@@ -174,9 +113,8 @@ function SettingsPageInner() {
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "subscription", label: "Subscription", icon: <CreditCard className="h-4 w-4" /> },
-    { id: "agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
+    { id: "teammates", label: "Teammates", icon: <Users className="h-4 w-4" /> },
     { id: "analytics", label: "Agent Analytics", icon: <TrendingUp className="h-4 w-4" /> },
-    { id: "integration", label: "Integration", icon: <Plug className="h-4 w-4" /> },
     { id: "webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" /> },
     { id: "mcp", label: "MCP Server", icon: <Server className="h-4 w-4" /> },
     { id: "import", label: "Import", icon: <Upload className="h-4 w-4" /> },
@@ -185,18 +123,6 @@ function SettingsPageInner() {
     { id: "apikeys", label: "API Keys", icon: <Key className="h-4 w-4" /> },
     { id: "credentials", label: "Credentials", icon: <Shield className="h-4 w-4" /> },
   ];
-
-  const statusColor = {
-    connected: "bg-emerald-400",
-    connecting: "bg-amber-400",
-    disconnected: "bg-neutral-300",
-  }[connectionStatus];
-
-  const statusLabel = {
-    connected: "Connected",
-    connecting: "Connecting...",
-    disconnected: "Disconnected",
-  }[connectionStatus];
 
   return (
     <div className="flex min-h-screen bg-[#fafafa]">
@@ -228,14 +154,7 @@ function SettingsPageInner() {
           ))}
         </nav>
 
-        <div className="mt-auto border-t border-neutral-200 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className={`h-2 w-2 rounded-full ${statusColor}`} />
-            <span className="text-xs text-neutral-500">
-              OpenClaw: {statusLabel}
-            </span>
-          </div>
-        </div>
+        
       </aside>
 
       <main className="flex-1 overflow-y-auto">
@@ -394,110 +313,6 @@ function SettingsPageInner() {
                       </li>
                     ))}
                   </ul>
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === "integration" && (
-              <motion.div
-                key="integration"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="space-y-6"
-              >
-                <div>
-                  <h2 className="text-lg font-semibold text-neutral-900">
-                    OpenClaw Integration
-                  </h2>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    Connect your Knobase workspace to OpenClaw for bidirectional sync.
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-neutral-200 bg-white">
-                  <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-purple-500" />
-                      <span className="text-sm font-medium text-neutral-800">
-                        Connection Status
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`h-2 w-2 rounded-full ${statusColor}`} />
-                      <span className="text-xs font-medium text-neutral-600">
-                        {statusLabel}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 px-4 py-4">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-neutral-700">
-                        MCP Endpoint
-                      </label>
-                      <input
-                        type="url"
-                        value={endpoint}
-                        onChange={(e) => setEndpoint(e.target.value)}
-                        placeholder="http://localhost:3000/api/mcp"
-                        className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none placeholder:text-neutral-400 focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-neutral-700">
-                        API Key (Optional)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showApiKey ? "text" : "password"}
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          placeholder="Bearer token for authentication"
-                          className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 pr-9 text-sm text-neutral-700 outline-none placeholder:text-neutral-400 focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
-                        />
-                        <button
-                          onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-neutral-600"
-                        >
-                          {showApiKey ? (
-                            <EyeOff className="h-3.5 w-3.5" />
-                          ) : (
-                            <Eye className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 border-t border-neutral-100 px-4 py-3">
-                    <button
-                      onClick={handleTestConnection}
-                      disabled={testing}
-                      className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:opacity-50"
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${testing ? "animate-spin" : ""}`} />
-                      Test
-                    </button>
-                    {connectionStatus === "connected" ? (
-                      <button
-                        onClick={handleDisconnect}
-                        className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
-                      >
-                        <WifiOff className="h-3.5 w-3.5" />
-                        Disconnect
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleConnect}
-                        className="flex items-center gap-1.5 rounded-md bg-purple-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-purple-600"
-                      >
-                        <Wifi className="h-3.5 w-3.5" />
-                        Connect
-                      </button>
-                    )}
-                  </div>
                 </div>
               </motion.div>
             )}
@@ -679,34 +494,23 @@ function SettingsPageInner() {
               </motion.div>
             )}
 
-            {activeTab === "agents" && (
+            {activeTab === "teammates" && (
               <motion.div
-                key="agents"
+                key="teammates"
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
-                className="space-y-8"
+                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <div />
-                  <Link
-                    href="/settings/agents"
-                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700"
-                  >
-                    Open full page <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </div>
-                <ConnectedAgents workspaceId={workspaceId} />
-                <hr className="border-neutral-200" />
                 <div>
                   <h2 className="text-lg font-semibold text-neutral-900">
-                    Agent Personas
+                    Teammates
                   </h2>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Configure AI agent personas with custom personalities, expertise, and instructions.
+                    Manage all workspace members — humans and agents together.
                   </p>
                 </div>
-                <AgentPersonaSettings />
+                <TeammatesManager workspaceId={workspaceId} />
               </motion.div>
             )}
 

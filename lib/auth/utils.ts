@@ -79,22 +79,22 @@ export async function canEditDocument(
   documentId: string,
   userId: string
 ): Promise<boolean> {
-  const { data: docData, error: docError } = await supabase
-    .from("documents")
+  const { data: pageData, error: pageError } = await supabase
+    .from("pages")
     .select("school_id, created_by")
     .eq("id", documentId)
     .single();
 
-  if (docError || !docData) {
+  if (pageError || !pageData) {
     return false;
   }
 
-  const doc = docData as unknown as { school_id: string; created_by: string };
-  if (doc.created_by === userId) {
+  const pg = pageData as unknown as { school_id: string; created_by: string };
+  if (pg.created_by === userId) {
     return true;
   }
 
-  const role = await getUserWorkspaceRole(supabase, doc.school_id, userId);
+  const role = await getUserWorkspaceRole(supabase, pg.school_id, userId);
   return role === "admin" || role === "editor";
 }
 
@@ -103,22 +103,22 @@ export async function canDeleteDocument(
   documentId: string,
   userId: string
 ): Promise<boolean> {
-  const { data: docData2, error: docError } = await supabase
-    .from("documents")
+  const { data: pageData2, error: pageError } = await supabase
+    .from("pages")
     .select("school_id, created_by")
     .eq("id", documentId)
     .single();
 
-  if (docError || !docData2) {
+  if (pageError || !pageData2) {
     return false;
   }
 
-  const doc2 = docData2 as unknown as { school_id: string; created_by: string };
-  if (doc2.created_by === userId) {
+  const pg2 = pageData2 as unknown as { school_id: string; created_by: string };
+  if (pg2.created_by === userId) {
     return true;
   }
 
-  const role = await getUserWorkspaceRole(supabase, doc2.school_id, userId);
+  const role = await getUserWorkspaceRole(supabase, pg2.school_id, userId);
   return role === "admin";
 }
 
@@ -169,17 +169,17 @@ export async function getWorkspaceDocuments(
   supabase: SupabaseClient<Database>,
   schoolId: string,
   _userId: string
-): Promise<Tables<"documents">[]> {
+): Promise<Tables<"pages">[]> {
   const { data, error } = await supabase
-    .from("documents")
+    .from("pages")
     .select("*")
     .eq("school_id", schoolId)
     .order("updated_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching school documents:", error);
+    console.error("Error fetching workspace pages:", error);
     return [];
   }
 
-  return (data ?? []) as unknown as Tables<"documents">[];
+  return (data ?? []) as unknown as Tables<"pages">[];
 }

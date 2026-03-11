@@ -9,6 +9,9 @@ interface InlineAgentResponseCardProps {
   agentColor: string;
   prompt?: string;
   result: string;
+  resultHtml?: string;
+  onAccept?: () => void;
+  onReject?: () => void;
 }
 
 export function InlineAgentResponseCard({
@@ -17,12 +20,14 @@ export function InlineAgentResponseCard({
   agentColor,
   prompt,
   result,
+  resultHtml,
+  onAccept,
+  onReject,
 }: InlineAgentResponseCardProps) {
   const hasImageAvatar = agentAvatar.startsWith("/");
 
   return (
-    <div className="relative rounded-lg border border-emerald-200 bg-emerald-50/50">
-      {/* Header */}
+    <div className="relative rounded-lg border border-emerald-200 bg-emerald-50/50 group/completed">
       <div className="flex items-center justify-between border-b border-emerald-100 px-3 py-1.5">
         <div className="flex items-center gap-2">
           {hasImageAvatar ? (
@@ -40,24 +45,29 @@ export function InlineAgentResponseCard({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <button className="rounded px-2 py-0.5 text-[11px] text-neutral-500 hover:bg-red-50 hover:text-red-600">
+          <button onClick={onReject} className="rounded px-2 py-0.5 text-[11px] text-neutral-500 hover:bg-red-50 hover:text-red-600">
             <X className="h-3 w-3" />
           </button>
-          <button className="flex items-center gap-1 rounded bg-emerald-500 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-600">
+          <button onClick={onAccept} className="flex items-center gap-1 rounded bg-emerald-500 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-600">
             <Check className="h-3 w-3" />
             Accept
           </button>
         </div>
       </div>
 
-      {/* Result content */}
       <div className="px-3 py-2">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{result}</p>
+        {resultHtml ? (
+          <div
+            className="agent-response-body text-sm leading-relaxed text-neutral-700"
+            dangerouslySetInnerHTML={{ __html: resultHtml }}
+          />
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{result}</p>
+        )}
       </div>
 
-      {/* Prompt tooltip — always visible for showcase */}
       {prompt && (
-        <div className="px-3 pb-2">
+        <div className="absolute -top-8 left-3 right-3 opacity-0 group-hover/completed:opacity-100 pointer-events-none transition-opacity">
           <div className="inline-flex items-center gap-1.5 rounded-md bg-neutral-800 px-2.5 py-1 text-[11px] text-neutral-300 shadow-lg">
             <span className="text-neutral-500">Prompt:</span> {prompt}
           </div>

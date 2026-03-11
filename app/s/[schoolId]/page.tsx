@@ -6,6 +6,10 @@ import { Loader2 } from "lucide-react";
 import {
   setActiveWorkspaceId,
   getWorkspace,
+  getLastActiveSchoolId,
+  getFirstUserWorkspace,
+  cacheSchool,
+  loadSchool,
 } from "@/lib/schools/store";
 import { listDocuments, createDocument } from "@/lib/documents/store";
 
@@ -15,21 +19,47 @@ export default function WorkspaceHomePage() {
   const workspaceId = params.schoolId as string;
 
   useEffect(() => {
-    const ws = getWorkspace(workspaceId);
-    if (!ws) {
-      router.replace("/s/default");
-      return;
-    }
+    async function resolve() {
+      // "default" is a placeholder — resolve to the user's real workspace
+      if (workspaceId === "default") {
+        const lastActive = await getLastActiveSchoolId();
+        const target = lastActive ?? (await getFirstUserWorkspace());
+        if (target) {
+          router.replace(`/s/${target}`);
+        } else {
+          router.replace("/onboarding");
+        }
+        return;
+      }
 
-    setActiveWorkspaceId(workspaceId);
+      // Try localStorage cache first, then fall back to Supabase
+      let ws = getWorkspace(workspaceId);
+      if (!ws) {
+        const school = await loadSchool(workspaceId);
+        if (!school) {
+          const target = await getFirstUserWorkspace();
+          if (target) {
+            router.replace(`/s/${target}`);
+          } else {
+            router.replace("/onboarding");
+          }
+          return;
+        }
+        cacheSchool(school);
+        ws = school;
+      }
 
-    const docs = listDocuments();
-    if (docs.length > 0) {
-      router.replace(`/s/${workspaceId}/d/${docs[0].id}`);
-    } else {
-      const doc = createDocument("Untitled");
-      router.replace(`/s/${workspaceId}/d/${doc.id}`);
+      setActiveWorkspaceId(workspaceId);
+
+      const docs = listDocuments();
+      if (docs.length > 0) {
+        router.replace(`/s/${workspaceId}/d/${docs[0].id}`);
+      } else {
+        const doc = createDocument("Untitled");
+        router.replace(`/s/${workspaceId}/d/${doc.id}`);
+      }
     }
+    resolve();
   }, [workspaceId, router]);
 
   return (

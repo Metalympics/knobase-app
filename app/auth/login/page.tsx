@@ -1,11 +1,8 @@
 "use client";
 
-// ── Login Page ──
-// Google OAuth + magic link login. Redirects to active workspace on success.
-
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
@@ -13,55 +10,159 @@ import Link from "next/link";
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
 }
 
+type LoginMode = "password" | "magic-link";
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/s/default";
+  const redirect = searchParams.get("redirect") || "";
 
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<LoginMode>("password");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGoogleLogin = async () => {
+  const resolveWorkspaceRedirect = useCallback(
+    async (supabase: ReturnType<typeof createClient>, authId: string) => {
+      const { data: authProfile } = await supabase
+        .from("auth_profiles")
+        .select("last_active_school_id")
+        .eq("auth_id", authId)
+        .single();
+
+      if (authProfile?.last_active_school_id) {
+        return redirect || `/s/${authProfile.last_active_school_id}`;
+      }
+
+      const { data: users } = await supabase
+        .from("users")
+        .select("school_id")
+        .eq("auth_id", authId)
+        .not("school_id", "is", null)
+        .limit(1);
+
+      if (users && users.length > 0) {
+        return redirect || `/s/${users[0].school_id}`;
+      }
+
+      return "/onboarding";
+    },
+    [redirect]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`,
-      },
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (session?.user) {
+        resolveWorkspaceRedirect(supabase, session.user.id).then((path) => {
+          if (!cancelled) router.push(path);
+        });
+      } else {
+        setIsLoading(false);
+      }
     });
-    if (error) setError(error.message);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, resolveWorkspaceRedirect]);
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { data, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+    if (signInError) {
+      setIsSubmitting(false);
+      if (signInError.message.includes("Invalid login credentials")) {
+        setError("Invalid email or password.");
+      } else if (signInError.message.includes("rate limit")) {
+        setError("Too many attempts. Please wait a moment and try again.");
+      } else {
+        setError(signInError.message);
+      }
+      return;
+    }
+
+    if (data.user) {
+      const path = await resolveWorkspaceRedirect(supabase, data.user.id);
+      router.push(path);
+    }
   };
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const callbackUrl = redirect
+      ? `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
+      : `${window.location.origin}/auth/callback`;
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`,
-      },
+      options: { emailRedirectTo: callbackUrl },
     });
 
-    setIsLoading(false);
-    if (error) {
-      setError(error.message);
+    setIsSubmitting(false);
+    if (otpError) {
+      setError(otpError.message);
     } else {
       setMagicLinkSent(true);
     }
   };
+
+  const handleGoogleLogin = async () => {
+    const supabase = createClient();
+    const callbackUrl = redirect
+      ? `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
+      : `${window.location.origin}/auth/callback`;
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: callbackUrl },
+    });
+    if (oauthError) setError(oauthError.message);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white">
@@ -86,14 +187,16 @@ function LoginContent() {
             </p>
             <p className="text-xs text-green-600">
               We sent a login link to{" "}
-              <span className="font-medium">{email}</span>. Click it to sign
-              in.
+              <span className="font-medium">{email}</span>. Click it to sign in.
             </p>
             <button
-              onClick={() => setMagicLinkSent(false)}
+              onClick={() => {
+                setMagicLinkSent(false);
+                setError(null);
+              }}
               className="mt-2 text-xs text-green-600 underline hover:text-green-800"
             >
-              Try a different email
+              Try a different method
             </button>
           </div>
         ) : (
@@ -137,31 +240,107 @@ function LoginContent() {
               </div>
             </div>
 
-            {/* Magic link form */}
-            <form onSubmit={handleMagicLink} className="flex flex-col gap-3">
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-300"
-                autoFocus
-              />
-              <Button
-                type="submit"
-                disabled={isLoading || !email.trim()}
-                className="h-11 bg-neutral-900 text-white hover:bg-neutral-800"
+            {mode === "password" ? (
+              <form
+                onSubmit={handlePasswordLogin}
+                className="flex flex-col gap-3"
               >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Sending...
-                  </span>
-                ) : (
-                  "Email me a login link"
-                )}
-              </Button>
-            </form>
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-300"
+                  autoFocus
+                  autoComplete="email"
+                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 border-neutral-200 bg-white pr-10 text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-300"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || !email.trim() || !password}
+                  className="h-11 bg-neutral-900 text-white hover:bg-neutral-800"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Signing in...
+                    </span>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("magic-link");
+                    setError(null);
+                  }}
+                  className="text-xs text-neutral-400 hover:text-neutral-600"
+                >
+                  Use a magic link instead
+                </button>
+              </form>
+            ) : (
+              <form
+                onSubmit={handleMagicLink}
+                className="flex flex-col gap-3"
+              >
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-300"
+                  autoFocus
+                  autoComplete="email"
+                />
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || !email.trim()}
+                  className="h-11 bg-neutral-900 text-white hover:bg-neutral-800"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Sending...
+                    </span>
+                  ) : (
+                    "Email me a login link"
+                  )}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("password");
+                    setError(null);
+                  }}
+                  className="text-xs text-neutral-400 hover:text-neutral-600"
+                >
+                  Use password instead
+                </button>
+              </form>
+            )}
 
             {error && (
               <p className="mt-3 text-center text-xs text-red-500">{error}</p>

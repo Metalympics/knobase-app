@@ -52,9 +52,9 @@ export function WorkspaceAnalytics({
         loadSchool(workspaceId),
         getSchoolMembers(workspaceId),
         supabase
-          .from("documents")
+          .from("pages")
           .select("id, title, created_at, updated_at")
-          .eq("workspace_id", workspaceId)
+          .eq("school_id", workspaceId)
           .order("updated_at", { ascending: false }),
       ]);
 

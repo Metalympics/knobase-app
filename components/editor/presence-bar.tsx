@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
-import type { ConnectionStatus } from "@/lib/yjs/supabase-provider";
-import type { SyncStatus } from "@/lib/sync/sync-engine";
 import { AgentAvatar } from "@/components/agent/agent-avatar";
 import type { Agent } from "@/lib/agents/types";
 
@@ -15,17 +13,11 @@ interface AwarenessUser {
 
 interface PresenceBarProps {
   awareness: Awareness | null;
-  status: ConnectionStatus;
-  isSynced: boolean;
   currentUserId?: string;
   agent?: Agent | null;
-  /** Offline-first sync engine status */
-  syncStatus?: SyncStatus;
-  /** Number of pending offline operations */
-  pendingCount?: number;
 }
 
-export function PresenceBar({ awareness, status, isSynced, agent, syncStatus, pendingCount }: PresenceBarProps) {
+export function PresenceBar({ awareness, agent }: PresenceBarProps) {
   const [users, setUsers] = useState<AwarenessUser[]>([]);
 
   useEffect(() => {
@@ -48,9 +40,10 @@ export function PresenceBar({ awareness, status, isSynced, agent, syncStatus, pe
 
   const totalOnline = users.length + (agent ? 1 : 0);
 
+  if (totalOnline === 0) return null;
+
   return (
-    <div className="flex items-center gap-3">
-      <SyncIndicator status={status} isSynced={isSynced} syncStatus={syncStatus} pendingCount={pendingCount} />
+    <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-1.5">
       <div className="flex items-center -space-x-2">
         {agent && (
           <AgentAvatar
@@ -65,11 +58,9 @@ export function PresenceBar({ awareness, status, isSynced, agent, syncStatus, pe
           <UserAvatar key={u.id} user={u} />
         ))}
       </div>
-      {totalOnline > 0 && (
-        <span className="text-xs text-neutral-400">
-          {totalOnline} collaborator{totalOnline !== 1 ? "s" : ""}
-        </span>
-      )}
+      <span className="text-xs text-neutral-500">
+        {totalOnline} online
+      </span>
     </div>
   );
 }
@@ -82,64 +73,6 @@ function UserAvatar({ user }: { user: AwarenessUser }) {
       title={user.name}
     >
       {user.name.charAt(0).toUpperCase()}
-    </div>
-  );
-}
-
-function SyncIndicator({
-  status,
-  isSynced,
-  syncStatus,
-  pendingCount,
-}: {
-  status: ConnectionStatus;
-  isSynced: boolean;
-  syncStatus?: SyncStatus;
-  pendingCount?: number;
-}) {
-  // Offline-first status takes priority when available
-  if (syncStatus === "offline" || status === "disconnected") {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-red-400" />
-        <span className="text-xs font-medium text-red-500">
-          Offline{pendingCount ? ` (${pendingCount})` : ""}
-        </span>
-      </div>
-    );
-  }
-
-  if (syncStatus === "syncing" || status === "connecting" || !isSynced) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-        <span className="text-xs font-medium text-amber-500">Syncing...</span>
-      </div>
-    );
-  }
-
-  if (syncStatus === "dirty") {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-blue-400" />
-        <span className="text-xs font-medium text-blue-500">Saving...</span>
-      </div>
-    );
-  }
-
-  if (syncStatus === "error") {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-orange-400" />
-        <span className="text-xs font-medium text-orange-500">Sync error</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="h-2 w-2 rounded-full bg-emerald-400" />
-      <span className="text-xs font-medium text-emerald-600">Saved</span>
     </div>
   );
 }

@@ -271,15 +271,14 @@ export class SyncEngine {
         continue;
       }
 
-      // Update the document content in Supabase.
+      // Flush editor page content to the `pages` table in Supabase.
       // The Yjs state is persisted locally in IndexedDB; Supabase stores
       // the rendered markdown for search, API access, and collaboration.
       const { error } = await supabase
-        .from("documents")
+        .from("pages")
         .update({
           title: doc.title,
-          content: doc.markdown,
-          updated_at: doc.localUpdatedAt,
+          content_md: doc.markdown,
         })
         .eq("id", doc.id);
 

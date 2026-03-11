@@ -2,7 +2,7 @@
 
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { DOMParser as ProseDOMParser } from "@tiptap/pm/model";
-import { useMemo, useCallback, useState, useRef, useEffect } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 
 /* ------------------------------------------------------------------ */
 /* Markdown → HTML converter for agent response rendering/insertion     */
@@ -114,20 +114,7 @@ function markdownToHtml(md: string): string {
   flushTable();
   return out.join("\n");
 }
-import { motion } from "framer-motion";
-import {
-  X,
-  CheckCircle2,
-  Check,
-  Trash2,
-  PencilLine,
-  Square,
-  Pencil,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
 import { useDocumentTasks } from "@/hooks/use-agent-tasks";
-import Image from "next/image";
 import { useDocumentProposals } from "@/hooks/use-agent-proposals";
 import { toDisplayTask } from "@/lib/agents/task-types";
 import { createInlineAgentTask, cancelAgentStream } from "./inline-agent";
@@ -135,128 +122,9 @@ import { listAgents } from "@/lib/agents/store";
 import type { Mention } from "@/lib/mentions/types";
 import { getInitial } from "@/lib/mentions/store";
 import { useDemoSafe } from "@/lib/demo/context";
-
-/* ------------------------------------------------------------------ */
-/* Inline Prompt Input                                                  */
-/* ------------------------------------------------------------------ */
-
-function InlinePromptInput({
-  agentName,
-  agentAvatar,
-  agentColor,
-  initialValue,
-  onSubmit,
-  onCancel,
-}: {
-  agentName: string;
-  agentAvatar: string;
-  agentColor: string;
-  initialValue?: string;
-  onSubmit: (prompt: string) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState(initialValue ?? "");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-    });
-  }, []);
-
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [value]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (value.trim()) onSubmit(value.trim());
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      onCancel();
-    }
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative my-2 w-full"
-      contentEditable={false}
-    >
-      <div
-        className="rounded-lg border"
-        style={{ borderColor: `${agentColor}30`, backgroundColor: `${agentColor}08` }}
-      >
-        <div
-          className="flex items-center gap-2 px-3 py-1.5 border-b"
-          style={{ borderColor: `${agentColor}20` }}
-        >
-          <div
-            className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px]"
-            style={{ backgroundColor: agentColor, color: "#fff" }}
-          >
-            {agentAvatar.startsWith("/") ? (
-              <Image src={agentAvatar} alt={agentName} width={20} height={20} className="h-full w-full object-cover rounded-full" />
-            ) : (
-              agentAvatar || "🤖"
-            )}
-          </div>
-          <span className="text-xs font-medium" style={{ color: agentColor }}>
-            @{agentName}
-          </span>
-          <span className="text-[10px]" style={{ color: `${agentColor}80` }}>
-            — type your instruction below
-          </span>
-        </div>
-
-        <div className="flex items-end gap-2 px-3 py-2">
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="What would you like this agent to do?"
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none leading-relaxed"
-            style={{ minHeight: "1.5rem", maxHeight: "12rem" }}
-          />
-          <div className="flex items-center gap-1 shrink-0 pb-0.5">
-            <button
-              onClick={onCancel}
-              className="rounded p-1 text-neutral-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-              title="Delete (Esc)"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={() => { if (value.trim()) onSubmit(value.trim()); }}
-              disabled={!value.trim()}
-              className="rounded-md p-1.5 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ backgroundColor: agentColor }}
-              title="Submit (Enter)"
-            >
-              <PencilLine className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-
-        <div className="px-3 pb-1.5">
-          <span className="text-[10px] text-neutral-400">
-            <kbd className="rounded bg-white/60 px-1 py-0.5 font-mono text-[9px] border border-neutral-200/60">Enter</kbd> submit
-            {" "}<kbd className="rounded bg-white/60 px-1 py-0.5 font-mono text-[9px] border border-neutral-200/60">Shift+Enter</kbd> new line
-            {" "}<kbd className="rounded bg-white/60 px-1 py-0.5 font-mono text-[9px] border border-neutral-200/60">Esc</kbd> cancel
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
+import { InlineAgentPromptCard } from "@/components/ui-showcase/inline-agent-prompt-card";
+import { InlineAgentProcessingCard } from "@/components/ui-showcase/inline-agent-processing-card";
+import { InlineAgentResponseCard } from "@/components/ui-showcase/inline-agent-response-card";
 
 /* ------------------------------------------------------------------ */
 /* Main Node View                                                       */
@@ -427,14 +295,17 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   if (promptMode && !taskId) {
     return (
       <NodeViewWrapper className="inline-agent-node" data-drag-handle="">
-        <InlinePromptInput
-          agentName={(node.attrs.agentName as string) || "Agent"}
-          agentAvatar={(node.attrs.agentAvatar as string) || "🤖"}
-          agentColor={(node.attrs.agentColor as string) || "#8B5CF6"}
-          initialValue={(node.attrs.submittedPrompt as string) || ""}
-          onSubmit={handlePromptSubmit}
-          onCancel={handlePromptCancel}
-        />
+        <div className="relative my-2 w-full" contentEditable={false}>
+          <InlineAgentPromptCard
+            agentName={(node.attrs.agentName as string) || "Agent"}
+            agentAvatar={(node.attrs.agentAvatar as string) || "🤖"}
+            agentColor={(node.attrs.agentColor as string) || "#8B5CF6"}
+            promptValue={(node.attrs.submittedPrompt as string) || ""}
+            onSubmit={handlePromptSubmit}
+            onCancel={handlePromptCancel}
+            interactive
+          />
+        </div>
       </NodeViewWrapper>
     );
   }
@@ -444,8 +315,6 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   const agentColor = (node.attrs.agentColor as string) || "#8B5CF6";
   const agentAvatarStr = (node.attrs.agentAvatar as string) || "";
   const promptText = (node.attrs.submittedPrompt as string) || task?.prompt || "";
-  const hasImageAvatar = agentAvatarStr.startsWith("/");
-
   const isQueued = !task || task.status === "queued";
   const isRunning = task?.status === "running";
   const isCompleted = task?.status === "completed";
@@ -455,118 +324,18 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   if (isActive || isFailed) {
     return (
       <NodeViewWrapper className="inline-agent-node">
-        <div className="relative my-2 w-full group" contentEditable={false}>
-          <div
-            className={`rounded-lg border ${
-              isFailed
-                ? "bg-red-50/40 border-red-200/60"
-                : ""
-            }`}
-            style={!isFailed ? { borderColor: `${agentColor}30`, backgroundColor: `${agentColor}08` } : undefined}
-          >
-            {/* Header: avatar + name + status */}
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b" style={{ borderColor: isFailed ? undefined : `${agentColor}20` }}>
-              <div
-                className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full"
-                style={{ backgroundColor: agentColor }}
-              >
-                {hasImageAvatar ? (
-                  <Image src={agentAvatarStr} alt={agentName} width={20} height={20} className="h-full w-full object-cover rounded-full" />
-                ) : (
-                  <span className="text-[10px] text-white">{agentAvatarStr || "🤖"}</span>
-                )}
-              </div>
-              <span className="text-xs font-medium" style={{ color: isFailed ? undefined : agentColor }}>
-                @{agentName}
-              </span>
-
-              {isQueued && (
-                <div className="flex items-center gap-1 text-[10px]" style={{ color: `${agentColor}80` }}>
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: agentColor }} />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ backgroundColor: agentColor }} />
-                  </span>
-                  <span>Queued</span>
-                </div>
-              )}
-              {isRunning && (
-                <div className="flex items-center gap-1 text-[10px]" style={{ color: `${agentColor}80` }}>
-                  <Loader2 className="h-3 w-3 animate-spin" style={{ color: agentColor }} />
-                  <span>Processing...</span>
-                </div>
-              )}
-              {isFailed && (
-                <div className="flex items-center gap-1 text-[10px] text-red-600">
-                  <AlertCircle className="h-3 w-3" />
-                  <span>Failed</span>
-                </div>
-              )}
-            </div>
-
-            {/* Prompt text + action buttons */}
-            <div className="flex items-end gap-2 px-3 py-2">
-              <div className="flex-1 min-w-0">
-                {promptText && (
-                  <>
-                    {isQueued ? (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-600 animate-pulse">
-                        {promptText}
-                      </p>
-                    ) : isRunning ? (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-500">
-                        {promptText}
-                      </p>
-                    ) : (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-600">
-                        {promptText}
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {isRunning && task?.currentAction && (
-                  <p className="mt-0.5 text-[11px] text-neutral-400 truncate">{task.currentAction}</p>
-                )}
-
-                {isFailed && task?.error && (
-                  <p className="text-xs text-red-600">{task.error}</p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0 pb-0.5">
-                {isActive && (
-                  <button
-                    onClick={() => handleCancelTask(task?.id ?? taskId ?? "")}
-                    className="rounded p-1 text-neutral-400 hover:bg-red-50 hover:text-red-500"
-                    title="Stop"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <button
-                  onClick={handleEdit}
-                  className="rounded-md p-1.5 text-white"
-                  style={{ backgroundColor: agentColor }}
-                  title="Edit"
-                >
-                  <PencilLine className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
-
-            {/* Indeterminate progress bar */}
-            {isRunning && (
-              <div className="mx-3 mb-2 h-1 bg-neutral-200/60 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: agentColor, width: "40%" }}
-                  initial={{ x: "-100%" }}
-                  animate={{ x: "250%" }}
-                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                />
-              </div>
-            )}
-          </div>
+        <div className="relative my-2 w-full" contentEditable={false}>
+          <InlineAgentProcessingCard
+            agentName={agentName}
+            agentAvatar={agentAvatarStr}
+            agentColor={agentColor}
+            prompt={promptText}
+            currentAction={task?.currentAction ?? undefined}
+            state={isFailed ? "failed" : isQueued ? "queued" : "running"}
+            error={task?.error}
+            onCancel={() => handleCancelTask(task?.id ?? taskId ?? "")}
+            onEdit={handleEdit}
+          />
         </div>
       </NodeViewWrapper>
     );
@@ -576,63 +345,24 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   if (isCompleted && taskProposals.length > 0) {
     return (
       <NodeViewWrapper className="inline-agent-node">
-        <div
-          className="relative my-2 w-full space-y-2 group/completed"
-          contentEditable={false}
-        >
+        <div className="relative my-2 w-full space-y-2" contentEditable={false}>
           {taskProposals.map((proposal) => {
             const content = (proposal.proposed_content as Record<string, unknown>)?.text as string
               ?? task.result ?? "";
             return (
-              <div key={proposal.id} className="rounded-lg border border-emerald-200 bg-emerald-50/50">
-                <div className="flex items-center justify-between border-b border-emerald-100 px-3 py-1.5">
-                  <div className="flex items-center gap-2">
-                    {hasImageAvatar ? (
-                      <div className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ backgroundColor: agentColor }}>
-                        <Image src={agentAvatarStr} alt={agentName} width={16} height={16} className="h-full w-full object-cover rounded-full" />
-                      </div>
-                    ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                    )}
-                    <span className="text-xs font-medium text-emerald-700">
-                      {agentName} — {proposal.edit_type}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleRejectProposal(proposal.id)}
-                      className="rounded px-2 py-0.5 text-[11px] text-neutral-500 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => handleAcceptProposal(proposal.id)}
-                      className="flex items-center gap-1 rounded bg-emerald-500 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-600"
-                    >
-                      <Check className="h-3 w-3" />
-                      Accept
-                    </button>
-                  </div>
-                </div>
-                <div className="px-3 py-2">
-                  {proposal.explanation && (
-                    <p className="mb-1 text-[11px] italic text-neutral-500">{proposal.explanation}</p>
-                  )}
-                  <div
-                    className="agent-response-body text-sm leading-relaxed text-neutral-700"
-                    dangerouslySetInnerHTML={{ __html: markdownToHtml(content) }}
-                  />
-                </div>
-              </div>
+              <InlineAgentResponseCard
+                key={proposal.id}
+                agentName={`${agentName} — ${proposal.edit_type}`}
+                agentAvatar={agentAvatarStr}
+                agentColor={agentColor}
+                prompt={promptText}
+                result={content}
+                resultHtml={markdownToHtml(content)}
+                onAccept={() => handleAcceptProposal(proposal.id)}
+                onReject={() => handleRejectProposal(proposal.id)}
+              />
             );
           })}
-          {promptText && (
-            <div className="absolute -top-8 left-3 right-3 opacity-0 group-hover/completed:opacity-100 pointer-events-none transition-opacity">
-              <div className="inline-flex items-center gap-1.5 rounded-md bg-neutral-800 px-2.5 py-1 text-[11px] text-neutral-300 shadow-lg">
-                <span className="text-neutral-500">Prompt:</span> {promptText}
-              </div>
-            </div>
-          )}
         </div>
       </NodeViewWrapper>
     );
@@ -642,51 +372,17 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   if (isCompleted && task.result) {
     return (
       <NodeViewWrapper className="inline-agent-node">
-        <div
-          className="relative my-2 w-full rounded-lg border border-emerald-200 bg-emerald-50/50 group/completed"
-          contentEditable={false}
-        >
-          <div className="flex items-center justify-between border-b border-emerald-100 px-3 py-1.5">
-            <div className="flex items-center gap-2">
-              {hasImageAvatar ? (
-                <div className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ backgroundColor: agentColor }}>
-                  <Image src={agentAvatarStr} alt={agentName} width={16} height={16} className="h-full w-full object-cover rounded-full" />
-                </div>
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-              )}
-              <span className="text-xs font-medium text-emerald-700">
-                {agentName} responded
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => deleteNode()}
-                className="rounded px-2 py-0.5 text-[11px] text-neutral-500 hover:bg-red-50 hover:text-red-600"
-              >
-                <X className="h-3 w-3" />
-              </button>
-              <button
-                onClick={handleAcceptResult}
-                className="flex items-center gap-1 rounded bg-emerald-500 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-600"
-              >
-                <Check className="h-3 w-3" />
-                Accept
-              </button>
-            </div>
-          </div>
-          <div
-            className="agent-response-body px-3 py-2 text-sm leading-relaxed text-neutral-700"
-            dangerouslySetInnerHTML={{ __html: markdownToHtml(task.result) }}
+        <div className="relative my-2 w-full" contentEditable={false}>
+          <InlineAgentResponseCard
+            agentName={agentName}
+            agentAvatar={agentAvatarStr}
+            agentColor={agentColor}
+            prompt={promptText}
+            result={task.result}
+            resultHtml={markdownToHtml(task.result)}
+            onAccept={handleAcceptResult}
+            onReject={() => deleteNode()}
           />
-          {/* Prompt tooltip on hover */}
-          {promptText && (
-            <div className="absolute -top-8 left-3 right-3 opacity-0 group-hover/completed:opacity-100 pointer-events-none transition-opacity">
-              <div className="inline-flex items-center gap-1.5 rounded-md bg-neutral-800 px-2.5 py-1 text-[11px] text-neutral-300 shadow-lg">
-                <span className="text-neutral-500">Prompt:</span> {promptText}
-              </div>
-            </div>
-          )}
         </div>
       </NodeViewWrapper>
     );

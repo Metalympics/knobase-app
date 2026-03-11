@@ -5,7 +5,7 @@
 -- Dependencies:
 -- - schools table
 -- - users table
--- - documents table
+-- - pages table (editor content)
 -- - agents table
 -- - mentions table (from 010)
 
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.agent_tasks (
   bot_id UUID NOT NULL REFERENCES public.bots(id),
   
   -- Context
-  document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE CASCADE,
+  document_id UUID NOT NULL REFERENCES public.pages(id) ON DELETE CASCADE,
   
   -- Task details
   title TEXT NOT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS public.agent_sessions (
   bot_color TEXT DEFAULT '#8B5CF6',
   
   -- Context
-  document_id UUID REFERENCES public.documents(id) ON DELETE SET NULL,
+  document_id UUID REFERENCES public.pages(id) ON DELETE SET NULL,
   school_id UUID REFERENCES public.schools(id) ON DELETE SET NULL,
   
   -- Current task
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS public.agent_edit_proposals (
   
   -- Context
   task_id UUID NOT NULL REFERENCES public.agent_tasks(id) ON DELETE CASCADE,
-  document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE CASCADE,
+  document_id UUID NOT NULL REFERENCES public.pages(id) ON DELETE CASCADE,
   school_id UUID NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
   
   -- Location

@@ -1,0 +1,37 @@
+Create a new ShareDialog component at components/editor/share-dialog.tsx with Google Docs-style sharing UI.
+
+Features:
+
+1. Access level selector:
+   - Radio buttons or dropdown for: Private to you / Workspace (default for members) / Anyone with the link
+   - When "Anyone with the link" is selected, show a secondary dropdown: [View Only | Comment | Edit]
+
+2. Share with specific people:
+   - Search input with dropdown showing workspace teammates (humans + agents)
+   - When a teammate is selected, show permission selector: [Full Access | Can Edit | Can Comment | View Only]
+   - List of people with access showing: avatar, name, permission level, and remove button
+
+3. Copy link button:
+   - Copy the shareable link to clipboard
+
+Props interface:
+interface ShareDialogProps {
+  documentId: string;
+  documentTitle: string;
+  workspaceId: string;
+  currentUserId: string;
+  onClose: () => void;
+}
+
+Requirements:
+- Use the existing share-dialog.tsx in the same folder as a reference for styling patterns
+- Use shadcn/ui components: Dialog, Select, Button, Input, Avatar, etc.
+- Use Lucide icons (X, Globe, Lock, Link2, Copy, Check, Users, Search, ChevronDown, User, Bot, Trash2, Settings)
+- Implement proper TypeScript types
+- Handle loading and error states
+- Make API calls to fetch workspace members from /api/collaborators
+- The component should be a modal using the Dialog component
+- Follow the same color scheme and styling as the existing Knobase UI (neutral grays, white backgrounds)
+- Include smooth animations using framer-motion
+
+Create the complete, production-ready component.

@@ -1,0 +1,5 @@
+-- Migration 020: (NO-OP)
+--
+-- This migration previously added redundant page_id columns.
+-- The document_id FKs are now re-pointed directly to pages(id) by 021.
+-- This file is intentionally empty.

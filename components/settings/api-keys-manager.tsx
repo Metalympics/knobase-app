@@ -11,58 +11,87 @@ import {
   EyeOff,
   AlertCircle,
   RefreshCw,
-  Clock,
+  Bot,
+  User,
 } from "lucide-react";
-
-/* ------------------------------------------------------------------ */
-/* Types                                                               */
-/* ------------------------------------------------------------------ */
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface ApiKeyRow {
   id: string;
   name: string;
   key_prefix: string;
-  tier: "free" | "pro" | "enterprise";
   scopes: string[];
+  user_id: string;
+  school_id: string | null;
+  is_active: boolean;
   last_used_at: string | null;
   expires_at: string | null;
   created_at: string;
 }
 
-/* ------------------------------------------------------------------ */
-/* Component                                                           */
-/* ------------------------------------------------------------------ */
+type KeyType = "personal" | "agent";
 
-export function ApiKeysManager({ workspaceId }: { workspaceId: string | null }) {
+function inferKeyType(key: ApiKeyRow): KeyType {
+  if (key.scopes.some((s) => s === "agent" || s === "task" || s === "webhook")) {
+    return "agent";
+  }
+  return "personal";
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export function ApiKeysManager({
+  workspaceId,
+}: {
+  workspaceId: string | null;
+}) {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Create form
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<KeyType>("personal");
   const [creating, setCreating] = useState(false);
 
-  // Newly created key (shown once)
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
-  const [showRawKey, setShowRawKey] = useState(false);
-  const [copiedKey, setCopiedKey] = useState(false);
+  const [showNewKey, setShowNewKey] = useState(false);
+  const [copiedNewKey, setCopiedNewKey] = useState(false);
+
+  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   const fetchKeys = useCallback(async () => {
     if (!workspaceId) return;
     setLoading(true);
     setError(null);
     try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data, error: fetchErr } = await supabase
-        .from("agent_api_keys")
-        .select("id, name, key_prefix, tier, scopes, last_used_at, expires_at, created_at")
-        .eq("workspace_id", workspaceId)
-        .is("revoked_at", null)
-        .order("created_at", { ascending: false });
-      if (fetchErr) throw fetchErr;
-      setKeys((data ?? []) as unknown as ApiKeyRow[]);
+      const res = await fetch(`/api/keys?school_id=${workspaceId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
+      setKeys(json.data ?? []);
     } catch {
       setError("Failed to load API keys");
     } finally {
@@ -79,14 +108,18 @@ export function ApiKeysManager({ workspaceId }: { workspaceId: string | null }) 
     setCreating(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/agents/generate-key", {
+      const scopes =
+        newType === "agent"
+          ? ["read", "write", "task", "agent", "webhook"]
+          : ["read", "write"];
+
+      const res = await fetch("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agentId: "manual",
-          workspaceId,
           name: newName.trim(),
-          scopes: ["read", "write", "task"],
+          school_id: workspaceId,
+          scopes,
         }),
       });
 
@@ -96,9 +129,10 @@ export function ApiKeysManager({ workspaceId }: { workspaceId: string | null }) 
       }
 
       const result = await res.json();
-      setNewlyCreatedKey(result.apiKey);
-      setShowRawKey(true);
+      setNewlyCreatedKey(result.key);
+      setShowNewKey(true);
       setNewName("");
+      setNewType("personal");
       setShowCreate(false);
       fetchKeys();
     } catch (err) {
@@ -106,18 +140,14 @@ export function ApiKeysManager({ workspaceId }: { workspaceId: string | null }) 
     } finally {
       setCreating(false);
     }
-  }, [workspaceId, newName, fetchKeys]);
+  }, [workspaceId, newName, newType, fetchKeys]);
 
   const handleRevoke = useCallback(
     async (keyId: string) => {
-      if (!confirm("Revoke this API key? This action cannot be undone.")) return;
+      if (!confirm("Revoke this API key? This cannot be undone.")) return;
       try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        await supabase
-          .from("agent_api_keys")
-          .update({ revoked_at: new Date().toISOString() })
-          .eq("id", keyId);
+        const res = await fetch(`/api/keys/${keyId}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Failed to revoke");
         fetchKeys();
       } catch {
         setError("Failed to revoke key");
@@ -126,243 +156,344 @@ export function ApiKeysManager({ workspaceId }: { workspaceId: string | null }) 
     [fetchKeys],
   );
 
-  const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
+  const toggleReveal = useCallback((keyId: string) => {
+    setRevealedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(keyId)) next.delete(keyId);
+      else next.add(keyId);
+      return next;
+    });
   }, []);
 
-  function relativeTime(dateStr: string | null): string {
-    if (!dateStr) return "Never";
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return "Just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  }
+  const handleCopyPrefix = useCallback((keyId: string, prefix: string) => {
+    navigator.clipboard.writeText(prefix + "••••••••");
+    setCopiedKeyId(keyId);
+    setTimeout(() => setCopiedKeyId(null), 2000);
+  }, []);
+
+  const handleCopyNewKey = useCallback(() => {
+    if (!newlyCreatedKey) return;
+    navigator.clipboard.writeText(newlyCreatedKey);
+    setCopiedNewKey(true);
+    setTimeout(() => setCopiedNewKey(false), 2000);
+  }, [newlyCreatedKey]);
 
   if (!workspaceId) {
     return (
-      <div className="rounded-lg border border-neutral-200 bg-white px-6 py-8 text-center">
-        <p className="text-sm text-neutral-500">No workspace selected.</p>
-      </div>
+      <Card>
+        <CardContent className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">No workspace selected.</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-900">API Key Management</h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            Generate API keys for external agents to authenticate with Knobase.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={fetchKeys}
-            disabled={loading}
-            className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-md bg-purple-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-purple-600"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Key
-          </button>
-        </div>
-      </div>
-
-      {/* Error */}
       {error && (
         <div className="flex items-center gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4" />
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
-        </div>
-      )}
-
-      {/* Newly created key banner */}
-      {newlyCreatedKey && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-emerald-800">
-                API Key Created
-              </h3>
-              <p className="mt-0.5 text-xs text-emerald-600">
-                Copy this key now — it will not be shown again.
-              </p>
-            </div>
-            <button
-              onClick={() => setNewlyCreatedKey(null)}
-              className="text-emerald-400 hover:text-emerald-600"
-            >
-              &times;
-            </button>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <code className="flex-1 rounded-md bg-white px-3 py-2 font-mono text-xs text-neutral-800 border border-emerald-200">
-              {showRawKey ? newlyCreatedKey : "••••••••••••••••••••••••"}
-            </code>
-            <button
-              onClick={() => setShowRawKey(!showRawKey)}
-              className="rounded p-1.5 text-emerald-500 hover:bg-emerald-100"
-            >
-              {showRawKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-            <button
-              onClick={() => handleCopy(newlyCreatedKey)}
-              className="rounded p-1.5 text-emerald-500 hover:bg-emerald-100"
-            >
-              {copiedKey ? (
-                <Check className="h-4 w-4 text-emerald-600" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Create form */}
-      {showCreate && (
-        <div className="rounded-lg border border-neutral-200 bg-white p-4">
-          <h3 className="text-sm font-medium text-neutral-800">Create API Key</h3>
-          <div className="mt-3 flex gap-2">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Key name (e.g. OpenClaw Agent)"
-              className="h-9 flex-1 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none placeholder:text-neutral-400 focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            />
-            <button
-              onClick={handleCreate}
-              disabled={creating || !newName.trim()}
-              className="flex items-center gap-1.5 rounded-md bg-purple-500 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-purple-600 disabled:opacity-50"
-            >
-              {creating ? (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Key className="h-3.5 w-3.5" />
-              )}
-              Generate
-            </button>
-            <button
-              onClick={() => setShowCreate(false)}
-              className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
-            >
-              Cancel
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-neutral-400">
-            The full key will be shown only once after creation. Store it securely.
-          </p>
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && keys.length === 0 && (
-        <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-lg border border-neutral-200 bg-neutral-50" />
-          ))}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && keys.length === 0 && !showCreate && (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-6 py-12 text-center">
-          <Key className="mx-auto h-10 w-10 text-neutral-300" />
-          <h3 className="mt-3 text-sm font-medium text-neutral-700">No API keys</h3>
-          <p className="mt-1 text-xs text-neutral-500">
-            Create an API key to allow external agents (e.g. OpenClaw) to connect.
-          </p>
           <button
-            onClick={() => setShowCreate(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-purple-500 px-4 py-2 text-xs font-medium text-white hover:bg-purple-600"
+            onClick={() => setError(null)}
+            className="ml-auto text-red-400 hover:text-red-600"
           >
-            <Plus className="h-3.5 w-3.5" />
-            Create your first API key
+            &times;
           </button>
         </div>
       )}
 
-      {/* Key list */}
-      <div className="space-y-3">
-        {keys.map((k) => (
-          <div
-            key={k.id}
-            className="rounded-lg border border-neutral-200 bg-white"
-          >
-            <div className="flex items-center gap-4 px-4 py-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50">
-                <Key className="h-4 w-4 text-amber-600" />
+      {newlyCreatedKey && (
+        <Card className="border-emerald-200 bg-emerald-50">
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-sm text-emerald-800">
+                  API Key Created
+                </CardTitle>
+                <CardDescription className="text-xs text-emerald-600">
+                  Copy this key now — it will not be shown again.
+                </CardDescription>
               </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-medium text-neutral-900">
-                    {k.name}
-                  </h4>
-                  <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
-                    {k.tier}
-                  </span>
-                </div>
-                <div className="mt-0.5 flex items-center gap-3 text-xs text-neutral-400">
-                  <code className="rounded bg-neutral-50 px-1.5 py-0.5 font-mono text-[11px] text-neutral-500">
-                    {k.key_prefix}••••••
-                  </code>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Used: {relativeTime(k.last_used_at)}
-                  </span>
-                  {k.scopes.length > 0 && (
-                    <span>
-                      Scopes: {k.scopes.join(", ")}
-                    </span>
-                  )}
-                </div>
-              </div>
-
               <button
-                onClick={() => handleRevoke(k.id)}
-                className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                title="Revoke key"
+                onClick={() => setNewlyCreatedKey(null)}
+                className="text-emerald-400 hover:text-emerald-600"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                &times;
               </button>
             </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded-md border border-emerald-200 bg-white px-3 py-2 font-mono text-xs text-neutral-800">
+                {showNewKey
+                  ? newlyCreatedKey
+                  : "••••••••••••••••••••••••••••••••"}
+              </code>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowNewKey(!showNewKey)}
+                className="text-emerald-600 hover:bg-emerald-100"
+              >
+                {showNewKey ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleCopyNewKey}
+                className="text-emerald-600 hover:bg-emerald-100"
+              >
+                {copiedNewKey ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showCreate && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Create API Key</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Key name (e.g. CI Pipeline, OpenClaw Agent)"
+                className="h-9 flex-1 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none placeholder:text-neutral-400 focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              />
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value as KeyType)}
+                className="h-9 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
+              >
+                <option value="personal">Personal</option>
+                <option value="agent">Agent</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleCreate}
+                disabled={creating || !newName.trim()}
+              >
+                {creating ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Key className="h-3.5 w-3.5" />
+                )}
+                Generate
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreate(false)}
+              >
+                Cancel
+              </Button>
+              <p className="ml-2 text-[11px] text-neutral-400">
+                The full key is shown only once after creation.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">API Keys</CardTitle>
+              <CardDescription className="text-xs">
+                Manage personal and agent API keys for programmatic access.
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchKeys}
+                disabled={loading}
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+                />
+                Refresh
+              </Button>
+              <Button size="sm" onClick={() => setShowCreate(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                New Key
+              </Button>
+            </div>
           </div>
-        ))}
-      </div>
+        </CardHeader>
+        <CardContent>
+          {loading && keys.length === 0 ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-12 animate-pulse rounded-md bg-neutral-100"
+                />
+              ))}
+            </div>
+          ) : keys.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-neutral-300 px-6 py-12 text-center">
+              <Key className="mx-auto h-10 w-10 text-neutral-300" />
+              <h3 className="mt-3 text-sm font-medium text-neutral-700">
+                No API keys
+              </h3>
+              <p className="mt-1 text-xs text-neutral-500">
+                Create an API key for agent or programmatic access to your
+                workspace.
+              </p>
+              <Button
+                size="sm"
+                className="mt-4"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Create your first API key
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Key</TableHead>
+                  <TableHead>Scopes</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {keys.map((k) => {
+                  const type = inferKeyType(k);
+                  const isRevealed = revealedKeys.has(k.id);
+                  const isCopied = copiedKeyId === k.id;
 
-      {/* Usage info */}
-      <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3">
-        <h3 className="text-sm font-medium text-neutral-800">Quick Start</h3>
-        <p className="mt-1 text-xs text-neutral-500">
-          Use your API key to register an agent and receive webhook notifications:
-        </p>
-        <pre className="mt-2 overflow-x-auto rounded-md bg-neutral-900 p-3 text-xs leading-relaxed text-neutral-300">
-{`# 1. Register an agent
-curl -X POST https://your-app.vercel.app/api/v1/agents/register \\
-  -H "Authorization: Bearer kb_YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"agent_id": "my_agent_1", "name": "claw", "type": "openclaw"}'
-
-# 2. Health check
-curl https://your-app.vercel.app/api/v1/health`}
-        </pre>
-      </div>
+                  return (
+                    <TableRow key={k.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                              type === "agent"
+                                ? "bg-purple-50"
+                                : "bg-amber-50"
+                            }`}
+                          >
+                            {type === "agent" ? (
+                              <Bot className="h-3.5 w-3.5 text-purple-600" />
+                            ) : (
+                              <User className="h-3.5 w-3.5 text-amber-600" />
+                            )}
+                          </div>
+                          <span className="text-sm text-neutral-900">
+                            {k.name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            type === "agent" ? "default" : "secondary"
+                          }
+                          className={
+                            type === "agent"
+                              ? "bg-purple-100 text-purple-700"
+                              : "bg-neutral-100 text-neutral-600"
+                          }
+                        >
+                          {type === "agent" ? "Agent" : "Personal"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <code className="rounded bg-neutral-50 px-1.5 py-0.5 font-mono text-[11px] text-neutral-600">
+                          {isRevealed
+                            ? k.key_prefix + "••••••••"
+                            : "••••••••••••"}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {k.scopes.map((scope) => (
+                            <Badge
+                              key={scope}
+                              variant="outline"
+                              className="text-[10px] font-normal"
+                            >
+                              {scope}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-neutral-500">
+                        {formatDate(k.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => toggleReveal(k.id)}
+                            title={
+                              isRevealed ? "Hide key prefix" : "Reveal key prefix"
+                            }
+                          >
+                            {isRevealed ? (
+                              <EyeOff className="h-3.5 w-3.5" />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() =>
+                              handleCopyPrefix(k.id, k.key_prefix)
+                            }
+                            title="Copy key prefix"
+                          >
+                            {isCopied ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => handleRevoke(k.id)}
+                            className="text-neutral-400 hover:bg-red-50 hover:text-red-500"
+                            title="Revoke key"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

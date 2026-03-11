@@ -8,6 +8,7 @@ import {
   createDocument,
   updateDocument,
   deleteDocument,
+  moveDocument,
 } from "./store";
 import { canCreateDocument } from "@/lib/subscription/store";
 import { getActiveWorkspaceId } from "@/lib/schools/store";
@@ -107,6 +108,26 @@ export function useDocuments() {
     [activeId, refresh],
   );
 
+  const moveDoc = useCallback(
+    (id: string, newParentId: string | null) => {
+      const result = moveDocument(id, newParentId);
+      if (result) refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  const addSubPage = useCallback(
+    (parentId: string, title = "Untitled") => {
+      const wsId = getActiveWorkspaceId();
+      if (wsId && !canCreateDocument(wsId)) return null;
+      const doc = createDocument(title, parentId);
+      refresh();
+      return doc;
+    },
+    [refresh],
+  );
+
   return {
     documents: docs,
     activeId,
@@ -116,5 +137,7 @@ export function useDocuments() {
     saveContent,
     renameDocument,
     removeDocument,
+    moveDoc,
+    addSubPage,
   };
 }

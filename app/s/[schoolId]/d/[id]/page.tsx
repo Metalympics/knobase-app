@@ -10,7 +10,9 @@ import { useParams, useRouter } from "next/navigation";
 import { Editor } from "@tiptap/react";
 import {
   Check,
+  ChevronRight,
   Clock,
+  FileText,
   MessageSquare,
   Info,
   Network,
@@ -19,6 +21,7 @@ import {
   UserPlus,
   Download,
   Share2,
+  MoreHorizontal,
 } from "lucide-react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { AiAgent } from "@/components/editor/ai-agent";
@@ -27,7 +30,7 @@ import { BacklinksPanel } from "@/components/editor/backlinks-panel";
 import { DocumentMetadata } from "@/components/editor/document-metadata";
 import { useCollaboration } from "@/lib/yjs/use-collaboration";
 import { useSyncDocument, useSyncStatus } from "@/hooks/use-sync";
-import { getDocument } from "@/lib/documents/store";
+import { getDocument, updateDocument, createDocument as createLocalDocument } from "@/lib/documents/store";
 import { useDocuments } from "@/lib/documents/use-documents";
 import { getDefaultAgent } from "@/lib/agents/store";
 import {
@@ -58,8 +61,8 @@ import { getCommentCount } from "@/lib/comments/store";
 
 import { DocumentContextProvider } from "@/contexts/DocumentContext";
 import { NotificationCenter } from "@/components/notifications/notification-center";
-import { ShareModal } from "@/components/permissions/share-modal";
 import { ShareDialog } from "@/components/editor/share-dialog";
+import { InviteModal } from "@/components/invitation/invite-modal";
 import { DocumentExportDialog } from "@/components/editor/document-export";
 import { DocumentLockIndicator } from "@/components/collab/locks";
 import { TagBadges } from "@/components/tags/tag-manager";
@@ -69,12 +72,13 @@ import { OfflineIndicator } from "@/components/editor/offline-indicator";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { getWorkspace } from "@/lib/schools/store";
 import type { Document } from "@/lib/documents/types";
+import { EmojiPicker } from "@/components/editor/emoji-picker";
 
 function getAncestorChain(
   docId: string,
-  documents: { id: string; title: string; parentId?: string }[],
+  documents: { id: string; title: string; parentId?: string; icon?: string | null }[],
 ) {
-  const chain: { id: string; title: string; parentId?: string }[] = [];
+  const chain: { id: string; title: string; parentId?: string; icon?: string | null }[] = [];
   let current = documents.find((d) => d.id === docId);
   while (current) {
     chain.unshift(current);
@@ -102,6 +106,11 @@ export default function WorkspaceDocumentPage() {
     renameDocument,
   } = useDocuments();
 
+  const handleIconChange = useCallback((icon: string | null) => {
+    updateDocument(docId, { icon });
+    setActiveDoc((prev) => prev ? { ...prev, icon } : prev);
+  }, [docId]);
+
   const [activeDoc, setActiveDoc] = useState<Document | null>(null);
 
   useEffect(() => {
@@ -114,7 +123,6 @@ export default function WorkspaceDocumentPage() {
   }, [docId, workspaceId, router]);
 
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [editingTitle, setEditingTitle] = useState(false);
   const [agent] = useState<Agent | null>(() => getDefaultAgent());
   const [liveContent, setLiveContent] = useState("");
   const [openClawStatus, setOpenClawStatus] =
@@ -132,10 +140,12 @@ export default function WorkspaceDocumentPage() {
     a: Version;
     b: Version;
   } | null>(null);
-  const [showShare, setShowShare] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const overflowRef = useRef<HTMLDivElement>(null);
 
   const { provider, ydoc, status, isSynced, isReady, user } =
     useCollaboration(docId);
@@ -151,6 +161,18 @@ export default function WorkspaceDocumentPage() {
     (id: string) => router.push(`/s/${workspaceId}/d/${id}`),
     [router, workspaceId],
   );
+
+  // Close overflow menu on outside click
+  useEffect(() => {
+    if (!showOverflowMenu) return;
+    function handleClick(e: MouseEvent) {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setShowOverflowMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showOverflowMenu]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -229,6 +251,18 @@ export default function WorkspaceDocumentPage() {
     };
   }, [navigateToDoc]);
 
+  const handleCreateSubPage = useCallback(() => {
+    const subPage = createLocalDocument("Untitled", docId);
+    if (editor && !editor.isDestroyed) {
+      editor.commands.insertChildPage({
+        pageId: subPage.id,
+        title: subPage.title,
+        icon: null,
+      });
+    }
+    router.push(`/s/${workspaceId}/d/${subPage.id}`);
+  }, [docId, editor, router, workspaceId]);
+
   const handleEditorReady = useCallback((ed: Editor) => {
     setEditor(ed);
   }, []);
@@ -247,6 +281,13 @@ export default function WorkspaceDocumentPage() {
     [docId, activeDoc?.title, saveContent, openClawStatus],
   );
 
+  const handleContentJsonChange = useCallback(
+    (json: Record<string, unknown>) => {
+      updateDocument(docId, { contentJson: json });
+    },
+    [docId],
+  );
+
   const handleDirtyChange = useCallback((dirty: boolean) => {
     if (dirty) {
       if (savedTimerRef.current) {
@@ -263,7 +304,6 @@ export default function WorkspaceDocumentPage() {
       renameDocument(docId, newTitle);
       setActiveDoc((prev) => (prev ? { ...prev, title: newTitle } : prev));
     }
-    setEditingTitle(false);
   }, [docId, renameDocument]);
 
   const togglePanel = useCallback((panel: RightPanel) => {
@@ -308,49 +348,20 @@ export default function WorkspaceDocumentPage() {
   return (
     <>
       <main className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-6 py-2">
+        {/* ── Compact header: breadcrumb + save status + share + presence + overflow ── */}
+        <header className="flex items-center justify-between border-b border-[#f0f0f0] px-6 py-1.5">
           <div className="flex items-center gap-3 min-w-0">
-            {editingTitle ? (
-              <>
-                <Breadcrumb
-                  items={[
-                    { id: "ws", label: workspaceName },
-                    ...getAncestorChain(docId, documents)
-                      .slice(0, -1)
-                      .map((d) => ({
-                        id: d.id,
-                        label: d.title || "Untitled",
-                        onClick: () => navigateToDoc(d.id),
-                      })),
-                  ]}
-                />
-                <input
-                  ref={titleRef}
-                  defaultValue={activeDoc.title ?? "Untitled"}
-                  className="border-b border-neutral-300 bg-transparent px-0.5 text-sm font-medium text-neutral-900 outline-none"
-                  autoFocus
-                  onBlur={handleTitleSubmit}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleTitleSubmit();
-                    if (e.key === "Escape") setEditingTitle(false);
-                  }}
-                />
-              </>
-            ) : (
-              <Breadcrumb
-                items={[
-                  { id: "ws", label: workspaceName },
-                  ...getAncestorChain(docId, documents).map((d) => ({
-                    id: d.id,
-                    label: d.title || "Untitled",
-                    onClick:
-                      d.id !== docId
-                        ? () => navigateToDoc(d.id)
-                        : () => setEditingTitle(true),
-                  })),
-                ]}
-              />
-            )}
+            <Breadcrumb
+              items={[
+                { id: "ws", label: workspaceName },
+                ...getAncestorChain(docId, documents).map((d) => ({
+                  id: d.id,
+                  label: d.title || "Untitled",
+                  icon: d.icon ?? undefined,
+                  onClick: d.id !== docId ? () => navigateToDoc(d.id) : undefined,
+                })),
+              ]}
+            />
             {saveStatus === "dirty" && (
               <span className="flex items-center gap-1.5 text-xs text-neutral-400">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
@@ -367,127 +378,86 @@ export default function WorkspaceDocumentPage() {
 
           <div className="flex items-center gap-1">
             {workspace && (
-              <DocumentLockIndicator
-                documentId={docId}
-                currentUserId="local-user"
-                currentUserName={workspaceName}
-              />
-            )}
-            <button
-              onClick={() => setShowPageSearch((prev) => !prev)}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-              title="Find in document (⌘F)"
-            >
-              <Search className="h-3.5 w-3.5" />
-              <kbd className="hidden rounded border border-[#e5e5e5] px-1 py-0.5 text-[9px] sm:inline">
-                ⌘F
-              </kbd>
-            </button>
-            {workspace && (
               <>
                 <button
-                  onClick={() => setShowExport(true)}
-                  className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                  title="Export document"
-                >
-                  <Download className="h-4 w-4" />
-                </button>
-                <button
                   onClick={() => setShowShareDialog(true)}
-                  className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100"
                   title="Share document"
                 >
-                  <Share2 className="h-4 w-4" />
+                  <Share2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Share</span>
                 </button>
                 <button
-                  onClick={() => setShowShare(true)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
+                  onClick={() => setShowInviteModal(true)}
+                  className="flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   Invite
                 </button>
               </>
             )}
-            <button
-              onClick={() => setShowGraph(true)}
-              className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-              title="Knowledge Graph"
-            >
-              <Network className="h-4 w-4" />
-            </button>
-            <button
-              onClick={handleSaveVersion}
-              className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-              title="Save Version"
-            >
-              <Save className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => togglePanel("history")}
-              className={`rounded-md p-1.5 transition-colors ${
-                rightPanel === "history"
-                  ? "bg-neutral-100 text-neutral-900"
-                  : "text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
-              }`}
-              title="Version History"
-            >
-              <Clock className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => togglePanel("comments")}
-              className={`relative rounded-md p-1.5 transition-colors ${
-                rightPanel === "comments"
-                  ? "bg-neutral-100 text-neutral-900"
-                  : "text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
-              }`}
-              title="Comments"
-            >
-              <MessageSquare className="h-4 w-4" />
-              {commentCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-neutral-900 px-1 text-[9px] font-bold text-white">
-                  {commentCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => togglePanel("metadata")}
-              className={`rounded-md p-1.5 transition-colors ${
-                rightPanel === "metadata"
-                  ? "bg-neutral-100 text-neutral-900"
-                  : "text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
-              }`}
-              title="Document Info"
-            >
-              <Info className="h-4 w-4" />
-            </button>
 
             <div className="mx-1 h-4 w-px bg-[#e5e5e5]" />
 
-            <NotificationCenter onNavigate={navigateToDoc} />
-
             <PresenceBar
               awareness={provider?.awareness ?? null}
-              status={status}
-              isSynced={isSynced}
               currentUserId={user.id}
               agent={openClawStatus === "connected" ? agent : null}
-              syncStatus={syncInfo.status}
-              pendingCount={syncInfo.pendingCount}
             />
 
             <OfflineIndicator />
+
+            {/* Overflow menu for secondary actions */}
+            <div className="relative" ref={overflowRef}>
+              <button
+                onClick={() => setShowOverflowMenu(!showOverflowMenu)}
+                className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                title="More actions"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {showOverflowMenu && (
+                <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-lg border border-[#e5e5e5] bg-white shadow-lg py-1">
+                  <button onClick={() => { setShowPageSearch((p) => !p); setShowOverflowMenu(false); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50">
+                    <Search className="h-3.5 w-3.5" /> Find in page <kbd className="ml-auto text-[9px] text-neutral-400">⌘F</kbd>
+                  </button>
+                  <button onClick={() => { setShowExport(true); setShowOverflowMenu(false); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50">
+                    <Download className="h-3.5 w-3.5" /> Export
+                  </button>
+                  <button onClick={() => { handleSaveVersion(); setShowOverflowMenu(false); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50">
+                    <Save className="h-3.5 w-3.5" /> Save version
+                  </button>
+                  <button onClick={() => { setShowGraph(true); setShowOverflowMenu(false); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50">
+                    <Network className="h-3.5 w-3.5" /> Knowledge graph
+                  </button>
+                  <div className="mx-2 my-1 border-t border-[#f0f0f0]" />
+                  <button onClick={() => { togglePanel("history"); setShowOverflowMenu(false); }} className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm ${rightPanel === "history" ? "text-neutral-900 font-medium" : "text-neutral-600"} hover:bg-neutral-50`}>
+                    <Clock className="h-3.5 w-3.5" /> Version history
+                  </button>
+                  <button onClick={() => { togglePanel("comments"); setShowOverflowMenu(false); }} className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm ${rightPanel === "comments" ? "text-neutral-900 font-medium" : "text-neutral-600"} hover:bg-neutral-50`}>
+                    <MessageSquare className="h-3.5 w-3.5" /> Comments
+                    {commentCount > 0 && <span className="ml-auto rounded-full bg-neutral-100 px-1.5 text-[10px] font-medium">{commentCount}</span>}
+                  </button>
+                  <button onClick={() => { togglePanel("metadata"); setShowOverflowMenu(false); }} className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm ${rightPanel === "metadata" ? "text-neutral-900 font-medium" : "text-neutral-600"} hover:bg-neutral-50`}>
+                    <Info className="h-3.5 w-3.5" /> Document info
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <NotificationCenter onNavigate={navigateToDoc} />
           </div>
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          <div className="relative flex-1 overflow-y-auto px-16 py-10">
+          <div className="relative flex-1 overflow-y-auto px-8 py-10">
             {showPageSearch && editor && (
               <PageSearch
                 editor={editor}
                 onClose={() => setShowPageSearch(false)}
               />
             )}
-            <div className="mx-auto max-w-2xl">
+            <div className="mx-auto max-w-4xl">
               {isReady && (
                 <DocumentContextProvider
                   documentId={docId}
@@ -495,7 +465,28 @@ export default function WorkspaceDocumentPage() {
                   documentTitle={activeDoc.title ?? "Untitled"}
                   userId={user?.id ?? ""}
                 >
-                  <div className="mb-3">
+                  {/* Notion-style page title with emoji icon */}
+                  <div className="flex items-start gap-2 mb-1">
+                    <EmojiPicker
+                      value={activeDoc.icon}
+                      onChange={handleIconChange}
+                    />
+                    <input
+                      ref={titleRef}
+                      defaultValue={activeDoc.title ?? ""}
+                      placeholder="Untitled"
+                      className="flex-1 bg-transparent text-4xl font-bold text-neutral-900 placeholder:text-neutral-300 outline-none border-none pt-0.5"
+                      onBlur={handleTitleSubmit}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleTitleSubmit();
+                          editor?.commands.focus("start");
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="mb-6">
                     <TagBadges
                       documentId={docId}
                       onManage={() => setShowTagManager(!showTagManager)}
@@ -516,15 +507,47 @@ export default function WorkspaceDocumentPage() {
                     ydoc={ydoc ?? undefined}
                     provider={provider}
                     user={user}
-                    initialContent={activeDoc.content ?? ""}
+                    initialContent={activeDoc.contentJson ?? activeDoc.content ?? ""}
                     onContentChange={handleContentChange}
+                    onContentJsonChange={handleContentJsonChange}
                     onDirtyChange={handleDirtyChange}
                     flushRef={flushRef}
                     documentId={docId}
                     documentTitle={activeDoc.title ?? "Untitled"}
                     workspaceId={workspaceId}
                     userId={user?.id ?? ""}
+                    onCreateSubPage={handleCreateSubPage}
                   />
+                  {/* Sub-pages listed below editor content */}
+                  {(() => {
+                    const childPages = documents.filter((d) => d.parentId === docId);
+                    if (childPages.length === 0) return null;
+                    return (
+                      <div className="mt-8 border-t border-neutral-100 pt-6">
+                        {childPages
+                          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                          .map((child) => (
+                            <button
+                              key={child.id}
+                              onClick={() => navigateToDoc(child.id)}
+                              className="group flex w-full items-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 mb-2 text-left transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-sm"
+                            >
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                {(child as any).icon ? (
+                                  <span className="text-base">{(child as any).icon}</span>
+                                ) : (
+                                  <FileText className="h-4 w-4 text-neutral-400 group-hover:text-neutral-600" />
+                                )}
+                              </span>
+                              <span className="flex-1 truncate text-sm font-medium text-neutral-700 group-hover:text-neutral-900">
+                                {child.title || "Untitled"}
+                              </span>
+                              <ChevronRight className="h-4 w-4 shrink-0 text-neutral-300 transition-transform group-hover:translate-x-0.5 group-hover:text-neutral-500" />
+                            </button>
+                          ))}
+                      </div>
+                    );
+                  })()}
                   <BacklinksPanel
                     documentId={docId}
                     onNavigate={navigateToDoc}
@@ -612,23 +635,6 @@ export default function WorkspaceDocumentPage() {
         </div>
       )}
 
-      {showShare && workspace && (
-        <ShareModal
-          documentId={docId}
-          documentTitle={activeDoc.title ?? "Untitled"}
-          workspaceId={workspaceId}
-          onClose={() => setShowShare(false)}
-          openClawStatus={openClawStatus}
-          onAgentConnect={(endpoint, apiKey) => {
-            openClawBridge.configure(endpoint, apiKey);
-            openClawBridge.connect();
-          }}
-          onAgentDisconnect={() => {
-            openClawBridge.disconnect();
-          }}
-        />
-      )}
-
       {showShareDialog && workspace && (
         <ShareDialog
           documentId={docId}
@@ -644,6 +650,15 @@ export default function WorkspaceDocumentPage() {
           documentId={docId}
           documentTitle={activeDoc.title ?? "Untitled"}
           onClose={() => setShowExport(false)}
+        />
+      )}
+
+      {showInviteModal && workspace && (
+        <InviteModal
+          open={showInviteModal}
+          onOpenChange={setShowInviteModal}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
         />
       )}
     </>

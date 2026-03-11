@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   FileText,
@@ -15,6 +15,9 @@ import {
   Crown,
   AlertTriangle,
   ChevronRight,
+  Share2,
+  Building2,
+  ChevronDown,
 } from "lucide-react";
 import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
@@ -25,6 +28,15 @@ import {
   getDocumentLimitInfo,
   getSubscription,
 } from "@/lib/subscription/store";
+import { getSharedDocuments, type SharedDocument } from "@/lib/documents/shared";
+
+interface PresenceUser {
+  id: string;
+  name: string;
+  color: string;
+  avatar?: string;
+  isAgent?: boolean;
+}
 
 interface SidebarProps {
   workspaceName: string;
@@ -33,6 +45,8 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   onAdd: () => void;
   onDelete: (id: string) => void;
+  onAddSubPage?: (parentId: string) => void;
+  onMoveDocument?: (id: string, newParentId: string | null) => void;
   onSearch?: () => void;
   workspace?: Workspace | null;
   onWorkspaceSwitch?: (ws: Workspace) => void;
@@ -41,6 +55,7 @@ interface SidebarProps {
     documentId: string,
     selection?: { from: number; to: number },
   ) => void;
+  onlineUsers?: PresenceUser[];
 }
 
 function DocTreeItem({
@@ -91,7 +106,11 @@ function DocTreeItem({
               : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
           }`}
         >
-          <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+          {(doc as any).icon ? (
+            <span className="shrink-0 text-sm">{(doc as any).icon}</span>
+          ) : (
+            <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+          )}
           <span className="truncate">{doc.title || "Untitled"}</span>
         </button>
         <button
@@ -136,8 +155,34 @@ export function Sidebar({
   onWorkspaceSwitch,
   onShowActivity,
   onNavigateToTask,
+  onlineUsers = [],
 }: SidebarProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  
+  // State for shared documents
+  const [sharedDocs, setSharedDocs] = useState<SharedDocument[]>([]);
+  const [sharedDocsExpanded, setSharedDocsExpanded] = useState(true);
+  const [loadingShared, setLoadingShared] = useState(false);
+
+  // Fetch shared documents
+  useEffect(() => {
+    async function loadSharedDocuments() {
+      if (!workspace) return;
+      
+      setLoadingShared(true);
+      try {
+        const docs = await getSharedDocuments(workspace.id);
+        setSharedDocs(docs);
+      } catch (error) {
+        console.error("Failed to load shared documents:", error);
+      } finally {
+        setLoadingShared(false);
+      }
+    }
+    
+    loadSharedDocuments();
+  }, [workspace?.id]);
 
   const docLimit = workspace ? getDocumentLimitInfo(workspace.id) : null;
   const currentTier = workspace ? getSubscription(workspace.id).tier : "free";
@@ -228,6 +273,86 @@ export function Sidebar({
         onSelectDocument={onSelect}
         documents={documents.map((d) => ({ id: d.id, title: d.title }))}
       />
+
+      {/* Shared Documents */}
+      {sharedDocs.length > 0 && (
+        <div className="border-t border-[#e5e5e5] px-2 py-2">
+          <button
+            onClick={() => setSharedDocsExpanded(!sharedDocsExpanded)}
+            className="flex w-full items-center justify-between px-2 py-1.5 text-left"
+          >
+            <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+              <Share2 className="h-3.5 w-3.5" />
+              Shared with me
+            </span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-neutral-400 transition-transform ${
+                sharedDocsExpanded ? "" : "-rotate-90"
+              }`}
+            />
+          </button>
+          
+          {sharedDocsExpanded && (
+            <div className="mt-1 space-y-0.5">
+              {sharedDocs.map((doc) => (
+                <button
+                  key={doc.id}
+                  onClick={() => router.push(`/d/${doc.id}`)}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                    pathname === `/d/${doc.id}`
+                      ? "bg-neutral-100 font-medium text-neutral-900"
+                      : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                  <div className="flex min-w-0 flex-1 flex-col items-start">
+                    <span className="truncate text-sm">{doc.title || "Untitled"}</span>
+                    <span className="flex items-center gap-1 text-[10px] text-neutral-400">
+                      <Building2 className="h-2.5 w-2.5" />
+                      {doc.workspaceName}
+                    </span>
+                  </div>
+                  {doc.role === "editor" && (
+                    <span className="text-[9px] rounded bg-blue-100 px-1.5 py-0.5 text-blue-600">
+                      Can edit
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Online presence */}
+      {onlineUsers.length > 0 && (
+        <div className="border-t border-[#e5e5e5] px-3 py-2">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+            Online — {onlineUsers.length}
+          </span>
+          <div className="mt-2 space-y-1">
+            {onlineUsers.map((u) => (
+              <div key={u.id} className="flex items-center gap-2 rounded-md px-1.5 py-1">
+                <div className="relative">
+                  <div
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                    style={{ backgroundColor: u.color }}
+                  >
+                    {u.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#fafafa] bg-emerald-400" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate text-xs font-medium text-neutral-700">{u.name}</span>
+                  {u.isAgent && (
+                    <span className="text-[9px] text-neutral-400">Agent</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Agent Tasks */}
       <TaskStatusPanel onNavigateToTask={onNavigateToTask} />

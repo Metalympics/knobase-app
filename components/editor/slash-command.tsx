@@ -16,17 +16,31 @@ import {
   Minus,
   Quote,
   Highlighter,
+  FileText,
 } from "lucide-react";
+
+interface SlashCommandContext {
+  onCreateSubPage?: () => void;
+}
 
 interface SlashCommandItem {
   title: string;
   description: string;
   icon: React.ReactNode;
-  command: (editor: Editor) => void;
+  command: (editor: Editor, ctx: SlashCommandContext) => void;
   keywords?: string[];
 }
 
 const COMMANDS: SlashCommandItem[] = [
+  {
+    title: "Page",
+    description: "Create a sub-page inside this document",
+    icon: <FileText className="h-4 w-4" />,
+    keywords: ["page", "subpage", "sub-page", "nested", "child"],
+    command: (_editor, ctx) => {
+      ctx.onCreateSubPage?.();
+    },
+  },
   {
     title: "Heading 1",
     description: "Large section heading",
@@ -169,6 +183,7 @@ interface SlashCommandMenuProps {
   position: { top: number; left: number };
   onClose: () => void;
   query: string;
+  onCreateSubPage?: () => void;
 }
 
 export function SlashCommandMenu({
@@ -177,6 +192,7 @@ export function SlashCommandMenu({
   position,
   onClose,
   query,
+  onCreateSubPage,
 }: SlashCommandMenuProps) {
   const [selection, setSelection] = useState({ index: 0, query });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -219,10 +235,10 @@ export function SlashCommandMenu({
 
       editor.chain().focus().deleteRange({ from: slashPos, to: from }).run();
 
-      cmd.command(editor);
+      cmd.command(editor, { onCreateSubPage });
       onClose();
     },
-    [editor, filtered, query, onClose]
+    [editor, filtered, query, onClose, onCreateSubPage]
   );
 
   useEffect(() => {

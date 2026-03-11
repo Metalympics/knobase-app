@@ -21,11 +21,14 @@ export interface Document {
   id: string;
   title: string;
   content: string;
+  icon?: string | null;
+  contentJson?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
   aiBlocks?: AIBlockMeta[];
   tags?: string[];
   parentId?: string;
+  position?: number;
   comments?: Comment[];
   wordCount?: number;
 }

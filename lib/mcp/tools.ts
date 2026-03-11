@@ -1,12 +1,19 @@
 import type { Document, DocumentMeta } from "@/lib/documents/types";
 import type { Agent } from "@/lib/agents/types";
+import type { Mention, MentionInsert } from "@/lib/supabase/types";
+import { createMention } from "@/lib/supabase/mentions";
+import {
+  type BlockOperation,
+  type BlockMutationResult,
+  applyOperations,
+} from "@/lib/mcp/block-operations";
 
 export interface MCPToolDefinition {
   name: string;
   description: string;
   inputSchema: {
     type: "object";
-    properties: Record<string, { type: string; description: string }>;
+    properties: Record<string, { type: string; description?: string; items?: Record<string, unknown> }>;
     required?: string[];
   };
 }
@@ -48,21 +55,21 @@ export const TOOL_DEFINITIONS: MCPToolDefinition[] = [
   {
     name: "write_document",
     description:
-      "Create a new document or update an existing one. If id is provided, updates that document. Otherwise creates a new one.",
+      "Apply block-level operations to an existing document. Operations are applied sequentially and atomically — if any operation fails, the document is left unchanged. Use read_document first to discover block IDs.",
     inputSchema: {
       type: "object",
       properties: {
-        id: {
+        document_id: {
           type: "string",
-          description: "Document ID to update (omit to create new)",
+          description: "The ID of the document to modify",
         },
-        title: { type: "string", description: "Document title" },
-        content: {
-          type: "string",
-          description: "Document content in markdown",
+        operations: {
+          type: "array",
+          description:
+            "Ordered list of block operations to apply. Each operation has: type (replace_block | insert_after_block | insert_before_block | delete_block | append | prepend), block_id (required for block-targeted ops), content (HTML string for the new/replacement content).",
         },
       },
-      required: ["content"],
+      required: ["document_id", "operations"],
     },
   },
   {
@@ -75,6 +82,26 @@ export const TOOL_DEFINITIONS: MCPToolDefinition[] = [
         query: { type: "string", description: "Search query string" },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "create_document",
+    description:
+      "Create a new document in the Knobase workspace. Optionally set initial content and nest it under a parent document.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Title for the new document" },
+        content: {
+          type: "string",
+          description: "Initial HTML content for the document (optional)",
+        },
+        parent_id: {
+          type: "string",
+          description: "ID of the parent document to nest this document under (optional)",
+        },
+      },
+      required: ["title"],
     },
   },
   {
@@ -95,6 +122,74 @@ export const TOOL_DEFINITIONS: MCPToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {},
+    },
+  },
+  {
+    name: "get_agent_info",
+    description:
+      "Get the current agent's own profile information (name, avatar, status, capabilities). Uses the API key to identify the calling agent.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "update_agent_profile",
+    description:
+      "Update the current agent's own profile. Allows changing name, description (personality), and avatar_url. Uses the API key to identify the calling agent.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "New display name for the agent" },
+        description: {
+          type: "string",
+          description: "New description / personality text for the agent",
+        },
+        avatar_url: {
+          type: "string",
+          description: "New avatar URL or emoji for the agent",
+        },
+      },
+    },
+  },
+  {
+    name: "list_workspace_agents",
+    description:
+      "List all agents in the workspace with their id, name, description, and avatar. Uses the API key to scope to the correct workspace.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "create_mention",
+    description:
+      "Create a @mention in a document, targeting a specific user or agent. Automatically triggers a notification for the mentioned user via the database trigger.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        document_id: {
+          type: "string",
+          description: "The ID of the document containing the mention",
+        },
+        target_user_id: {
+          type: "string",
+          description: "The ID of the user or agent being mentioned",
+        },
+        mention_text: {
+          type: "string",
+          description: "The display text for the mention (e.g. '@Alice')",
+        },
+        context_text: {
+          type: "string",
+          description: "Surrounding text providing context for the mention (optional)",
+        },
+        block_id: {
+          type: "string",
+          description: "The block ID within the document where the mention occurs (optional)",
+        },
+      },
+      required: ["document_id", "target_user_id", "mention_text"],
     },
   },
 ];
@@ -166,6 +261,79 @@ export function formatWriteResult(doc: Document | null, created: boolean): MCPTo
           },
           null,
           2
+        ),
+      },
+    ],
+  };
+}
+
+export function formatCreateResult(doc: Document): MCPToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            status: "created",
+            id: doc.id,
+            title: doc.title,
+            ...(doc.parentId ? { parent_id: doc.parentId } : {}),
+            createdAt: doc.createdAt,
+          },
+          null,
+          2
+        ),
+      },
+    ],
+  };
+}
+
+/**
+ * Apply block-level operations to document content and return an MCP-formatted result.
+ */
+export function applyBlockOperations(
+  content: string,
+  operations: BlockOperation[],
+): BlockMutationResult {
+  return applyOperations(content, operations);
+}
+
+export function formatBlockWriteResult(
+  documentId: string,
+  result: BlockMutationResult,
+  operationCount: number,
+): MCPToolResult {
+  if (!result.success) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              status: "error",
+              document_id: documentId,
+              error: result.error,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+      isError: true,
+    };
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            status: "updated",
+            document_id: documentId,
+            operations_applied: operationCount,
+          },
+          null,
+          2,
         ),
       },
     ],
@@ -245,6 +413,174 @@ export function formatAgentList(agents: Agent[]): MCPToolResult {
           })),
           null,
           2
+        ),
+      },
+    ],
+  };
+}
+
+export function formatAgentInfo(agent: Agent | null): MCPToolResult {
+  if (!agent) {
+    return {
+      content: [{ type: "text", text: "Agent not found for the provided API key" }],
+      isError: true,
+    };
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            id: agent.id,
+            name: agent.name,
+            avatar: agent.avatar,
+            color: agent.color,
+            status: agent.status,
+            personality: agent.personality,
+            capabilities: agent.capabilities,
+            createdAt: agent.createdAt,
+            updatedAt: agent.updatedAt,
+          },
+          null,
+          2
+        ),
+      },
+    ],
+  };
+}
+
+export function formatAgentUpdateResult(agent: Agent | null): MCPToolResult {
+  if (!agent) {
+    return {
+      content: [{ type: "text", text: "Failed to update agent profile" }],
+      isError: true,
+    };
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            status: "updated",
+            id: agent.id,
+            name: agent.name,
+            avatar: agent.avatar,
+            personality: agent.personality,
+            updatedAt: agent.updatedAt,
+          },
+          null,
+          2
+        ),
+      },
+    ],
+  };
+}
+
+export function formatWorkspaceAgentList(agents: Agent[]): MCPToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          agents.map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.personality,
+            avatar: a.avatar,
+          })),
+          null,
+          2
+        ),
+      },
+    ],
+  };
+}
+
+export interface CreateMentionInput {
+  document_id: string;
+  target_user_id: string;
+  mention_text: string;
+  context_text?: string;
+  block_id?: string;
+}
+
+export async function handleCreateMention(
+  input: CreateMentionInput,
+  ctx: { agentId?: string; userId?: string; schoolId?: string | null },
+): Promise<MCPToolResult> {
+  const { document_id, target_user_id, mention_text, context_text, block_id } = input;
+
+  if (!document_id || !target_user_id || !mention_text) {
+    return {
+      content: [{ type: "text", text: "Missing required fields: document_id, target_user_id, and mention_text are required" }],
+      isError: true,
+    };
+  }
+
+  const sourceId = ctx.agentId ?? ctx.userId;
+  if (!sourceId) {
+    return {
+      content: [{ type: "text", text: "No authenticated context — cannot determine mention source" }],
+      isError: true,
+    };
+  }
+
+  if (!ctx.schoolId) {
+    return {
+      content: [{ type: "text", text: "No workspace context — school_id is required to create a mention" }],
+      isError: true,
+    };
+  }
+
+  const sourceType: MentionInsert["source_type"] = ctx.agentId ? "agent" : "human";
+  const targetType: MentionInsert["target_type"] = "human";
+
+  const insertPayload: MentionInsert = {
+    document_id,
+    school_id: ctx.schoolId,
+    source_type: sourceType,
+    source_id: sourceId,
+    target_type: targetType,
+    target_id: target_user_id,
+    target_name: mention_text.replace(/^@/, ""),
+    mention_text,
+    ...(context_text ? { context_text } : {}),
+    ...(block_id ? { block_id } : {}),
+    is_agent_generated: !!ctx.agentId,
+  };
+
+  try {
+    const mention = await createMention(insertPayload);
+    return formatCreateMentionResult(mention);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{ type: "text", text: `Failed to create mention: ${message}` }],
+      isError: true,
+    };
+  }
+}
+
+export function formatCreateMentionResult(mention: Mention): MCPToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            status: "created",
+            id: mention.id,
+            document_id: mention.document_id,
+            target_id: mention.target_id,
+            target_name: mention.target_name,
+            mention_text: mention.mention_text,
+            resolution_status: mention.resolution_status,
+            created_at: mention.created_at,
+          },
+          null,
+          2,
         ),
       },
     ],

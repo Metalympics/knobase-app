@@ -1,0 +1,36 @@
+Update the TeammatesManager component at components/settings/teammates-manager.tsx with the following changes:
+
+1. **Show role clearly with badges:**
+   - Replace the current small role badge with a more prominent badge
+   - Use different colors for each role:
+     - Admin: bg-red-100 text-red-700 (or similar prominent color)
+     - Editor: bg-blue-100 text-blue-700
+     - Viewer: bg-neutral-100 text-neutral-600
+   - Show the role description on hover or in a tooltip
+
+2. **Add ability to change role inline:**
+   - When hovering over a teammate row, show a "Change role" dropdown
+   - The dropdown should have the same options: Admin, Editor, Viewer
+   - When a role is changed, make an API call to PATCH /api/collaborators with the new role
+   - Show a loading spinner while the change is being applied
+   - Show a success toast or checkmark when the change is complete
+
+3. **Show role description/capabilities:**
+   - Add an expandable section for each teammate that shows:
+     - For Admin: "Full workspace control, can invite anyone, manage billing"
+     - For Editor: "Can create and edit documents, invite viewers"
+     - For Viewer: "Can view and comment only"
+   - This can be shown on hover or in an expandable card
+
+4. **Improve the UI:**
+   - Make the role badge larger and more visible
+   - Use Shield icon from lucide-react for the role section
+   - Keep the existing filter functionality (All/Humans/Agents)
+   - Keep the existing remove functionality
+
+Make sure to:
+- Import any new icons needed (Shield, ChevronDown, Check, etc.)
+- Use shadcn/ui Select component for the role dropdown
+- Handle loading and error states properly
+- Update the teammate list after a role change
+- Follow the existing code style and patterns

@@ -11,9 +11,8 @@ import {
 } from "@/lib/supabase/tasks";
 import {
   createMention,
-  acknowledgeMention,
-  completeMention,
-  linkMentionToTask,
+  resolveMention,
+  updateMention,
 } from "@/lib/supabase/mentions";
 import {
   upsertSession,
@@ -57,11 +56,16 @@ export interface MentionContext {
   documentId: string;
   schoolId: string;
   blockId?: string;
-  yjsPosition?: number;
+  contentOffset?: number;
+  contextText?: string;
   contextBefore?: string;
   contextAfter?: string;
+  yjsPosition?: number;
   prompt: string;
-  createdBy: string;
+  sourceId: string;
+  sourceName: string;
+  sourceType?: "human" | "agent";
+  createdBy?: string;
   agentId?: string;
   agentName?: string;
 }
@@ -82,16 +86,17 @@ export async function handleMention(ctx: MentionContext): Promise<{
   try {
     mention = await createMention({
       document_id: ctx.documentId,
+      school_id: ctx.schoolId,
       block_id: ctx.blockId ?? null,
-      yjs_position: ctx.yjsPosition ?? null,
+      content_offset: ctx.contentOffset ?? null,
+      source_type: ctx.sourceType ?? "human",
+      source_id: ctx.sourceId,
+      source_name: ctx.sourceName ?? null,
       target_type: "agent",
       target_id: agentId,
       target_name: agentName,
       mention_text: `@${agentName}`,
-      context_before: ctx.contextBefore ?? null,
-      context_after: ctx.contextAfter ?? null,
-      prompt: ctx.prompt,
-      created_by: ctx.createdBy,
+      context_text: ctx.contextText ?? ctx.contextBefore ?? null,
     });
   } catch (err) {
     console.warn("[TaskCoordinator] Mention creation failed (Supabase may be unavailable):", err);
@@ -118,9 +123,10 @@ export async function handleMention(ctx: MentionContext): Promise<{
     source_mention_id: mention?.id ?? null,
   });
 
-  // 3. Link mention to task (only if mention was created)
+  // 3. Link mention to task (only if mention was created) — no-op if not supported
   if (mention) {
-    await linkMentionToTask(mention.id, task.id).catch(() => {});
+    // No-op: mention-task linking handled via source_mention_id on the task
+    void mention;
   }
 
   // 4. Fire webhook notification so external agents (OpenClaw) can pick up the task
@@ -168,9 +174,9 @@ export async function beginWork(
     current_block_id: (task.target_context as Record<string, unknown>)?.block_id as string | undefined,
   });
 
-  // Mark linked mention as acknowledged
+  // Mark linked mention as acknowledged (update context_text to signal processing)
   if (task.source_mention_id) {
-    await acknowledgeMention(task.source_mention_id).catch(() => {});
+    await updateMention(task.source_mention_id, { resolution_status: "pending" }).catch(() => {});
   }
 
   return task;
@@ -221,7 +227,7 @@ export async function submitProposalsAndComplete(
 
   // Complete the linked mention
   if (task.source_mention_id) {
-    await completeMention(task.source_mention_id, agent.agentId, task.id).catch(() => {});
+    await resolveMention(task.source_mention_id).catch(() => {});
   }
 
   // Update session to idle
@@ -251,7 +257,7 @@ export async function completeWithResult(
   const task = await completeTask(taskId, resultSummary);
 
   if (task.source_mention_id) {
-    await completeMention(task.source_mention_id, agent.agentId, task.id).catch(() => {});
+    await resolveMention(task.source_mention_id).catch(() => {});
   }
 
   await updateAgentSessionByKey(agent.agentId, task.document_id, {

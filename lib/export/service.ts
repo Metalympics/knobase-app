@@ -83,9 +83,9 @@ async function fetchExportMetadata(
 ): Promise<ExportMetadata | null> {
   const supabase = await createServerClient();
 
-  // Fetch document with school and author info
+  // Fetch page with school and author info
   const { data: doc, error } = await supabase
-    .from("documents")
+    .from("pages")
     .select(
       `
       id,
@@ -99,7 +99,7 @@ async function fetchExportMetadata(
       ),
       users:created_by (
         id,
-        display_name
+        name
       )
     `
     )
@@ -115,7 +115,7 @@ async function fetchExportMetadata(
 
   return {
     documentTitle: docData.title || "Untitled Document",
-    authorName: docData.users?.display_name || "Unknown Author",
+    authorName: docData.users?.name || "Unknown Author",
     schoolName: docData.schools?.name || "Unknown School",
     schoolLogo: options.includeLogo
       ? docData.schools?.logo_url || undefined
@@ -135,8 +135,8 @@ async function fetchDocumentContent(
   const supabase = await createServerClient();
 
   const { data: doc, error } = await supabase
-    .from("documents")
-    .select("content")
+    .from("pages")
+    .select("content_md")
     .eq("id", options.documentId)
     .single();
 
@@ -144,7 +144,7 @@ async function fetchDocumentContent(
     return null;
   }
 
-  let content = doc.content || "";
+  let content = (doc as any).content_md || "";
 
   // Apply scope filtering
   if (options.scope === "section" && options.sectionId) {

@@ -12,10 +12,15 @@ export type Database = {
           name: string | null;
           avatar_url: string | null;
           school_id: string | null;
+          /** Legacy column — prefer role_id */
           role: string | null;
+          /** Primary permission level: "system-admin" | "system-member" | null */
+          role_id: string | null;
           type: string | null;
           is_deleted: boolean;
           is_suspended: boolean;
+          is_verified: boolean;
+          is_approved: boolean;
           description: string | null;
           capabilities: string[] | null;
           expertise: string[] | null;
@@ -27,8 +32,9 @@ export type Database = {
           owner_id: string | null;
           total_invocations: number;
           last_invoked_at: string | null;
+          last_active_at: string | null;
           created_at: string;
-          updated_at: string;
+          updated_at: string | null;
         };
         Insert: {
           id?: string;
@@ -39,9 +45,12 @@ export type Database = {
           avatar_url?: string | null;
           school_id?: string | null;
           role?: string | null;
+          role_id?: string | null;
           type?: string | null;
           is_deleted?: boolean;
           is_suspended?: boolean;
+          is_verified?: boolean;
+          is_approved?: boolean;
           description?: string | null;
           capabilities?: string[] | null;
           expertise?: string[] | null;
@@ -52,7 +61,7 @@ export type Database = {
           bot_id?: string | null;
           owner_id?: string | null;
           created_at?: string;
-          updated_at?: string;
+          updated_at?: string | null;
         };
         Update: {
           id?: string;
@@ -63,9 +72,12 @@ export type Database = {
           avatar_url?: string | null;
           school_id?: string | null;
           role?: string | null;
+          role_id?: string | null;
           type?: string | null;
           is_deleted?: boolean;
           is_suspended?: boolean;
+          is_verified?: boolean;
+          is_approved?: boolean;
           description?: string | null;
           capabilities?: string[] | null;
           expertise?: string[] | null;
@@ -77,8 +89,44 @@ export type Database = {
           owner_id?: string | null;
           total_invocations?: number;
           last_invoked_at?: string | null;
+          last_active_at?: string | null;
           created_at?: string;
-          updated_at?: string;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
+      auth_profiles: {
+        Row: {
+          id: string;
+          auth_id: string;
+          email: string;
+          full_name: string | null;
+          avatar_url: string | null;
+          last_login_at: string | null;
+          email_verified: boolean;
+          email_verified_at: string | null;
+          last_active_school_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          auth_id: string;
+          email: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          last_login_at?: string | null;
+          email_verified?: boolean;
+          email_verified_at?: string | null;
+          last_active_school_id?: string | null;
+        };
+        Update: {
+          auth_id?: string;
+          email?: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          last_login_at?: string | null;
+          email_verified?: boolean;
+          email_verified_at?: string | null;
+          last_active_school_id?: string | null;
         };
         Relationships: [];
       };
@@ -86,10 +134,11 @@ export type Database = {
         Row: {
           id: string;
           name: string;
-          slug: string;
-          owner_id: string;
-          invite_code: string;
-          settings: Record<string, unknown>;
+          slug?: string | null;
+          owner_id?: string | null;
+          admin_user_id?: string | null;
+          invite_code?: string | null;
+          settings?: Record<string, unknown> | null;
           logo_url: string | null;
           icon: string | null;
           color: string | null;
@@ -99,10 +148,11 @@ export type Database = {
         Insert: {
           id?: string;
           name: string;
-          slug: string;
-          owner_id: string;
-          invite_code?: string;
-          settings?: Record<string, unknown>;
+          slug?: string | null;
+          owner_id?: string | null;
+          admin_user_id?: string | null;
+          invite_code?: string | null;
+          settings?: Record<string, unknown> | null;
           logo_url?: string | null;
           icon?: string | null;
           color?: string | null;
@@ -112,13 +162,46 @@ export type Database = {
         Update: {
           id?: string;
           name?: string;
-          slug?: string;
-          owner_id?: string;
-          invite_code?: string;
-          settings?: Record<string, unknown>;
+          slug?: string | null;
+          owner_id?: string | null;
+          admin_user_id?: string | null;
+          invite_code?: string | null;
+          settings?: Record<string, unknown> | null;
           logo_url?: string | null;
           icon?: string | null;
           color?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      organization_settings: {
+        Row: {
+          id: string;
+          school_id: string;
+          site_title: string | null;
+          subdomain_id: string | null;
+          memory_enabled: boolean;
+          default_bot_id: string | null;
+          use_custom_icon: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          school_id: string;
+          site_title?: string | null;
+          subdomain_id?: string | null;
+          memory_enabled?: boolean;
+          default_bot_id?: string | null;
+          use_custom_icon?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          school_id?: string;
+          site_title?: string | null;
+          subdomain_id?: string | null;
+          memory_enabled?: boolean;
+          default_bot_id?: string | null;
+          use_custom_icon?: boolean;
           updated_at?: string;
         };
         Relationships: [];
@@ -155,36 +238,104 @@ export type Database = {
         };
         Relationships: [];
       };
-      documents: {
+      page_permissions: {
+        Row: {
+          id: string;
+          page_id: string;
+          user_id: string;
+          permission: "full" | "edit" | "comment" | "view";
+          granted_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          page_id: string;
+          user_id: string;
+          permission: "full" | "edit" | "comment" | "view";
+          granted_by: string;
+          created_at?: string;
+        };
+        Update: {
+          permission?: "full" | "edit" | "comment" | "view";
+        };
+        Relationships: [];
+      };
+      pages: {
         Row: {
           id: string;
           school_id: string;
+          parent_id: string | null;
           title: string;
-          content: string;
-          created_at: string;
-          updated_at: string;
+          content_md: string;
+          content_json: Record<string, unknown> | null;
+          icon: string | null;
           created_by: string;
           visibility: "private" | "shared" | "public";
+          position: number;
+          depth: number;
+          created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
           school_id: string;
+          parent_id?: string | null;
           title?: string;
-          content?: string;
-          created_at?: string;
-          updated_at?: string;
+          content_md?: string;
+          content_json?: Record<string, unknown> | null;
+          icon?: string | null;
           created_by: string;
           visibility?: "private" | "shared" | "public";
-        };
-        Update: {
-          id?: string;
-          school_id?: string;
-          title?: string;
-          content?: string;
+          position?: number;
+          depth?: number;
           created_at?: string;
           updated_at?: string;
-          created_by?: string;
+        };
+        Update: {
+          parent_id?: string | null;
+          title?: string;
+          content_md?: string;
+          content_json?: Record<string, unknown> | null;
+          icon?: string | null;
           visibility?: "private" | "shared" | "public";
+          position?: number;
+          depth?: number;
+        };
+        Relationships: [];
+      };
+      documents: {
+        Row: {
+          id: string;
+          knowledge_base_id: string | null;
+          name: string;
+          file_path: string | null;
+          file_type: string | null;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+          school_id: string;
+          file_size: number | null;
+          status: string;
+          metadata: Record<string, unknown> | null;
+        };
+        Insert: {
+          id?: string;
+          knowledge_base_id?: string | null;
+          name: string;
+          file_path?: string | null;
+          file_type?: string | null;
+          user_id: string;
+          school_id: string;
+          status?: string;
+          metadata?: Record<string, unknown> | null;
+        };
+        Update: {
+          name?: string;
+          file_path?: string | null;
+          file_type?: string | null;
+          status?: string;
+          metadata?: Record<string, unknown> | null;
         };
         Relationships: [];
       };
@@ -261,44 +412,44 @@ export type Database = {
         Row: {
           id: string;
           document_id: string;
+          school_id: string;
           block_id: string | null;
-          yjs_position: number | null;
-          target_type: "agent" | "user";
+          content_offset: number | null;
+          source_type: "human" | "agent";
+          source_id: string;
+          source_name: string | null;
+          target_type: "human" | "agent";
           target_id: string;
           target_name: string;
           mention_text: string;
-          context_before: string | null;
-          context_after: string | null;
-          prompt: string | null;
-          created_by: string | null;
+          context_text: string | null;
+          resolution_status: "pending" | "resolved" | "unknown";
+          is_agent_generated: boolean;
+          parent_mention_id: string | null;
           created_at: string;
-          status: "unread" | "acknowledged" | "completed" | "dismissed";
-          resolved_by: string | null;
-          resolved_at: string | null;
-          linked_task_id: string | null;
-          notified_at: string | null;
         };
         Insert: {
           id?: string;
           document_id: string;
+          school_id: string;
           block_id?: string | null;
-          yjs_position?: number | null;
-          target_type: "agent" | "user";
+          content_offset?: number | null;
+          source_type: "human" | "agent";
+          source_id: string;
+          source_name?: string | null;
+          target_type: "human" | "agent";
           target_id: string;
           target_name: string;
-          mention_text: string;
-          context_before?: string | null;
-          context_after?: string | null;
-          prompt?: string | null;
-          created_by?: string | null;
-          status?: "unread" | "acknowledged" | "completed" | "dismissed";
+          mention_text?: string;
+          context_text?: string | null;
+          resolution_status?: "pending" | "resolved" | "unknown";
+          is_agent_generated?: boolean;
+          parent_mention_id?: string | null;
+          created_at?: string;
         };
         Update: {
-          status?: "unread" | "acknowledged" | "completed" | "dismissed";
-          resolved_by?: string | null;
-          resolved_at?: string | null;
-          linked_task_id?: string | null;
-          notified_at?: string | null;
+          resolution_status?: "pending" | "resolved" | "unknown";
+          context_text?: string | null;
         };
         Relationships: [];
       };
@@ -425,10 +576,10 @@ export type Database = {
         };
         Relationships: [];
       };
-      document_blocks: {
+      page_blocks: {
         Row: {
           id: string;
-          document_id: string;
+          page_id: string;
           block_id: string;
           block_type: "paragraph" | "heading" | "code" | "list" | "quote" | "table" | "image" | "callout" | "agent_output";
           content: Record<string, unknown>;
@@ -446,7 +597,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          document_id: string;
+          page_id: string;
           block_id: string;
           block_type: "paragraph" | "heading" | "code" | "list" | "quote" | "table" | "image" | "callout" | "agent_output";
           content: Record<string, unknown>;
@@ -540,6 +691,42 @@ export type Database = {
           last_used_at?: string | null;
           expires_at?: string | null;
           revoked_at?: string | null;
+        };
+        Relationships: [];
+      };
+      api_keys: {
+        Row: {
+          id: string;
+          key_hash: string;
+          key_prefix: string;
+          user_id: string;
+          school_id: string | null;
+          scopes: string[];
+          name: string;
+          created_by: string;
+          expires_at: string | null;
+          last_used_at: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          key_hash: string;
+          key_prefix: string;
+          user_id: string;
+          school_id?: string | null;
+          scopes?: string[];
+          name: string;
+          created_by: string;
+          expires_at?: string | null;
+          is_active?: boolean;
+        };
+        Update: {
+          name?: string;
+          scopes?: string[];
+          is_active?: boolean;
+          last_used_at?: string | null;
+          expires_at?: string | null;
         };
         Relationships: [];
       };
@@ -857,6 +1044,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_webhooks: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_type: "mention" | "comment" | "invite" | "task_assigned";
+          webhook_url: string;
+          secret: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          event_type: "mention" | "comment" | "invite" | "task_assigned";
+          webhook_url: string;
+          secret: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          event_type?: "mention" | "comment" | "invite" | "task_assigned";
+          webhook_url?: string;
+          secret?: string;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -888,6 +1105,15 @@ export type Database = {
           p_response_time_ms: number;
         };
         Returns: void;
+      };
+      get_page_ancestors: {
+        Args: { page_uuid: string };
+        Returns: Array<{
+          id: string;
+          title: string;
+          icon: string | null;
+          depth: number;
+        }>;
       };
     };
   };

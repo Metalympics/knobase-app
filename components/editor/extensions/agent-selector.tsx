@@ -10,6 +10,7 @@ import type { MentionableUser } from "@/lib/mentions/types";
 import { listAgents, createAgent, updateAgentName, type Agent } from "@/lib/agents/store";
 import { useDemoSafe } from "@/lib/demo/context";
 import { DEMO_AGENTS, DEMO_PEOPLE } from "@/lib/demo/simulated-agents";
+import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 
 interface AgentOption {
@@ -163,13 +164,55 @@ export function AgentSelector({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const demoCtx = useDemoSafe();
   const isDemo = !!demoCtx;
+  const [dbAgentOptions, setDbAgentOptions] = useState<AgentOption[]>([]);
+
+  // Fetch real agent users from Supabase when not in demo mode
+  useEffect(() => {
+    if (isDemo || !workspaceId) return;
+    let cancelled = false;
+
+    async function fetchDbAgents() {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("users")
+          .select("id, name, avatar_url, description, agent_type")
+          .eq("type", "agent")
+          .eq("school_id", workspaceId)
+          .eq("is_deleted", false)
+          .order("name", { ascending: true })
+          .limit(20);
+
+        if (cancelled || !data?.length) return;
+
+        const opts: AgentOption[] = data.map((row: any) => ({
+          id: row.id,
+          model: row.agent_type ?? "custom",
+          provider: row.name ?? "Agent",
+          icon: row.avatar_url
+            ? <Image src={row.avatar_url} alt={row.name} width={32} height={32} className="h-full w-full rounded-md object-cover" unoptimized />
+            : <Bot className="h-4 w-4" />,
+          avatarSrc: row.avatar_url ?? undefined,
+          description: row.description ?? "Workspace agent",
+          agent: getOrCreateAgentForModel(row.id, row.name ?? "Agent"),
+        }));
+        setDbAgentOptions(opts);
+      } catch {
+        // best effort
+      }
+    }
+    fetchDbAgents();
+    return () => { cancelled = true; };
+  }, [isDemo, workspaceId]);
 
   const baseOptions = isDemo ? DEMO_AGENT_OPTIONS : BASE_AGENT_OPTIONS;
 
-  const AGENT_OPTIONS: AgentOption[] = baseOptions.map(base => ({
-    ...base,
-    agent: getOrCreateAgentForModel(base.model, base.provider),
-  }));
+  const AGENT_OPTIONS: AgentOption[] = isDemo
+    ? baseOptions.map(base => ({ ...base, agent: getOrCreateAgentForModel(base.model, base.provider) }))
+    : [
+        ...dbAgentOptions,
+        ...baseOptions.map(base => ({ ...base, agent: getOrCreateAgentForModel(base.model, base.provider) })),
+      ];
 
   const filteredAgents = AGENT_OPTIONS.filter((agent) => {
     const q = query.toLowerCase();
@@ -342,7 +385,43 @@ export function AgentSelector({
     }
   }, [selected]);
 
-  if (!isOpen || !hasResults) return null;
+  // Click-outside dismissal
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen, onClose]);
+
+  // Auto-dismiss when no results and user continues typing past the query
+  useEffect(() => {
+    if (isOpen && !hasResults && query.length > 0) {
+      const timer = setTimeout(() => {
+        if (!hasResults) onClose();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, hasResults, query, onClose]);
+
+  if (!isOpen) return null;
+
+  if (!hasResults) {
+    return (
+      <div
+        ref={menuRef}
+        className="fixed z-50 w-80 rounded-lg border border-[#e5e5e5] bg-white shadow-lg"
+        style={{ top: position.top + 24, left: position.left }}
+      >
+        <div className="px-4 py-3 text-sm text-neutral-400 text-center">
+          No agents or collaborators found
+        </div>
+      </div>
+    );
+  }
 
   const isAISelected = (index: number) => selected.type === 'ai' && selected.index === index;
   const isHumanSelected = (index: number) => selected.type === 'human' && selected.index === index;

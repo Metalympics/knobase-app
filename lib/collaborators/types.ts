@@ -62,7 +62,7 @@ export interface AgentProfile {
 export interface HumanProfile {
   user_id: string;
   email: string;
-  display_name: string | null;
+  name: string | null;
   role: 'admin' | 'editor' | 'viewer';
   joined_at: Date;
 }

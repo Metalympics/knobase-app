@@ -7,13 +7,17 @@ import { useDocuments } from "@/lib/documents/use-documents";
 import {
   getWorkspace,
   setActiveWorkspaceId,
-  getOrCreateDefaultWorkspace,
+  getLastActiveSchoolId,
+  getFirstUserWorkspace,
+  cacheSchool,
+  loadSchool,
 } from "@/lib/schools/store";
 import { canCreateDocument } from "@/lib/subscription/store";
 import { TemplatePicker } from "@/components/templates/template-picker";
 import type { Template } from "@/lib/templates/defaults";
 import type { Workspace } from "@/lib/schools/types";
 import { Crown } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const params = useParams();
@@ -31,18 +35,46 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
     addDocument,
     saveContent,
     removeDocument,
+    addSubPage,
+    moveDoc,
   } = useDocuments();
 
   useEffect(() => {
-    const ws = getWorkspace(workspaceId);
-    if (ws) {
+    async function initWorkspace() {
+      // "default" is a placeholder — resolve to the user's real workspace
+      if (workspaceId === "default") {
+        const lastActive = await getLastActiveSchoolId();
+        const target = lastActive ?? (await getFirstUserWorkspace());
+        if (target) {
+          router.replace(`/s/${target}`);
+        } else {
+          router.replace("/onboarding");
+        }
+        return;
+      }
+
+      // Try localStorage cache first, then fall back to Supabase
+      let ws = getWorkspace(workspaceId);
+      if (!ws) {
+        const school = await loadSchool(workspaceId);
+        if (!school) {
+          const target = await getFirstUserWorkspace();
+          if (target) {
+            router.replace(`/s/${target}`);
+          } else {
+            router.replace("/onboarding");
+          }
+          return;
+        }
+        cacheSchool(school);
+        ws = school;
+      }
+
       setActiveWorkspaceId(workspaceId);
       setWorkspace(ws);
       setMounted(true);
-    } else {
-      const defaultWs = getOrCreateDefaultWorkspace();
-      router.replace(`/s/${defaultWs.id}`);
     }
+    initWorkspace();
   }, [workspaceId, router]);
 
   const handleSelect = useCallback(
@@ -91,12 +123,74 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
     [removeDocument, documents, router, workspaceId],
   );
 
+  const handleAddSubPage = useCallback(
+    (parentId: string) => {
+      if (workspace && !canCreateDocument(workspace.id)) {
+        setShowUpgradePrompt(true);
+        return;
+      }
+      const doc = addSubPage(parentId);
+      if (doc) {
+        router.push(`/s/${workspaceId}/d/${doc.id}`);
+      }
+    },
+    [addSubPage, workspace, router, workspaceId],
+  );
+
+  const handleMoveDocument = useCallback(
+    (id: string, newParentId: string | null) => {
+      moveDoc(id, newParentId);
+    },
+    [moveDoc],
+  );
+
   const handleNavigateToTask = useCallback(
     (documentId: string) => {
       router.push(`/s/${workspaceId}/d/${documentId}`);
     },
     [router, workspaceId],
   );
+
+  // Track online users via Supabase Realtime presence channel
+  const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string; color: string; isAgent?: boolean }[]>([]);
+  useEffect(() => {
+    if (!workspace) return;
+    const supabase = createClient();
+    const channel = supabase.channel(`workspace:${workspace.id}`, {
+      config: { presence: { key: "user" } },
+    });
+
+    const COLORS = ["#7C3AED", "#2563EB", "#10B981", "#F59E0B", "#EF4444", "#3B82F6"];
+
+    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+      if (!authUser) return;
+      channel.subscribe(async (status) => {
+        if (status !== "SUBSCRIBED") return;
+        await channel.track({
+          id: authUser.id,
+          name: authUser.user_metadata?.full_name ?? authUser.email?.split("@")[0] ?? "User",
+          color: COLORS[Math.abs(authUser.id.charCodeAt(0)) % COLORS.length],
+          online_at: new Date().toISOString(),
+        });
+      });
+    });
+
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState();
+      const users = Object.values(state).flat().map((p: any) => ({
+        id: p.id,
+        name: p.name ?? "User",
+        color: p.color ?? "#7C3AED",
+        isAgent: p.isAgent ?? false,
+      }));
+      const unique = Array.from(new Map(users.map(u => [u.id, u])).values());
+      setOnlineUsers(unique);
+    });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [workspace?.id]);
 
   if (!mounted || !workspace) {
     return (
@@ -117,12 +211,15 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         onSelect={handleSelect}
         onAdd={handleAddDocument}
         onDelete={handleDelete}
+        onAddSubPage={handleAddSubPage}
+        onMoveDocument={handleMoveDocument}
         workspace={workspace}
         onWorkspaceSwitch={(ws) => {
           setWorkspace(ws);
           setActiveWorkspaceId(ws.id);
           router.push(`/s/${ws.id}`);
         }}
+        onlineUsers={onlineUsers}
       />
 
       {children}

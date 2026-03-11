@@ -1,23 +1,39 @@
-import {
-  listDocuments,
-  getDocument,
-  createDocument,
-  updateDocument,
-  deleteDocument,
-} from "@/lib/documents/store";
-import { listAgents } from "@/lib/agents/store";
+/**
+ * MCP server handler — Supabase-backed.
+ *
+ * This module is the reusable core of the MCP JSON-RPC server.
+ * It can be called from the Next.js API route or any other entry point.
+ */
+
 import {
   TOOL_DEFINITIONS,
   buildResourceList,
   formatDocumentList,
   formatDocument,
-  formatWriteResult,
   formatSearchResults,
+  formatCreateResult,
   formatDeleteResult,
   formatAgentList,
+  formatAgentInfo,
+  formatAgentUpdateResult,
+  formatWorkspaceAgentList,
+  applyBlockOperations,
+  formatBlockWriteResult,
+  handleCreateMention,
   type MCPToolResult,
 } from "./tools";
-import type { Document } from "@/lib/documents/types";
+import type { BlockOperation } from "@/lib/mcp/block-operations";
+import {
+  listPages,
+  getPage,
+  createPage,
+  updatePageContent,
+  deletePage,
+  searchPages,
+  getAgentProfile,
+  updateAgentProfile,
+  listWorkspaceAgents,
+} from "./page-operations";
 
 export interface MCPRequest {
   jsonrpc: "2.0";
@@ -39,7 +55,13 @@ const SERVER_INFO = {
   protocolVersion: "2024-11-05",
 };
 
-export function handleMCPRequest(req: MCPRequest): MCPResponse {
+export interface MCPContext {
+  agentId?: string;
+  userId?: string;
+  schoolId?: string | null;
+}
+
+export async function handleMCPRequest(req: MCPRequest, ctx: MCPContext = {}): Promise<MCPResponse> {
   const { method, params, id } = req;
 
   switch (method) {
@@ -56,14 +78,26 @@ export function handleMCPRequest(req: MCPRequest): MCPResponse {
       return ok(id, { tools: TOOL_DEFINITIONS });
 
     case "tools/call":
-      return ok(id, executeTool(params as { name: string; arguments?: Record<string, unknown> }));
+      return ok(id, await executeTool(params as { name: string; arguments?: Record<string, unknown> }, ctx));
 
-    case "resources/list":
-      return ok(id, { resources: buildResourceList(listDocuments()) });
+    case "resources/list": {
+      const pages = ctx.schoolId ? await listPages(ctx.schoolId) : [];
+      return ok(id, {
+        resources: buildResourceList(
+          pages.map((p) => ({
+            id: p.id,
+            title: p.title,
+            createdAt: p.created_at,
+            updatedAt: p.updated_at,
+            position: p.position ?? 0,
+          })),
+        ),
+      });
+    }
 
     case "resources/read": {
       const uri = (params as { uri?: string })?.uri ?? "";
-      return ok(id, readResource(uri));
+      return ok(id, await readResource(uri, ctx));
     }
 
     case "ping":
@@ -74,51 +108,201 @@ export function handleMCPRequest(req: MCPRequest): MCPResponse {
   }
 }
 
-function executeTool(params: { name: string; arguments?: Record<string, unknown> }): MCPToolResult {
+async function executeTool(
+  params: { name: string; arguments?: Record<string, unknown> },
+  ctx: MCPContext = {},
+): Promise<MCPToolResult> {
   const { name, arguments: args = {} } = params;
 
-  switch (name) {
-    case "list_documents":
-      return formatDocumentList(listDocuments());
+  if (!ctx.schoolId && !["get_agent_info", "update_agent_profile", "ping"].includes(name)) {
+    return {
+      content: [{ type: "text", text: "No workspace context — school_id required" }],
+      isError: true,
+    };
+  }
 
-    case "read_document":
-      return formatDocument(getDocument(args.id as string));
+  switch (name) {
+    case "list_documents": {
+      const pages = await listPages(ctx.schoolId!);
+      return formatDocumentList(
+        pages.map((p) => ({
+          id: p.id,
+          title: p.title,
+          createdAt: p.created_at,
+          updatedAt: p.updated_at,
+          position: p.position ?? 0,
+        })),
+      );
+    }
+
+    case "read_document": {
+      const page = await getPage(args.id as string);
+      if (!page) return formatDocument(null);
+      if (ctx.schoolId && page.school_id !== ctx.schoolId) return formatDocument(null);
+      return formatDocument({
+        id: page.id,
+        title: page.title,
+        content: page.content_md,
+        createdAt: page.created_at,
+        updatedAt: page.updated_at,
+      });
+    }
 
     case "write_document": {
-      const docId = args.id as string | undefined;
-      const title = args.title as string | undefined;
-      const content = args.content as string;
-
-      if (docId) {
-        const updated = updateDocument(docId, {
-          ...(title !== undefined && { title }),
-          ...(content !== undefined && { content }),
-        });
-        return formatWriteResult(updated, false);
+      const pageId = args.document_id as string;
+      const operations = args.operations as BlockOperation[];
+      const page = await getPage(pageId);
+      if (!page) {
+        return formatBlockWriteResult(pageId, { success: false, content: "", error: "Page not found" }, 0);
       }
-
-      const created = createDocument(title ?? "Untitled");
-      if (content) {
-        updateDocument(created.id, { content });
-        created.content = content;
+      if (ctx.schoolId && page.school_id !== ctx.schoolId) {
+        return formatBlockWriteResult(pageId, { success: false, content: "", error: "Access denied" }, 0);
       }
-      return formatWriteResult(created, true);
+      const result = applyBlockOperations(page.content_md, operations);
+      if (result.success) {
+        await updatePageContent(pageId, { content_md: result.content });
+      }
+      return formatBlockWriteResult(pageId, result, operations.length);
     }
 
     case "search_documents": {
       const query = args.query as string;
-      const allDocs = listDocuments();
-      const fullDocs: Document[] = allDocs
-        .map((m) => getDocument(m.id))
-        .filter((d): d is Document => d !== null);
-      return formatSearchResults(fullDocs, query);
+      const pages = await searchPages(ctx.schoolId!, query);
+      return formatSearchResults(
+        pages.map((p) => ({
+          id: p.id,
+          title: p.title,
+          content: p.content_md,
+          createdAt: p.created_at,
+          updatedAt: p.updated_at,
+        })),
+        query,
+      );
     }
 
-    case "delete_document":
-      return formatDeleteResult(deleteDocument(args.id as string));
+    case "create_document": {
+      const title = args.title as string;
+      const parentId = typeof args.parent_id === "string" ? args.parent_id : undefined;
+      const createdBy = ctx.agentId ?? ctx.userId;
+      if (!createdBy) {
+        return { content: [{ type: "text", text: "Cannot determine creator identity" }], isError: true };
+      }
+      const page = await createPage({
+        title,
+        content_md: typeof args.content === "string" ? args.content : "",
+        school_id: ctx.schoolId!,
+        created_by: createdBy,
+        parent_id: parentId ?? null,
+      });
+      return formatCreateResult({
+        id: page.id,
+        title: page.title,
+        content: page.content_md,
+        createdAt: page.created_at,
+        updatedAt: page.updated_at,
+        parentId: page.parent_id ?? undefined,
+      });
+    }
 
-    case "list_agents":
-      return formatAgentList(listAgents());
+    case "delete_document": {
+      const delPage = await getPage(args.id as string);
+      if (delPage && ctx.schoolId && delPage.school_id !== ctx.schoolId) {
+        return { content: [{ type: "text", text: "Access denied" }], isError: true };
+      }
+      const success = await deletePage(args.id as string);
+      return formatDeleteResult(success);
+    }
+
+    case "list_agents": {
+      const agents = await listWorkspaceAgents(ctx.schoolId!);
+      return formatAgentList(
+        agents.map((a) => ({
+          id: a.id,
+          name: a.name ?? "Agent",
+          avatar: a.avatar_url ?? "🤖",
+          color: "#8B5CF6",
+          status: "online" as const,
+          personality: "",
+          capabilities: ["read", "write"],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+      );
+    }
+
+    case "get_agent_info": {
+      if (!ctx.agentId) {
+        return { content: [{ type: "text", text: "No agent context — API key not associated with an agent" }], isError: true };
+      }
+      const profile = await getAgentProfile(ctx.agentId);
+      if (!profile) return formatAgentInfo(null);
+      return formatAgentInfo({
+        id: profile.id,
+        name: profile.name ?? "Agent",
+        avatar: profile.avatar_url ?? "🤖",
+        color: "#8B5CF6",
+        status: "online",
+        personality: "",
+        capabilities: ["read", "write"],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    case "update_agent_profile": {
+      if (!ctx.agentId) {
+        return { content: [{ type: "text", text: "No agent context — API key not associated with an agent" }], isError: true };
+      }
+      const patch: Record<string, string> = {};
+      if (typeof args.name === "string") patch.name = args.name;
+      if (typeof args.description === "string") patch.description = args.description;
+      if (typeof args.avatar_url === "string") patch.avatar_url = args.avatar_url;
+      if (Object.keys(patch).length === 0) {
+        return { content: [{ type: "text", text: "No fields provided to update" }], isError: true };
+      }
+      const updated = await updateAgentProfile(ctx.agentId, patch);
+      if (!updated) return formatAgentUpdateResult(null);
+      return formatAgentUpdateResult({
+        id: updated.id,
+        name: updated.name ?? "Agent",
+        avatar: updated.avatar_url ?? "🤖",
+        color: "#8B5CF6",
+        status: "online",
+        personality: patch.description ?? "",
+        capabilities: ["read", "write"],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    case "list_workspace_agents": {
+      const agents = await listWorkspaceAgents(ctx.schoolId!);
+      return formatWorkspaceAgentList(
+        agents.map((a) => ({
+          id: a.id,
+          name: a.name ?? "Agent",
+          avatar: a.avatar_url ?? "🤖",
+          color: "#8B5CF6",
+          status: "online" as const,
+          personality: "",
+          capabilities: ["read", "write"],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+      );
+    }
+
+    case "create_mention":
+      return handleCreateMention(
+        {
+          document_id: args.document_id as string,
+          target_user_id: args.target_user_id as string,
+          mention_text: args.mention_text as string,
+          context_text: typeof args.context_text === "string" ? args.context_text : undefined,
+          block_id: typeof args.block_id === "string" ? args.block_id : undefined,
+        },
+        { agentId: ctx.agentId, userId: ctx.userId, schoolId: ctx.schoolId },
+      );
 
     default:
       return {
@@ -128,41 +312,28 @@ function executeTool(params: { name: string; arguments?: Record<string, unknown>
   }
 }
 
-function readResource(uri: string): { contents: Array<{ uri: string; mimeType: string; text: string }> } {
+async function readResource(
+  uri: string,
+  ctx: MCPContext,
+): Promise<{ contents: Array<{ uri: string; mimeType: string; text: string }> }> {
   if (uri === "workspace://info") {
-    const docs = listDocuments();
-    const name =
-      typeof window !== "undefined"
-        ? localStorage.getItem("knobase-app:workspace") ?? "Knobase"
-        : "Knobase";
+    const pages = ctx.schoolId ? await listPages(ctx.schoolId) : [];
     return {
       contents: [
         {
           uri,
           mimeType: "application/json",
-          text: JSON.stringify(
-            { name, documentCount: docs.length, documents: docs },
-            null,
-            2
-          ),
+          text: JSON.stringify({ name: "Knobase", pageCount: pages.length, pages }, null, 2),
         },
       ],
     };
   }
 
-  const match = uri.match(/^document:\/\/(.+)$/);
+  const match = uri.match(/^(?:page|document):\/\/(.+)$/);
   if (match) {
-    const doc = getDocument(match[1]);
-    if (doc) {
-      return {
-        contents: [
-          {
-            uri,
-            mimeType: "text/markdown",
-            text: doc.content,
-          },
-        ],
-      };
+    const page = await getPage(match[1]);
+    if (page && (!ctx.schoolId || page.school_id === ctx.schoolId)) {
+      return { contents: [{ uri, mimeType: "text/html", text: page.content_md }] };
     }
   }
 

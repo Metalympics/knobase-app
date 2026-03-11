@@ -12,7 +12,14 @@ export type AuthUser = {
 export type UserProfile = Database["public"]["Tables"]["users"]["Row"];
 export type School = Database["public"]["Tables"]["schools"]["Row"];
 export type Workspace = School;
-export type Document = Database["public"]["Tables"]["documents"]["Row"];
+/** Knowledge-base file (uploaded docs for RAG). For editor pages use Page. */
+export type KBDocument = Database["public"]["Tables"]["documents"]["Row"];
+/** Workspace editor page */
+export type Page = Database["public"]["Tables"]["pages"]["Row"];
+export type PageInsert = Database["public"]["Tables"]["pages"]["Insert"];
+export type PageUpdate = Database["public"]["Tables"]["pages"]["Update"];
+/** @deprecated Use Page instead — this now refers to the KB documents table */
+export type Document = KBDocument;
 
 /* ------------------------------------------------------------------ */
 /* Agent coordination types                                            */
@@ -40,9 +47,15 @@ export type AgentEditProposalUpdate = Database["public"]["Tables"]["agent_edit_p
 export type AgentNotification = Database["public"]["Tables"]["agent_notifications"]["Row"];
 export type AgentNotificationInsert = Database["public"]["Tables"]["agent_notifications"]["Insert"];
 
-export type DocumentBlock = Database["public"]["Tables"]["document_blocks"]["Row"];
-export type DocumentBlockInsert = Database["public"]["Tables"]["document_blocks"]["Insert"];
-export type DocumentBlockUpdate = Database["public"]["Tables"]["document_blocks"]["Update"];
+export type PageBlock = Database["public"]["Tables"]["page_blocks"]["Row"];
+export type PageBlockInsert = Database["public"]["Tables"]["page_blocks"]["Insert"];
+export type PageBlockUpdate = Database["public"]["Tables"]["page_blocks"]["Update"];
+/** @deprecated Use PageBlock */
+export type DocumentBlock = PageBlock;
+/** @deprecated Use PageBlockInsert */
+export type DocumentBlockInsert = PageBlockInsert;
+/** @deprecated Use PageBlockUpdate */
+export type DocumentBlockUpdate = PageBlockUpdate;
 
 export type AgentPersonaRow = Database["public"]["Tables"]["agent_personas"]["Row"];
 export type AgentPersonaInsert = Database["public"]["Tables"]["agent_personas"]["Insert"];
@@ -55,6 +68,11 @@ export type AgentWebhookUpdate = Database["public"]["Tables"]["agent_webhooks"][
 export type AgentApiKey = Database["public"]["Tables"]["agent_api_keys"]["Row"];
 export type AgentApiKeyInsert = Database["public"]["Tables"]["agent_api_keys"]["Insert"];
 export type AgentApiKeyUpdate = Database["public"]["Tables"]["agent_api_keys"]["Update"];
+
+export type UserWebhook = Database["public"]["Tables"]["user_webhooks"]["Row"];
+export type UserWebhookInsert = Database["public"]["Tables"]["user_webhooks"]["Insert"];
+export type UserWebhookUpdate = Database["public"]["Tables"]["user_webhooks"]["Update"];
+export type WebhookEventType = UserWebhook["event_type"];
 
 /* ------------------------------------------------------------------ */
 /* Marketplace types                                                   */
@@ -82,7 +100,9 @@ export type WorkspaceFileUpdate = Database["public"]["Tables"]["workspace_files"
 
 export type AgentTaskStatus = AgentTask["status"];
 export type AgentTaskType = AgentTask["task_type"];
-export type MentionStatus = Mention["status"];
+export type MentionResolutionStatus = Mention["resolution_status"];
+/** @deprecated Use MentionResolutionStatus instead */
+export type MentionStatus = MentionResolutionStatus;
 export type AgentSessionStatus = AgentSession["status"];
 export type EditProposalStatus = AgentEditProposal["status"];
 export type EditType = AgentEditProposal["edit_type"];
@@ -92,9 +112,11 @@ export type SchoolWithMembers = School & {
 };
 export type WorkspaceWithMembers = SchoolWithMembers;
 
-export type DocumentWithCreator = Document & {
+export type PageWithCreator = Page & {
   creator: UserProfile;
 };
+/** @deprecated Use PageWithCreator */
+export type DocumentWithCreator = PageWithCreator;
 
 export type SchoolRole = "admin" | "editor" | "viewer";
 export type WorkspaceRole = SchoolRole;
@@ -110,21 +132,34 @@ export type CreateSchoolInput = {
   };
 };
 
-export type CreateDocumentInput = {
+export type CreatePageInput = {
   title: string;
-  content: string;
+  content_md?: string;
+  content_json?: Record<string, unknown> | null;
   school_id: string;
+  icon?: string | null;
+  parent_id?: string | null;
+  position?: number;
   visibility?: "private" | "shared" | "public";
 };
 
-export type UpdateDocumentInput = {
+export type UpdatePageInput = {
   title?: string;
-  content?: string;
+  content_md?: string;
+  content_json?: Record<string, unknown> | null;
+  icon?: string | null;
+  parent_id?: string | null;
+  position?: number;
   visibility?: "private" | "shared" | "public";
 };
+
+/** @deprecated Use CreatePageInput */
+export type CreateDocumentInput = CreatePageInput;
+/** @deprecated Use UpdatePageInput */
+export type UpdateDocumentInput = UpdatePageInput;
 
 export type UpdateProfileInput = {
-  display_name?: string;
+  name?: string;
   avatar_url?: string;
 };
 

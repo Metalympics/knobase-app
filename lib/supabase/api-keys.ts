@@ -2,9 +2,19 @@
 // CRUD for agent API keys stored in Supabase `agent_api_keys` table.
 // Keys are hashed (SHA-256) before storage; raw key returned only at creation.
 
-import { createClient } from "./client";
 import { createAdminClient } from "./admin";
 import type { AgentApiKey, AgentApiKeyInsert } from "./types";
+
+/**
+ * Browser client — only used for client-side reads (list, revoke).
+ * Lazy-imported so this module can be loaded on the server without
+ * pulling in browser-only Supabase helpers at the top level.
+ */
+function getBrowserClient() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { createClient } = require("./client") as typeof import("./client");
+  return createClient();
+}
 
 /* ------------------------------------------------------------------ */
 /* Hashing helpers (server-safe)                                       */
@@ -42,7 +52,7 @@ export async function createApiKey(
   const keyHash = await sha256(rawKey);
   const keyPrefix = rawKey.slice(0, 10); // "kb_XXXXXXX"
 
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { data: apiKey, error } = await supabase
     .from("agent_api_keys")
     .insert({
@@ -57,7 +67,15 @@ export async function createApiKey(
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    const msg =
+      error.message ||
+      error.code ||
+      (error as any).details ||
+      (error as any).hint ||
+      JSON.stringify(error, Object.getOwnPropertyNames(error));
+    throw new Error(`Failed to create API key: ${msg}`);
+  }
   return { key: apiKey as unknown as AgentApiKey, rawKey };
 }
 
@@ -67,7 +85,7 @@ export async function createApiKey(
 export async function listApiKeysBySchool(
   schoolId: string
 ): Promise<AgentApiKey[]> {
-  const supabase = createClient();
+  const supabase = getBrowserClient();
   const { data, error } = await supabase
     .from("agent_api_keys")
     .select("*")
@@ -117,7 +135,7 @@ export async function findApiKeyByRawToken(
  * Revoke an API key (soft delete).
  */
 export async function revokeApiKey(id: string): Promise<void> {
-  const supabase = createClient();
+  const supabase = getBrowserClient();
   const { error } = await supabase
     .from("agent_api_keys")
     .update({ revoked_at: new Date().toISOString() })

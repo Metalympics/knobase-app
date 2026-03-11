@@ -127,21 +127,21 @@ function InviteContent() {
       }
 
       if (inviteData.document_id) {
-        const { data: doc } = await supabase
-          .from("documents")
+        const { data: pg } = await supabase
+          .from("pages")
           .select("title")
           .eq("id", inviteData.document_id)
           .maybeSingle();
-        document_title = doc?.title;
+        document_title = pg?.title;
       }
 
       if (inviteData.invited_by) {
         const { data: inviter } = await supabase
           .from("users")
-          .select("display_name")
+          .select("name")
           .eq("id", inviteData.invited_by)
           .maybeSingle();
-        inviter_name = inviter?.display_name ?? undefined;
+        inviter_name = inviter?.name ?? undefined;
       }
 
       setInvite({

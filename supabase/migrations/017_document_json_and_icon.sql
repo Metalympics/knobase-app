@@ -1,0 +1,9 @@
+-- Migration 017b: JSON Content Storage and Page Icon
+--
+-- HISTORY: This migration originally added content_json and icon columns
+-- to the old documents table. Those columns now live natively on the
+-- pages table (created in 019_create_pages_table.sql).
+--
+-- This file is intentionally a no-op. The pages table already defines:
+--   content_json JSONB  — TipTap ProseMirror JSON (preserves inline agent nodes)
+--   icon TEXT           — Optional emoji page icon

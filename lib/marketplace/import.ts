@@ -191,10 +191,10 @@ export async function importOpenclawPackage(
   const createdDocIds: string[] = [];
   for (const doc of selectedDocs) {
     const { data: created, error: docErr } = await supabase
-      .from("documents")
+      .from("pages")
       .insert({
         title: doc.title,
-        content: doc.content,
+        content_md: doc.content,
         school_id: workspaceId,
         created_by: userId,
         visibility: "shared" as const,
@@ -257,10 +257,10 @@ export async function exportWorkspaceAsManifest(
     .select("*")
     .eq("school_id", workspaceId);
 
-  // Get documents
+  // Get pages (workspace editor content)
   const { data: docs } = await supabase
-    .from("documents")
-    .select("id, title, content")
+    .from("pages")
+    .select("id, title, content_md")
     .eq("school_id", workspaceId);
 
   return {

@@ -1,17 +1,33 @@
-import type { Webhook, WebhookEvent, WebhookDelivery } from "./store";
-import { listWebhooks, updateWebhook, addDelivery } from "./store";
+/**
+ * Webhook Dispatcher
+ * 
+ * Handles dispatching webhooks with HMAC-SHA256 signatures.
+ * Used by the Mentions API to notify external agents (like OpenClaw)
+ * when they are mentioned in a document.
+ */
 
-const MAX_RETRIES = 3;
-const INITIAL_DELAY_MS = 1000;
-
-interface WebhookPayload {
-  event: WebhookEvent;
-  timestamp: string;
-  data: unknown;
+export interface WebhookDispatchResult {
+  success: boolean;
+  error?: string;
 }
 
-async function computeSignature(payload: string, secret: string): Promise<string> {
+export interface WebhookPayload {
+  event: string;
+  timestamp: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Generate HMAC-SHA256 signature for webhook payload
+ * 
+ * @param payload - The JSON payload to sign
+ * @param secret - The HMAC secret
+ * @returns The hex-encoded HMAC-SHA256 signature
+ */
+export async function generateHmacSignature(payload: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
+  
+  // Import the secret as a CryptoKey
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -19,110 +35,125 @@ async function computeSignature(payload: string, secret: string): Promise<string
     false,
     ["sign"]
   );
-  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
-  return "sha256=" + Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
+  
+  // Sign the payload
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+  
+  // Convert to hex string
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-async function deliverWebhook(
-  webhook: Webhook,
-  payload: WebhookPayload,
-  attempt: number
-): Promise<WebhookDelivery> {
-  const body = JSON.stringify(payload);
-  const signature = await computeSignature(body, webhook.secret);
-
-  const delivery: WebhookDelivery = {
-    id: crypto.randomUUID(),
-    webhookId: webhook.id,
-    event: payload.event,
-    payload,
-    success: false,
-    attemptCount: attempt,
-    timestamp: new Date().toISOString(),
-  };
-
+/**
+ * Dispatch a webhook to an external URL
+ * 
+ * @param webhookUrl - The URL to POST to
+ * @param secret - The HMAC secret for signing
+ * @param payload - The payload to send
+ * @returns Promise<{ success: boolean, error?: string }>
+ * 
+ * Features:
+ * - Generates HMAC-SHA256 signature
+ * - Posts with proper headers (Content-Type, X-Knobase-Signature, X-Knobase-Event)
+ * - 10-second timeout
+ * - Returns immediately with success status
+ */
+export async function dispatchWebhook(
+  webhookUrl: string,
+  secret: string,
+  payload: WebhookPayload
+): Promise<WebhookDispatchResult> {
   try {
-    const response = await fetch(webhook.url, {
+    // Serialize payload
+    const body = JSON.stringify(payload);
+    
+    // Generate HMAC signature
+    const signature = await generateHmacSignature(body, secret);
+    
+    // Dispatch webhook with 10-second timeout
+    const response = await fetch(webhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Knobase-Signature": signature,
         "X-Knobase-Event": payload.event,
-        "X-Knobase-Delivery": delivery.id,
-        "User-Agent": "Knobase-Webhooks/1.0",
+        "X-Knobase-Timestamp": payload.timestamp,
+        "User-Agent": "Knobase-Webhook/1.0",
       },
       body,
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(10_000), // 10-second timeout
     });
 
-    delivery.statusCode = response.status;
-    delivery.success = response.ok;
-    try {
-      delivery.response = await response.text();
-    } catch {
-      delivery.response = "";
-    }
-  } catch (err) {
-    delivery.success = false;
-    delivery.response = err instanceof Error ? err.message : "Network error";
-  }
-
-  return delivery;
-}
-
-async function deliverWithRetry(webhook: Webhook, payload: WebhookPayload): Promise<void> {
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    const delivery = await deliverWebhook(webhook, payload, attempt);
-    addDelivery(delivery);
-
-    if (delivery.success) {
-      updateWebhook(webhook.id, { active: webhook.active });
-      return;
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error(`[Webhook Dispatcher] HTTP ${response.status}: ${errorText}`);
+      return {
+        success: false,
+        error: `HTTP ${response.status}: ${errorText}`,
+      };
     }
 
-    if (attempt < MAX_RETRIES) {
-      const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
-      await new Promise((r) => setTimeout(r, delay));
-    }
-  }
+    return { success: true };
 
-  const wh = { ...webhook };
-  wh.failureCount = (wh.failureCount ?? 0) + 1;
-  if (wh.failureCount >= 10) {
-    updateWebhook(wh.id, { active: false });
+  } catch (err: unknown) {
+    let errorMessage: string;
+    
+    if (err instanceof Error) {
+      if (err.name === "AbortError") {
+        errorMessage = "Request timeout (10s exceeded)";
+      } else {
+        errorMessage = err.message;
+      }
+    } else {
+      errorMessage = "Unknown error";
+    }
+    
+    console.error("[Webhook Dispatcher] Error:", errorMessage);
+    return {
+      success: false,
+      error: errorMessage,
+    };
   }
 }
 
-export async function dispatchEvent(event: WebhookEvent, data: unknown): Promise<void> {
-  const webhooks = listWebhooks().filter((w) => w.active && w.events.includes(event));
-  if (webhooks.length === 0) return;
-
-  const payload: WebhookPayload = {
-    event,
+/**
+ * Send a test ping to a webhook endpoint
+ */
+export async function testWebhook(
+  webhook: { id: string; url: string; secret: string }
+): Promise<WebhookDispatchResult> {
+  return dispatchWebhook(webhook.url, webhook.secret, {
+    event: "ping",
     timestamp: new Date().toISOString(),
-    data,
-  };
-
-  await Promise.allSettled(webhooks.map((wh) => deliverWithRetry(wh, payload)));
+    webhookId: webhook.id,
+  });
 }
 
-export async function testWebhook(webhook: Webhook): Promise<WebhookDelivery> {
-  const payload: WebhookPayload = {
-    event: "document.created",
-    timestamp: new Date().toISOString(),
-    data: {
-      test: true,
-      message: "This is a test webhook delivery from Knobase",
-      documentId: "test-123",
-      title: "Test Document",
-    },
-  };
-
-  const delivery = await deliverWebhook(webhook, payload, 1);
-  addDelivery(delivery);
-  return delivery;
-}
-
-export function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
-  return computeSignature(payload, secret).then((expected) => expected === signature);
+/**
+ * Verify a webhook signature (for use by webhook receivers)
+ * 
+ * @param payload - The raw request body
+ * @param signature - The signature from X-Knobase-Signature header
+ * @param secret - The HMAC secret
+ * @returns boolean indicating if signature is valid
+ */
+export async function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  secret: string
+): Promise<boolean> {
+  const expectedSignature = await generateHmacSignature(payload, secret);
+  
+  // Constant-time comparison to prevent timing attacks
+  if (signature.length !== expectedSignature.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < signature.length; i++) {
+    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+  
+  return result === 0;
 }

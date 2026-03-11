@@ -236,6 +236,89 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * PATCH /api/collaborators
+ * Update a teammate's role
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createServerClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, school_id, role')
+      .eq('auth_id', user.id)
+      .single();
+
+    if (userError || !userData || !userData.school_id) {
+      return NextResponse.json(
+        { success: false, error: 'User profile not found' },
+        { status: 404 }
+      );
+    }
+
+    if (userData.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Only admins can change roles' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const schema = z.object({
+      teammate_id: z.string().uuid(),
+      role: z.enum(['admin', 'editor', 'viewer']),
+    });
+    const validated = schema.parse(body);
+
+    if (validated.teammate_id === userData.id) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot change your own role' },
+        { status: 400 }
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ role: validated.role })
+      .eq('id', validated.teammate_id)
+      .eq('school_id', userData.school_id);
+
+    if (updateError) throw updateError;
+
+    return NextResponse.json({ success: true, role: validated.role });
+  } catch (error) {
+    console.error('PATCH /api/collaborators error:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request', details: error.issues },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Internal server error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * Example requests:
  * 
  * GET /api/collaborators?query=data+analysis&limit=5

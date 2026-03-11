@@ -22,6 +22,12 @@ export interface School {
   inviteCode: string;
   icon?: string | null;
   color?: string | null;
+  /** Public URL to icon-logo.png in organization-custom-styles bucket */
+  iconUrl?: string | null;
+  /** Whether the school has uploaded a custom icon */
+  useCustomIcon?: boolean;
+  /** Current user's membership type in this school (from users.type) */
+  userType?: string | null;
 }
 
 export interface SchoolMember {

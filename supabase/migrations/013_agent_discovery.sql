@@ -6,7 +6,7 @@
 -- - users table (with type column enum: user_type)
 -- - schools table (replaces workspaces)
 -- - agent_tasks table (from 011)
--- - documents table
+-- - documents table (KB file management — legitimate reference)
 --
 -- NOTE ON ENUM SAFETY:
 -- 'human' and 'agent' are added to the user_type enum here. PostgreSQL

@@ -168,33 +168,11 @@ export const InlineAgent = Node.create<InlineAgentOptions>({
     };
 
     return {
-      "@": () => {
-        const { state, dispatch } = this.editor.view;
-        const { selection } = state;
-        const { $from } = selection;
+      // The @ character is handled by the ProseMirror plugin in
+      // addProseMirrorPlugins() which detects @-patterns in text input.
+      // Using a keyboard shortcut for "@" caused double-@@ because the
+      // browser's native input event fires alongside the keymap handler.
 
-        const textBefore = $from.parent.textContent.slice(
-          Math.max(0, $from.parentOffset - 1),
-          $from.parentOffset
-        );
-
-        if (textBefore !== " " && textBefore !== "" && $from.parentOffset !== 0) {
-          return false;
-        }
-
-        if (dispatch) {
-          const tr = state.tr.insertText("@");
-          dispatch(tr);
-        }
-
-        const storage = this.editor.storage as unknown as { inlineAgent: InlineAgentStorage };
-        storage.inlineAgent.showAgentSelector = true;
-        storage.inlineAgent.position = this.editor.view.coordsAtPos(
-          selection.from + 1
-        );
-
-        return true;
-      },
       // Swallow navigation/selection keys when the agent selector dropdown
       // is open so ProseMirror doesn't act on them. The AgentSelector's
       // own document-level keydown listener handles the actual behavior.
@@ -372,6 +350,23 @@ export async function createInlineAgentTask(
       updatedAt: new Date(),
     });
   }
+
+  // 2b. Stamp the taskId onto the node BEFORE wiring the stream handler,
+  //     so `createEditorStreamHandler` can locate it by taskId.
+  editor.state.doc.descendants((node, pos) => {
+    if (
+      node.type.name === "inlineAgent" &&
+      node.attrs.taskId === null &&
+      node.attrs.promptMode === false
+    ) {
+      const tr = editor.state.tr.setNodeMarkup(pos, undefined, {
+        ...node.attrs,
+        taskId: supabaseTaskId,
+      });
+      editor.view.dispatch(tr);
+      return false; // stop after first match
+    }
+  });
 
   // 3. Start SSE streaming (connects to /api/agent/stream)
   const openclawConfig = getOpenClawConfig();

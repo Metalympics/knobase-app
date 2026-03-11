@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userProfile: InsertDto<"users"> = {
         auth_id: authUser.id,
         email: authUser.email!,
-        display_name: displayName || authUser.email?.split("@")[0] || "User",
+        name: displayName || authUser.email?.split("@")[0] || "User",
       };
 
       const { error: insertError } = await supabase
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const updates: {
-        display_name?: string;
+        name?: string;
         avatar_url?: string;
         updated_at: string;
       } = {
@@ -192,7 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       if (data.displayName !== undefined) {
-        updates.display_name = data.displayName;
+        updates.name = data.displayName;
       }
       if (data.avatarUrl !== undefined) {
         updates.avatar_url = data.avatarUrl;

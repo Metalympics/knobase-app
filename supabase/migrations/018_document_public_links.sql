@@ -1,0 +1,6 @@
+-- Migration 018: (NO-OP) Page Public Links
+--
+-- MERGED INTO: 017_permission_system.sql
+--
+-- The page_public_links table is now created in 017_permission_system.sql.
+-- This file is intentionally empty.

@@ -241,7 +241,7 @@ function convertToWorkspaceMember(row: any): WorkspaceMember {
           human_profile: {
             user_id: row.member_id,
             email: row.email,
-            display_name: row.name,
+            name: row.name,
             role: row.role,
             joined_at: new Date(row.joined_at),
           },

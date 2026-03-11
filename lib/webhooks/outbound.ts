@@ -26,7 +26,7 @@ export type WebhookEventType =
 export interface WebhookPayload {
   event: WebhookEventType;
   timestamp: string;
-  workspace_id: string;
+  school_id: string;
   data: Record<string, unknown>;
 }
 
@@ -144,18 +144,17 @@ async function deliverWithRetry(
  */
 export async function dispatchWebhookEvent(
   agentId: string,
-  workspaceId: string,
+  schoolId: string,
   event: WebhookEventType,
   data: Record<string, unknown>
 ): Promise<{ delivered: number; failed: number }> {
   const supabase = createAdminClient();
 
-  // Find all active webhooks for this agent+workspace that subscribe to this event
   const { data: rawWebhooks, error } = await supabase
     .from("agent_webhooks")
     .select("*")
     .eq("agent_id", agentId)
-    .eq("workspace_id", workspaceId)
+    .eq("school_id", schoolId)
     .eq("active", true);
 
   if (error || !rawWebhooks || rawWebhooks.length === 0) {
@@ -164,7 +163,6 @@ export async function dispatchWebhookEvent(
 
   const webhooks = rawWebhooks as unknown as AgentWebhook[];
 
-  // Filter webhooks that subscribe to this event type
   const matching = webhooks.filter(
     (w) => w.events.length === 0 || w.events.includes(event)
   );
@@ -176,7 +174,7 @@ export async function dispatchWebhookEvent(
   const payload: WebhookPayload = {
     event,
     timestamp: new Date().toISOString(),
-    workspace_id: workspaceId,
+    school_id: schoolId,
     data,
   };
 
@@ -203,11 +201,11 @@ export async function notifyTaskCreated(
   task: Record<string, unknown>
 ): Promise<void> {
   const agentId = (task.agent_id as string) ?? "claw";
-  const workspaceId = task.workspace_id as string;
+  const schoolId = (task.school_id as string) ?? (task.workspace_id as string);
 
-  if (!workspaceId) return;
+  if (!schoolId) return;
 
-  await dispatchWebhookEvent(agentId, workspaceId, "task.created", {
+  await dispatchWebhookEvent(agentId, schoolId, "task.created", {
     task_id: task.id,
     task_type: task.task_type,
     document_id: task.document_id,

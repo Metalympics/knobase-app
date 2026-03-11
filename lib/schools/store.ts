@@ -36,30 +36,58 @@ function slugify(name: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
+const SUPABASE_URL =
+  typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "") : "";
+
 /**
- * Convert Supabase workspace row to School type
+ * Builds the public icon URL for a school if it has a custom icon.
+ * Icons live at: organization-custom-styles/{school_id}/icon-logo.png
  */
-function rowToSchool(row: any): School {
-  return {
-    id: row.id,
-    name: row.name ?? "School",
-    slug: row.slug ?? slugify(row.name ?? "school"),
-    ownerId: row.owner_id ?? "",
-    createdAt: row.created_at ?? new Date().toISOString(),
-    updatedAt: row.updated_at ?? new Date().toISOString(),
-    settings: (row.settings as SchoolSettings) ?? {
-      isPublic: false,
-      allowGuests: false,
-      defaultAgent: null,
-    },
-    inviteCode: row.invite_code ?? "",
-    icon: row.icon,
-    color: row.color,
-  };
+function buildIconUrl(schoolId: string, useCustomIcon: boolean): string | null {
+  if (!useCustomIcon || !SUPABASE_URL) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/organization-custom-styles/${schoolId}/icon-logo.png`;
 }
 
 /**
- * Load a school by ID
+ * Convert a schools row + optional organization_settings row to School type.
+ * The real schema stores display data in organization_settings:
+ *   - site_title     → School.name
+ *   - subdomain_id   → School.slug
+ *   - default_bot_id → settings.defaultAgent
+ *   - updated_at     → School.updatedAt
+ *   - use_custom_icon + school_id → School.iconUrl
+ * Owner is schools.admin_user_id (not owner_id which doesn't exist).
+ */
+function rowToSchoolWithSettings(schoolRow: any, os?: any, userType?: string | null): School {
+  const useCustomIcon = os?.use_custom_icon === true;
+  return {
+    id: schoolRow.id,
+    name: os?.site_title ?? schoolRow.name ?? "School",
+    slug: os?.subdomain_id ?? schoolRow.slug ?? slugify(schoolRow.name ?? "school"),
+    ownerId: schoolRow.admin_user_id ?? schoolRow.owner_id ?? "",
+    createdAt: schoolRow.created_at ?? new Date().toISOString(),
+    updatedAt: os?.updated_at ?? schoolRow.updated_at ?? new Date().toISOString(),
+    settings: {
+      isPublic: false,
+      allowGuests: false,
+      defaultAgent: os?.default_bot_id ?? null,
+    },
+    inviteCode: schoolRow.invite_code ?? "",
+    icon: schoolRow.icon ?? null,
+    color: schoolRow.color ?? null,
+    iconUrl: buildIconUrl(schoolRow.id, useCustomIcon),
+    useCustomIcon,
+    userType: userType ?? null,
+  };
+}
+
+/** Backward-compat wrapper for callers that don't have org settings */
+function rowToSchool(row: any): School {
+  return rowToSchoolWithSettings(row);
+}
+
+/**
+ * Load a school by ID, joining organization_settings for display metadata.
  */
 export async function loadSchool(schoolId: string): Promise<School | null> {
   try {
@@ -70,14 +98,18 @@ export async function loadSchool(schoolId: string): Promise<School | null> {
       .eq("id", schoolId)
       .single();
 
-    if (error) {
+    if (error || !data) {
       console.error("Error loading school:", error);
       return null;
     }
 
-    if (!data) return null;
+    const { data: os } = await supabase
+      .from("organization_settings")
+      .select("site_title, subdomain_id, updated_at, memory_enabled, default_bot_id, use_custom_icon")
+      .eq("school_id", schoolId)
+      .maybeSingle();
 
-    return rowToSchool(data);
+    return rowToSchoolWithSettings(data, os);
   } catch (error) {
     console.error("Error loading school:", error);
     return null;
@@ -152,7 +184,7 @@ export async function getSchoolMembers(
         users:user_id (
           id,
           email,
-          display_name,
+          name,
           avatar_url
         )
       `)
@@ -174,7 +206,7 @@ export async function getSchoolMembers(
       user: row.users ? {
         id: row.users.id,
         email: row.users.email,
-        displayName: row.users.display_name,
+        displayName: row.users.name,
         avatarUrl: row.users.avatar_url,
       } : undefined,
     }));
@@ -212,7 +244,9 @@ export async function getSchoolSettings(
 }
 
 /**
- * Create a new school
+ * Create a new school.
+ * Uses admin_user_id (not owner_id) to match the actual DB schema.
+ * The primary users row (school_id IS NULL) is used as the owner.
  */
 export async function createSchool(
   input: CreateSchoolInput
@@ -226,35 +260,25 @@ export async function createSchool(
       return null;
     }
 
+    // Primary user row has school_id = null — avoids 406 from multiple rows
     const { data: userData } = await supabase
       .from("users")
       .select("id")
       .eq("auth_id", user.id)
-      .single();
+      .is("school_id", null)
+      .maybeSingle();
 
     if (!userData) {
-      console.error("User profile not found");
+      console.error("Primary user profile not found");
       return null;
     }
 
-    const insertData = {
-      name: input.name,
-      slug: slugify(input.name),
-      owner_id: userData.id,
-      invite_code: generateInviteCode(),
-      icon: input.icon ?? null,
-      color: input.color ?? null,
-      settings: {
-        isPublic: false,
-        allowGuests: false,
-        defaultAgent: null,
-        ...input.settings,
-      },
-    };
-
     const { data, error } = await supabase
       .from("schools")
-      .insert(insertData)
+      .insert({
+        name: input.name,
+        admin_user_id: userData.id,
+      })
       .select()
       .single();
 
@@ -264,13 +288,24 @@ export async function createSchool(
     }
 
     if (data) {
-      await supabase.from("users").update({
+      // Create org settings row with slug and default config
+      await supabase.from("organization_settings").insert({
         school_id: data.id,
-        role: "admin",
-      }).eq("id", userData.id);
+        site_title: input.name,
+        subdomain_id: slugify(input.name) + "-" + generateInviteCode().toLowerCase(),
+        memory_enabled: false,
+      });
+
+      // Create the users membership row for this workspace
+      await supabase.from("users").insert({
+        auth_id: user.id,
+        email: user.email ?? "",
+        name: userData.id,
+        school_id: data.id,
+      });
     }
 
-    return data ? rowToSchool(data) : null;
+    return data ? rowToSchoolWithSettings(data, { site_title: input.name, subdomain_id: slugify(input.name) }) : null;
   } catch (error) {
     console.error("Error creating school:", error);
     return null;
@@ -330,40 +365,50 @@ export async function regenerateSchoolInviteCode(
 }
 
 /**
- * List all schools for current user
+ * List all schools for current user.
+ * The users table has one row per workspace membership (all sharing the same
+ * auth_id), so we query all rows for this auth user and collect the school_ids.
  */
 export async function listUserSchools(): Promise<School[]> {
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-
     if (!user) return [];
 
-    const { data: userData } = await supabase
+    // Each membership is its own users row — query all by auth_id
+    const { data: memberRows, error: memberError } = await supabase
       .from("users")
-      .select("id")
+      .select("school_id, type")
       .eq("auth_id", user.id)
-      .single();
+      .not("school_id", "is", null);
 
-    if (!userData) return [];
+    if (memberError || !memberRows?.length) return [];
 
-    const { data: memberRows } = await supabase
-      .from("users")
-      .select("school_id")
-      .eq("id", userData.id);
+    const schoolIds = memberRows.map((r: any) => r.school_id).filter(Boolean) as string[];
+    if (!schoolIds.length) return [];
 
-    if (!memberRows || memberRows.length === 0) return [];
+    const [{ data: schoolRows }, { data: orgSettings }] = await Promise.all([
+      supabase.from("schools").select("*").in("id", schoolIds),
+      supabase
+        .from("organization_settings")
+        .select("school_id, site_title, subdomain_id, updated_at, memory_enabled, default_bot_id, use_custom_icon")
+        .in("school_id", schoolIds),
+    ]);
 
-    const workspaceIds = memberRows.map((r) => r.school_id).filter(Boolean) as string[];
-    if (workspaceIds.length === 0) return [];
-    const { data: workspaces } = await supabase
-      .from("schools")
-      .select("*")
-      .in("id", workspaceIds);
+    if (!schoolRows?.length) return [];
 
-    if (!workspaces) return [];
+    const settingsBySchool = Object.fromEntries(
+      (orgSettings ?? []).map((os: any) => [os.school_id, os])
+    );
 
-    return workspaces.map(rowToSchool);
+    // Build a map of school_id → userType from the membership rows
+    const typeBySchool = Object.fromEntries(
+      memberRows.map((r: any) => [r.school_id, r.type ?? null])
+    );
+
+    return schoolRows.map((row: any) =>
+      rowToSchoolWithSettings(row, settingsBySchool[row.id], typeBySchool[row.id])
+    );
   } catch (error) {
     console.error("Error listing user schools:", error);
     return [];
@@ -385,7 +430,7 @@ export async function getSchoolUsers(schoolId: string): Promise<SchoolUser[]> {
         users:user_id (
           id,
           email,
-          display_name,
+          name,
           avatar_url,
           created_at
         )
@@ -404,7 +449,7 @@ export async function getSchoolUsers(schoolId: string): Promise<SchoolUser[]> {
       .map((row: any) => ({
         id: row.users.id,
         email: row.users.email,
-        displayName: row.users.display_name,
+        displayName: row.users.name,
         avatarUrl: row.users.avatar_url,
         schoolId: schoolId,
         type: 'human' as const,
@@ -467,6 +512,84 @@ export async function removeSchoolMember(
   } catch (error) {
     console.error("Error removing school member:", error);
     return false;
+  }
+}
+
+/**
+ * Get the last active school ID from auth_profiles
+ */
+export async function getLastActiveSchoolId(): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from("auth_profiles")
+      .select("last_active_school_id")
+      .eq("auth_id", user.id)
+      .single();
+
+    if (error || !data) return null;
+
+    return data.last_active_school_id ?? null;
+  } catch (error) {
+    console.error("Error getting last active school:", error);
+    return null;
+  }
+}
+
+/**
+ * Update the last active school ID in auth_profiles
+ */
+export async function updateLastActiveSchoolId(schoolId: string): Promise<boolean> {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return false;
+
+    const { error } = await supabase
+      .from("auth_profiles")
+      .update({ last_active_school_id: schoolId })
+      .eq("auth_id", user.id);
+
+    if (error) {
+      console.error("Error updating last active school:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error updating last active school:", error);
+    return false;
+  }
+}
+
+/**
+ * Get the first workspace for the current user from users table
+ */
+export async function getFirstUserWorkspace(): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return null;
+
+    const { data: users, error } = await supabase
+      .from("users")
+      .select("school_id")
+      .eq("auth_id", user.id)
+      .not("school_id", "is", null)
+      .limit(1);
+
+    if (error || !users || users.length === 0) return null;
+
+    return users[0].school_id;
+  } catch (error) {
+    console.error("Error getting first user workspace:", error);
+    return null;
   }
 }
 

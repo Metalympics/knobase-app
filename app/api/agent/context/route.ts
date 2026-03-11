@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
     let documentContext = null;
     if (documentId) {
       const { data: doc, error: docError } = await supabase
-        .from("documents")
-        .select("id, title, created_by, workspace_id")
+        .from("pages")
+        .select("id, title, created_by, school_id")
         .eq("id", documentId)
         .single();
 

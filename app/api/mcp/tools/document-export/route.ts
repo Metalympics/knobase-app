@@ -3,7 +3,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { exportDocument } from "@/lib/export/service";
+import { findApiKeyByRawToken } from "@/lib/supabase/api-keys";
+import { addCorsHeaders, handlePreflight } from "@/lib/api/cors";
 
 const MCPExportSchema = z.object({
   documentId: z.string().uuid(),
@@ -23,86 +26,69 @@ const MCPExportSchema = z.object({
     .optional(),
 });
 
+function json(request: NextRequest, data: unknown, status = 200) {
+  return addCorsHeaders(request, NextResponse.json(data, { status }));
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handlePreflight(request);
+}
+
 /**
- * MCP Tool: document/export
- * 
- * Exports a document to PNG, JPEG, or PDF format with branded templates.
- * 
- * Parameters:
- * - documentId (required): UUID of the document to export
- * - format (optional): Output format - "png", "jpeg", or "pdf" (default: "pdf")
- * - scope (optional): Export scope - "full", "section", or "selection" (default: "full")
- * - sectionId (optional): Section ID when scope is "section"
- * - selectionStart (optional): Start position when scope is "selection"
- * - selectionEnd (optional): End position when scope is "selection"
- * - options (optional): Additional export options
- *   - includeLogo: Include school logo (default: true)
- *   - includeAuthor: Include author name (default: true)
- *   - includeTimestamp: Include export timestamp (default: true)
- *   - quality: JPEG quality 1-100 (default: 90)
- *   - scale: Device scale factor 1-3 (default: 2)
- * 
- * Returns:
- * - success: Boolean indicating success
- * - url: Signed URL to download the exported file (24h expiry)
- * - fileName: Name of the exported file
- * - fileSize: Size in bytes
- * - expiresAt: ISO timestamp when URL expires
- * - error: Error message if failed
+ * Resolve agent identity from X-API-Key or Authorization: Bearer kb_...
  */
+async function resolveAgentAuth(
+  request: NextRequest,
+): Promise<{ userId: string; schoolId: string } | null> {
+  // X-API-Key header
+  const apiKeyHeader = request.headers.get("x-api-key");
+  if (apiKeyHeader) {
+    const agentKey = await findApiKeyByRawToken(apiKeyHeader);
+    if (!agentKey) return null;
+    return { userId: agentKey.agent_id ?? "", schoolId: agentKey.school_id };
+  }
+
+  // Authorization: Bearer kb_...
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    if (token.startsWith("kb_")) {
+      const agentKey = await findApiKeyByRawToken(token);
+      if (!agentKey) return null;
+      return { userId: agentKey.agent_id ?? "", schoolId: agentKey.school_id };
+    }
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // Parse MCP request body
     const body = await request.json();
     const { documentId, format, scope, sectionId, selectionStart, selectionEnd, options } =
       MCPExportSchema.parse(body);
 
-    // Authenticate via API key or session
-    const supabase = await createServerClient();
-    const apiKey = request.headers.get("x-api-key");
-
     let userId: string;
     let schoolId: string;
 
-    if (apiKey) {
-      // Authenticate via API key
-      const { data: keyData, error: keyError } = await supabase
-        .from("agent_api_keys")
-        .select("user_id, school_id")
-        .eq("key_hash", apiKey)
-        .eq("is_active", true)
-        .single();
+    // Try agent auth first (API key or Bearer)
+    const agentAuth = await resolveAgentAuth(request);
 
-      if (keyError || !keyData) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Invalid API key",
-          },
-          { status: 401 }
-        );
-      }
-
-      userId = keyData.user_id;
-      schoolId = keyData.school_id;
+    if (agentAuth) {
+      userId = agentAuth.userId;
+      schoolId = agentAuth.schoolId;
     } else {
-      // Authenticate via session
+      // Fall back to session auth
+      const supabase = await createServerClient();
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Unauthorized - provide session or API key",
-          },
-          { status: 401 }
-        );
+        return json(request, { success: false, error: "Unauthorized - provide session or API key" }, 401);
       }
 
-      // Get user's public profile
       const { data: publicUser, error: userError } = await supabase
         .from("users")
         .select("id, school_id")
@@ -110,38 +96,26 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (userError || !publicUser || !publicUser.school_id) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "User profile not found",
-          },
-          { status: 404 }
-        );
+        return json(request, { success: false, error: "User profile not found" }, 404);
       }
 
       userId = publicUser.id;
       schoolId = publicUser.school_id;
     }
 
-    // Verify document access
-    const { data: doc, error: docError } = await supabase
-      .from("documents")
+    // Use admin client for document lookup (bypasses RLS for API key auth)
+    const adminClient = createAdminClient();
+    const { data: doc, error: docError } = await adminClient
+      .from("pages")
       .select("id, school_id")
       .eq("id", documentId)
       .eq("school_id", schoolId)
       .single();
 
     if (docError || !doc) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Document not found or access denied",
-        },
-        { status: 404 }
-      );
+      return json(request, { success: false, error: "Document not found or access denied" }, 404);
     }
 
-    // Export document
     const result = await exportDocument({
       documentId,
       format,
@@ -159,81 +133,72 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return json(request, result, 500);
     }
 
-    // Return MCP-compatible response
-    return NextResponse.json(
-      {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                url: result.url,
-                fileName: result.fileName,
-                fileSize: result.fileSize,
-                expiresAt: result.expiresAt,
-                message: `Document exported successfully as ${format.toUpperCase()}. Download URL expires in 24 hours.`,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      },
-      { status: 200 }
-    );
+    return json(request, {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              url: result.url,
+              fileName: result.fileName,
+              fileSize: result.fileSize,
+              expiresAt: result.expiresAt,
+              message: `Document exported successfully as ${format.toUpperCase()}. Download URL expires in 24 hours.`,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    });
   } catch (error) {
     console.error("MCP export tool error:", error);
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
+      return json(
+        request,
         {
           content: [
             {
               type: "text",
               text: JSON.stringify(
-                {
-                  success: false,
-                  error: "Invalid parameters",
-                  details: error.issues,
-                },
+                { success: false, error: "Invalid parameters", details: error.issues },
                 null,
-                2
+                2,
               ),
             },
           ],
         },
-        { status: 400 }
+        400,
       );
     }
 
-    return NextResponse.json(
+    return json(
+      request,
       {
         content: [
           {
             type: "text",
             text: JSON.stringify(
-              {
-                success: false,
-                error: error instanceof Error ? error.message : "Export failed",
-              },
+              { success: false, error: error instanceof Error ? error.message : "Export failed" },
               null,
-              2
+              2,
             ),
           },
         ],
       },
-      { status: 500 }
+      500,
     );
   }
 }
 
 // GET endpoint for tool metadata/discovery
-export async function GET() {
-  return NextResponse.json({
+export async function GET(request: NextRequest) {
+  return json(request, {
     name: "document/export",
     description:
       "Export a document to PNG, JPEG, or PDF with branded templates",
@@ -272,35 +237,11 @@ export async function GET() {
         options: {
           type: "object",
           properties: {
-            includeLogo: {
-              type: "boolean",
-              default: true,
-              description: "Include school logo in export",
-            },
-            includeAuthor: {
-              type: "boolean",
-              default: true,
-              description: "Include author name in export",
-            },
-            includeTimestamp: {
-              type: "boolean",
-              default: true,
-              description: "Include export timestamp",
-            },
-            quality: {
-              type: "number",
-              minimum: 1,
-              maximum: 100,
-              default: 90,
-              description: "JPEG quality (1-100, ignored for PNG/PDF)",
-            },
-            scale: {
-              type: "number",
-              minimum: 1,
-              maximum: 3,
-              default: 2,
-              description: "Device scale factor for images",
-            },
+            includeLogo: { type: "boolean", default: true, description: "Include school logo in export" },
+            includeAuthor: { type: "boolean", default: true, description: "Include author name in export" },
+            includeTimestamp: { type: "boolean", default: true, description: "Include export timestamp" },
+            quality: { type: "number", minimum: 1, maximum: 100, default: 90, description: "JPEG quality (1-100)" },
+            scale: { type: "number", minimum: 1, maximum: 3, default: 2, description: "Device scale factor" },
           },
         },
       },

@@ -25,6 +25,12 @@ import { TaskListBlock } from "./blocks/TaskListBlock";
 import { SearchExtension } from "@/lib/search/search-extension";
 import { InlineAgent, setOnSuggestionCallback } from "./extensions/inline-agent";
 import { MentionNode } from "./extensions/mention-node";
+import { BlockId } from "@/lib/editor/extensions/block-id";
+import { ChildPage } from "@/lib/editor/extensions/child-page";
+// AgentMention removed — its `@` suggestion plugin conflicted with InlineAgent,
+// causing double @@ and orphaned "No agents found" popups. The file is kept
+// for parseHTML compatibility with existing documents.
+// import { AgentMention } from "@/lib/editor/extensions/agent-mention";
 import { AgentSelector } from "./extensions/agent-selector";
 import { AgentCursorOverlay } from "./agent-cursor";
 import { OpenClawStatus } from "./openclaw-status";
@@ -56,6 +62,7 @@ interface TiptapEditorProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialContent?: string | Record<string, any>;
   onContentChange?: (markdown: string) => void;
+  onContentJsonChange?: (json: Record<string, unknown>) => void;
   onDirtyChange?: (dirty: boolean) => void;
   flushRef?: React.MutableRefObject<(() => void) | null>;
   documentId?: string;
@@ -64,6 +71,10 @@ interface TiptapEditorProps {
   userId?: string;
   /** Currently active agent for presence display */
   activeAgent?: Agent | null;
+  /** Read-only mode for shared documents without edit access */
+  readOnly?: boolean;
+  /** Callback when the /page slash command is invoked */
+  onCreateSubPage?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -91,6 +102,7 @@ export function TiptapEditor({
   user,
   initialContent,
   onContentChange,
+  onContentJsonChange,
   onDirtyChange,
   flushRef,
   documentId = "",
@@ -98,6 +110,7 @@ export function TiptapEditor({
   workspaceId = "",
   userId = "",
   activeAgent,
+  readOnly = false,
 }: TiptapEditorProps) {
   const [slashMenu, setSlashMenu] = useState({
     isOpen: false,
@@ -115,6 +128,7 @@ export function TiptapEditor({
   const latestContentRef = useRef<string | null>(null);
   const editorInstanceRef = useRef<Editor | null>(null);
   const onContentChangeRef = useRef(onContentChange);
+  const onContentJsonChangeRef = useRef(onContentJsonChange);
   const onDirtyChangeRef = useRef(onDirtyChange);
 
   // Inline suggestion handler
@@ -140,6 +154,9 @@ export function TiptapEditor({
   useEffect(() => {
     onContentChangeRef.current = onContentChange;
   }, [onContentChange]);
+  useEffect(() => {
+    onContentJsonChangeRef.current = onContentJsonChange;
+  }, [onContentJsonChange]);
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange;
   }, [onDirtyChange]);
@@ -194,6 +211,7 @@ export function TiptapEditor({
           },
         }),
         MentionNode,
+        BlockId,
         ...(ydoc
           ? [
               Collaboration.configure({ document: ydoc }),
@@ -211,6 +229,7 @@ export function TiptapEditor({
           : []),
       ],
       ...(ydoc ? {} : { content: initialContent || "" }),
+      editable: !readOnly,
       editorProps: {
         attributes: {
           class: "tiptap-editor outline-none",
@@ -318,6 +337,11 @@ export function TiptapEditor({
           if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
           saveTimeoutRef.current = setTimeout(() => {
             onContentChangeRef.current?.(latestContentRef.current ?? "");
+            if (onContentJsonChangeRef.current && ed && !ed.isDestroyed) {
+              try {
+                onContentJsonChangeRef.current(ed.getJSON());
+              } catch { /* editor may be transitioning */ }
+            }
             isDirtyRef.current = false;
             onDirtyChangeRef.current?.(false);
             saveTimeoutRef.current = null;
@@ -364,8 +388,10 @@ export function TiptapEditor({
     };
 
     editor.on("update", updateAgentSelector);
+    editor.on("selectionUpdate", updateAgentSelector);
     return () => {
       editor.off("update", updateAgentSelector);
+      editor.off("selectionUpdate", updateAgentSelector);
     };
   }, [editor]);
 
@@ -391,6 +417,11 @@ export function TiptapEditor({
     }
 
     onContentChangeRef.current?.(md ?? latestContentRef.current ?? "");
+    if (onContentJsonChangeRef.current && ed && !ed.isDestroyed) {
+      try {
+        onContentJsonChangeRef.current(ed.getJSON());
+      } catch { /* editor may be transitioning */ }
+    }
     isDirtyRef.current = false;
     onDirtyChangeRef.current?.(false);
   }, []);
@@ -420,10 +451,24 @@ export function TiptapEditor({
   const closeAgentSelector = useCallback(() => {
     if (editor) {
       const storage = editor.storage as {
-        inlineAgent?: { showAgentSelector?: boolean };
+        inlineAgent?: { showAgentSelector?: boolean; query?: string };
       };
       if (storage.inlineAgent) {
         storage.inlineAgent.showAgentSelector = false;
+        storage.inlineAgent.query = "";
+      }
+
+      // Delete the trailing @query text so the user gets a clean slate
+      const { from } = editor.state.selection;
+      const textBefore = editor.state.doc.textBetween(
+        Math.max(0, from - 40),
+        from,
+        "",
+      );
+      const mentionMatch = textBefore.match(/@([a-zA-Z0-9_-]*)$/);
+      if (mentionMatch) {
+        const deleteFrom = from - mentionMatch[0].length;
+        editor.chain().focus().deleteRange({ from: deleteFrom, to: from }).run();
       }
     }
     setAgentSelector((prev) => ({ ...prev, isOpen: false }));

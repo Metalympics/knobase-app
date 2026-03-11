@@ -144,147 +144,229 @@ export async function updateUserSchool(userId: string, schoolId: string) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Document queries                                                   */
+/* Page queries (workspace editor pages — not knowledge-base docs)    */
 /* ------------------------------------------------------------------ */
 
-export async function getSchoolDocuments(schoolId: string) {
+export async function getSchoolPages(schoolId: string) {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase
-    .from("documents")
-    .select("*, users:created_by(id, display_name, avatar_url)")
+    .from("pages")
+    .select("*, users:created_by(id, name, avatar_url)")
     .eq("school_id", schoolId)
+    .order("position", { ascending: true })
     .order("updated_at", { ascending: false });
-    
+
   if (error) throw error;
   return data;
 }
 
-export async function getDocumentById(documentId: string) {
+export async function getChildPages(parentId: string) {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase
-    .from("documents")
-    .select("*, users:created_by(id, display_name, avatar_url), schools:school_id(*)")
-    .eq("id", documentId)
-    .single();
-    
+    .from("pages")
+    .select("id, title, icon, parent_id, position, updated_at")
+    .eq("parent_id", parentId)
+    .order("position", { ascending: true });
+
   if (error) throw error;
   return data;
 }
 
-export async function createDocument(params: {
-  title: string;
-  content?: string;
+export async function movePage(
+  pageId: string,
+  newParentId: string | null,
+) {
+  const supabase = await createClient();
+
+  let position = 0;
+  if (newParentId) {
+    const { data: siblings } = await supabase
+      .from("pages")
+      .select("position")
+      .eq("parent_id", newParentId)
+      .neq("id", pageId)
+      .order("position", { ascending: false })
+      .limit(1);
+    position = (siblings?.[0]?.position ?? -1) + 1;
+  } else {
+    const { data: page } = await supabase
+      .from("pages")
+      .select("school_id")
+      .eq("id", pageId)
+      .single();
+    if (page) {
+      const { data: siblings } = await supabase
+        .from("pages")
+        .select("position")
+        .eq("school_id", page.school_id)
+        .is("parent_id", null)
+        .neq("id", pageId)
+        .order("position", { ascending: false })
+        .limit(1);
+      position = (siblings?.[0]?.position ?? -1) + 1;
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("pages")
+    .update({ parent_id: newParentId, position })
+    .eq("id", pageId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getPageAncestors(pageId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .rpc("get_page_ancestors", { page_uuid: pageId });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getPageById(pageId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("pages")
+    .select("*, users:created_by(id, name, avatar_url), schools:school_id(*)")
+    .eq("id", pageId)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createPage(params: {
+  title?: string;
+  content_md?: string;
+  content_json?: Record<string, unknown> | null;
+  icon?: string | null;
+  parent_id?: string | null;
+  position?: number;
   school_id: string;
   created_by: string;
   visibility?: "private" | "shared" | "public";
 }) {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase
-    .from("documents")
+    .from("pages")
     .insert(params)
     .select()
     .single();
-    
+
   if (error) throw error;
   return data;
 }
 
-export async function updateDocument(
-  documentId: string,
+export async function updatePage(
+  pageId: string,
   updates: {
     title?: string;
-    content?: string;
+    content_md?: string;
+    content_json?: Record<string, unknown> | null;
+    icon?: string | null;
+    parent_id?: string | null;
+    position?: number;
     visibility?: "private" | "shared" | "public";
   }
 ) {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase
-    .from("documents")
+    .from("pages")
     .update(updates)
-    .eq("id", documentId)
+    .eq("id", pageId)
     .select()
     .single();
-    
+
   if (error) throw error;
   return data;
 }
 
-export async function deleteDocument(documentId: string) {
+export async function deletePage(pageId: string) {
   const supabase = await createClient();
-  
+
   const { error } = await supabase
-    .from("documents")
+    .from("pages")
     .delete()
-    .eq("id", documentId);
-    
+    .eq("id", pageId);
+
   if (error) throw error;
 }
+
+// Legacy aliases for backward compatibility during migration
+export const getSchoolDocuments = getSchoolPages;
+export const getDocumentById = getPageById;
+export const createDocument = (params: {
+  title: string;
+  content?: string;
+  school_id: string;
+  created_by: string;
+  visibility?: "private" | "shared" | "public";
+}) => createPage({ ...params, content_md: params.content });
+export const updateDocument = (
+  documentId: string,
+  updates: { title?: string; content?: string; visibility?: "private" | "shared" | "public" }
+) => updatePage(documentId, { ...updates, content_md: updates.content });
+export const deleteDocument = deletePage;
 
 /* ------------------------------------------------------------------ */
 /* Permissions                                                        */
 /* ------------------------------------------------------------------ */
 
-export async function canAccessDocument(userId: string, documentId: string) {
+export async function canAccessDocument(userId: string, pageId: string) {
   const supabase = await createClient();
-  
-  // Get user's school
+
   const { data: user } = await supabase
     .from("users")
     .select("school_id")
     .eq("id", userId)
     .single();
-    
+
   if (!user?.school_id) return false;
-  
-  // Check if document belongs to same school
-  const { data: doc } = await supabase
-    .from("documents")
+
+  const { data: page } = await supabase
+    .from("pages")
     .select("school_id, visibility")
-    .eq("id", documentId)
+    .eq("id", pageId)
     .single();
-    
-  if (!doc) return false;
-  
-  // Same school = access granted
-  if (doc.school_id === user.school_id) return true;
-  
-  // Public documents are accessible
-  if (doc.visibility === "public") return true;
-  
+
+  if (!page) return false;
+  if (page.school_id === user.school_id) return true;
+  if (page.visibility === "public") return true;
+
   return false;
 }
 
-export async function canEditDocument(userId: string, documentId: string) {
+export async function canEditDocument(userId: string, pageId: string) {
   const supabase = await createClient();
-  
-  // Get user's school and role
+
   const { data: user } = await supabase
     .from("users")
     .select("school_id, role")
     .eq("id", userId)
     .single();
-    
+
   if (!user?.school_id) return false;
-  
-  // Check if document belongs to same school
-  const { data: doc } = await supabase
-    .from("documents")
+
+  const { data: page } = await supabase
+    .from("pages")
     .select("school_id, created_by")
-    .eq("id", documentId)
+    .eq("id", pageId)
     .single();
-    
-  if (!doc || doc.school_id !== user.school_id) return false;
-  
-  // Owner can always edit
-  if (doc.created_by === userId) return true;
-  
-  // Admins and editors can edit school documents
+
+  if (!page || page.school_id !== user.school_id) return false;
+  if (page.created_by === userId) return true;
   if (user.role === "admin" || user.role === "editor") return true;
-  
+
   return false;
 }
 

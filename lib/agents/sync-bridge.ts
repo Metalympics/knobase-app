@@ -85,11 +85,11 @@ export async function syncTaskToSupabase(
       documentId: params.documentId,
       schoolId: params.schoolId,
       prompt: params.prompt,
-      createdBy: params.userId,
+      sourceId: params.userId,
+      sourceName: params.userName ?? params.userId,
       agentId: params.agentId,
       agentName: params.agentName,
       blockId: params.blockId,
-      yjsPosition: params.yjsPosition,
     });
 
     // ── Step 3: Replace temp ID with real Supabase ID ─────────────

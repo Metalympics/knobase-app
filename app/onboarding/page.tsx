@@ -93,14 +93,19 @@ function OnboardingWizard() {
     // Get public user
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id")
+      .select("id, school_id")
       .eq("auth_id", user.id)
       .single();
 
     if (!publicUser) {
-      // Shouldn't happen — auth callback creates the profile
       console.error("No public.users record found");
       router.push("/s/default");
+      return;
+    }
+
+    // If user already has a school, redirect there
+    if (publicUser.school_id) {
+      router.push(`/s/${publicUser.school_id}`);
       return;
     }
 
@@ -120,15 +125,22 @@ function OnboardingWizard() {
 
     if (schoolError) {
       console.error("Failed to create school:", schoolError);
-      // Fall through — school might already exist, etc.
+      setIsLoading(false);
+      return;
     }
 
     if (school) {
       // Update user's school_id
-      await supabase
+      const { error: updateError } = await supabase
         .from("users")
         .update({ school_id: school.id })
         .eq("id", publicUser.id);
+
+      if (updateError) {
+        console.error("Failed to update user school_id:", updateError);
+        setIsLoading(false);
+        return;
+      }
 
       // Send invites (best-effort)
       const validEmails = inviteEmails.filter(
@@ -146,15 +158,12 @@ function OnboardingWizard() {
           ).toISOString(),
         });
       }
+
+      // Redirect to the new school
+      router.push(`/s/${school.id}`);
+    } else {
+      setIsLoading(false);
     }
-
-    // Also persist school name to localStorage for offline mode
-    localStorage.setItem(
-      "knobase-app:school",
-      schoolName.trim() || "My Knowledge"
-    );
-
-    router.push("/s/default");
   };
 
   return (
