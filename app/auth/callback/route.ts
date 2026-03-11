@@ -20,6 +20,7 @@ function shouldAllowExchange(codePrefix: string): boolean {
   for (const [key, timestamp] of recentExchanges.entries()) {
     if (now - timestamp > 60000) {
       recentExchanges.delete(key);
+    }
   }
 
   if (lastExchange && now - lastExchange < EXCHANGE_WINDOW) {
