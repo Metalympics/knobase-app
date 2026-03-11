@@ -42,6 +42,11 @@ import {
   stopContextSync,
   syncCurrentDocument,
 } from "@/lib/sync/context-sync";
+import {
+  hydratePageFromSupabase,
+  useRemotePageSync,
+  type RemotePage,
+} from "@/lib/sync/remote-page-sync";
 import type { Agent } from "@/lib/agents/types";
 
 import { GlobalSearch } from "@/components/search/GlobalSearch";
@@ -114,12 +119,37 @@ export default function WorkspaceDocumentPage() {
   const [activeDoc, setActiveDoc] = useState<Document | null>(null);
 
   useEffect(() => {
-    const doc = getDocument(docId);
-    if (doc) {
-      setActiveDoc(doc);
-    } else {
-      router.replace(`/s/${workspaceId}`);
+    let cancelled = false;
+
+    async function loadDoc() {
+      // 1) Try localStorage first for instant render
+      let doc = getDocument(docId);
+
+      // 2) Hydrate from Supabase — creates/updates localStorage entry
+      //    if the server has a newer version (or the doc is MCP-created)
+      const remote = await hydratePageFromSupabase(docId);
+
+      if (cancelled) return;
+
+      if (remote) {
+        // Re-read from localStorage after hydration merged the data
+        doc = getDocument(docId);
+      }
+
+      if (doc) {
+        setActiveDoc(doc);
+      } else {
+        router.replace(`/s/${workspaceId}`);
+      }
     }
+
+    // Show local version immediately if available
+    const localDoc = getDocument(docId);
+    if (localDoc) setActiveDoc(localDoc);
+
+    loadDoc();
+
+    return () => { cancelled = true; };
   }, [docId, workspaceId, router]);
 
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -153,6 +183,34 @@ export default function WorkspaceDocumentPage() {
   const { forceFlush: syncForceFlush } = useSyncDocument(docId, ydoc, {
     title: activeDoc?.title ?? "Untitled",
     workspaceId,
+  });
+
+  // --- Remote page sync (MCP / cross-device changes) ---
+  const editorRef = useRef<Editor | null>(null);
+  const { markLocalWrite } = useRemotePageSync(docId, {
+    onContentUpdated: useCallback((remote: RemotePage) => {
+      // Update React state so title + initialContent reflect the change
+      setActiveDoc((prev) =>
+        prev
+          ? {
+              ...prev,
+              title: remote.title,
+              content: remote.content_md ?? prev.content,
+              icon: remote.icon ?? prev.icon,
+              updatedAt: remote.updated_at,
+            }
+          : prev,
+      );
+
+      // If the editor is live, push the new content in
+      const ed = editorRef.current;
+      if (ed && !ed.isDestroyed && !ed.isFocused) {
+        ed.commands.setContent(remote.content_md ?? "");
+      }
+    }, []),
+    onDeleted: useCallback(() => {
+      router.replace(`/s/${workspaceId}`);
+    }, [router, workspaceId]),
   });
 
   const commentCount = getCommentCount(docId);
@@ -265,12 +323,14 @@ export default function WorkspaceDocumentPage() {
 
   const handleEditorReady = useCallback((ed: Editor) => {
     setEditor(ed);
+    editorRef.current = ed;
   }, []);
 
   const handleContentChange = useCallback(
     (markdown: string) => {
       setLiveContent(markdown);
       saveContent(docId, markdown);
+      markLocalWrite(markdown);
       if (openClawStatus === "connected") {
         syncCurrentDocument(docId, markdown, activeDoc?.title ?? "Untitled");
       }
@@ -278,7 +338,7 @@ export default function WorkspaceDocumentPage() {
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
     },
-    [docId, activeDoc?.title, saveContent, openClawStatus],
+    [docId, activeDoc?.title, saveContent, openClawStatus, markLocalWrite],
   );
 
   const handleContentJsonChange = useCallback(

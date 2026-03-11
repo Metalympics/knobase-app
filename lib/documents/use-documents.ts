@@ -139,5 +139,6 @@ export function useDocuments() {
     removeDocument,
     moveDoc,
     addSubPage,
+    refresh,
   };
 }

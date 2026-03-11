@@ -123,6 +123,67 @@ export function moveDocument(id: string, newParentId: string | null): Document |
   return doc;
 }
 
+/**
+ * Upsert a document from remote (Supabase) data into localStorage.
+ * If it already exists locally and the local version is newer, the
+ * local version wins (unless `force` is true). Returns the final doc.
+ */
+export function upsertDocumentFromRemote(
+  remote: {
+    id: string;
+    title: string;
+    content: string;
+    icon?: string | null;
+    parentId?: string | null;
+    createdAt: string;
+    updatedAt: string;
+  },
+  force = false,
+): Document {
+  const docs = readAll();
+  const idx = docs.findIndex((d) => d.id === remote.id);
+
+  if (idx === -1) {
+    const doc: Document = {
+      id: remote.id,
+      title: remote.title,
+      content: remote.content,
+      icon: remote.icon,
+      createdAt: remote.createdAt,
+      updatedAt: remote.updatedAt,
+      parentId: remote.parentId ?? undefined,
+      position: 0,
+    };
+    docs.push(doc);
+    writeAll(docs);
+    return doc;
+  }
+
+  const local = docs[idx];
+  if (!force && local.updatedAt >= remote.updatedAt) {
+    return local;
+  }
+
+  local.title = remote.title;
+  local.content = remote.content;
+  if (remote.icon !== undefined) local.icon = remote.icon;
+  local.updatedAt = remote.updatedAt;
+  if (remote.parentId !== undefined) local.parentId = remote.parentId ?? undefined;
+  writeAll(docs);
+  return local;
+}
+
+/**
+ * Remove a document from localStorage by ID (used when a remote delete is detected).
+ */
+export function removeDocumentById(id: string): void {
+  const docs = readAll();
+  const filtered = docs.filter((d) => d.id !== id);
+  if (filtered.length !== docs.length) {
+    writeAll(filtered);
+  }
+}
+
 export function getChildren(parentId: string): DocumentMeta[] {
   return readAll()
     .filter((d) => d.parentId === parentId)

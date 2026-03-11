@@ -18,6 +18,7 @@ import type { Template } from "@/lib/templates/defaults";
 import type { Workspace } from "@/lib/schools/types";
 import { Crown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspacePageSync } from "@/lib/sync/remote-page-sync";
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const params = useParams();
@@ -37,7 +38,18 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
     removeDocument,
     addSubPage,
     moveDoc,
+    refresh: refreshDocuments,
   } = useDocuments();
+
+  // Sync pages created/deleted by MCP agents on other devices
+  useWorkspacePageSync(workspaceId, {
+    onPageCreated: useCallback(() => {
+      refreshDocuments();
+    }, [refreshDocuments]),
+    onPageDeleted: useCallback(() => {
+      refreshDocuments();
+    }, [refreshDocuments]),
+  });
 
   useEffect(() => {
     async function initWorkspace() {

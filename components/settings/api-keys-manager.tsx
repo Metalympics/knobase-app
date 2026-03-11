@@ -37,21 +37,20 @@ interface ApiKeyRow {
   name: string;
   key_prefix: string;
   scopes: string[];
-  user_id: string;
+  user_id?: string;
+  agent_id?: string | null;
   school_id: string | null;
-  is_active: boolean;
+  is_active?: boolean;
   last_used_at: string | null;
   expires_at: string | null;
   created_at: string;
+  source: "user" | "agent";
 }
 
 type KeyType = "personal" | "agent";
 
 function inferKeyType(key: ApiKeyRow): KeyType {
-  if (key.scopes.some((s) => s === "agent" || s === "task" || s === "webhook")) {
-    return "agent";
-  }
-  return "personal";
+  return key.source === "agent" ? "agent" : "personal";
 }
 
 function formatDate(dateStr: string): string {
@@ -88,10 +87,43 @@ export function ApiKeysManager({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/keys?school_id=${workspaceId}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-      setKeys(json.data ?? []);
+      const [userRes, agentRes] = await Promise.all([
+        fetch(`/api/keys?school_id=${workspaceId}`),
+        fetch(`/api/v1/agents/keys?schoolId=${workspaceId}`),
+      ]);
+
+      const userKeys: ApiKeyRow[] = [];
+      const agentKeys: ApiKeyRow[] = [];
+
+      if (userRes.ok) {
+        const json = await userRes.json();
+        for (const k of json.data ?? []) {
+          userKeys.push({ ...k, source: "user" as const });
+        }
+      }
+      if (agentRes.ok) {
+        const json = await agentRes.json();
+        for (const k of json.data ?? []) {
+          agentKeys.push({
+            id: k.id,
+            name: k.name,
+            key_prefix: k.key_prefix,
+            scopes: k.scopes ?? [],
+            agent_id: k.agent_id,
+            school_id: k.school_id,
+            last_used_at: k.last_used_at,
+            expires_at: k.expires_at,
+            created_at: k.created_at,
+            source: "agent" as const,
+          });
+        }
+      }
+
+      setKeys(
+        [...userKeys, ...agentKeys].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
+      );
     } catch {
       setError("Failed to load API keys");
     } finally {
@@ -108,28 +140,44 @@ export function ApiKeysManager({
     setCreating(true);
     setError(null);
     try {
-      const scopes =
-        newType === "agent"
-          ? ["read", "write", "task", "agent", "webhook"]
-          : ["read", "write"];
+      let rawKey: string;
 
-      const res = await fetch("/api/keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName.trim(),
-          school_id: workspaceId,
-          scopes,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Failed to create key");
+      if (newType === "agent") {
+        const res = await fetch("/api/v1/agents/generate-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: workspaceId,
+            schoolId: workspaceId,
+            name: newName.trim(),
+            scopes: ["read", "write", "task", "agent", "webhook"],
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error ?? "Failed to create agent key");
+        }
+        const result = await res.json();
+        rawKey = result.apiKey;
+      } else {
+        const res = await fetch("/api/keys", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newName.trim(),
+            school_id: workspaceId,
+            scopes: ["read", "write"],
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error ?? "Failed to create key");
+        }
+        const result = await res.json();
+        rawKey = result.key;
       }
 
-      const result = await res.json();
-      setNewlyCreatedKey(result.key);
+      setNewlyCreatedKey(rawKey);
       setShowNewKey(true);
       setNewName("");
       setNewType("personal");
@@ -143,10 +191,14 @@ export function ApiKeysManager({
   }, [workspaceId, newName, newType, fetchKeys]);
 
   const handleRevoke = useCallback(
-    async (keyId: string) => {
+    async (keyId: string, source: "user" | "agent") => {
       if (!confirm("Revoke this API key? This cannot be undone.")) return;
       try {
-        const res = await fetch(`/api/keys/${keyId}`, { method: "DELETE" });
+        const url =
+          source === "agent"
+            ? `/api/v1/agents/keys/${keyId}`
+            : `/api/keys/${keyId}`;
+        const res = await fetch(url, { method: "DELETE" });
         if (!res.ok) throw new Error("Failed to revoke");
         fetchKeys();
       } catch {
@@ -478,7 +530,7 @@ export function ApiKeysManager({
                           <Button
                             variant="ghost"
                             size="icon-xs"
-                            onClick={() => handleRevoke(k.id)}
+                            onClick={() => handleRevoke(k.id, k.source)}
                             className="text-neutral-400 hover:bg-red-50 hover:text-red-500"
                             title="Revoke key"
                           >

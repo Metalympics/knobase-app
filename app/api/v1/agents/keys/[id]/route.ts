@@ -8,10 +8,9 @@ interface Params {
 }
 
 /**
- * DELETE /api/keys/:id
+ * DELETE /api/v1/agents/keys/:id
  *
- * Revoke (soft-delete) a user-level API key by setting is_active = false.
- * Uses Supabase session auth (cookies).
+ * Revoke (soft-delete) an agent API key. Uses Supabase session auth.
  */
 export async function DELETE(_request: NextRequest, { params }: Params) {
   const supabase = await createServerClient();
@@ -24,28 +23,28 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
   const admin = createAdminClient();
 
   const { data: existing, error: fetchError } = await admin
-    .from("api_keys")
-    .select("id, is_active")
+    .from("agent_api_keys")
+    .select("id, revoked_at")
     .eq("id", id)
     .single();
 
   if (fetchError || !existing) {
-    return apiError("API key not found", "NOT_FOUND", 404);
+    return apiError("Agent API key not found", "NOT_FOUND", 404);
   }
 
-  if (!existing.is_active) {
-    return apiError("API key is already revoked", "ALREADY_REVOKED", 409);
+  if (existing.revoked_at) {
+    return apiError("Agent API key is already revoked", "ALREADY_REVOKED", 409);
   }
 
   const { error: updateError } = await admin
-    .from("api_keys")
-    .update({ is_active: false })
+    .from("agent_api_keys")
+    .update({ revoked_at: new Date().toISOString() })
     .eq("id", id);
 
   if (updateError) {
-    console.error("[DELETE /api/keys/:id]", updateError);
-    return apiError("Failed to revoke API key", "INTERNAL_ERROR", 500);
+    console.error("[DELETE /api/v1/agents/keys/:id]", updateError);
+    return apiError("Failed to revoke agent API key", "INTERNAL_ERROR", 500);
   }
 
-  return apiJson({ message: "API key revoked" });
+  return apiJson({ message: "Agent API key revoked" });
 }
