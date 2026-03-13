@@ -47,28 +47,6 @@ COMMENT ON COLUMN public.api_keys.key_prefix IS 'First few characters of the key
 COMMENT ON COLUMN public.api_keys.scopes IS 'Array of permission scopes granted to this key';
 
 -- ============================================
--- RLS Policies
--- ============================================
-ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own API keys"
-    ON public.api_keys FOR SELECT
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own API keys"
-    ON public.api_keys FOR INSERT
-    WITH CHECK (auth.uid() = user_id AND auth.uid() = created_by);
-
-CREATE POLICY "Users can update their own API keys"
-    ON public.api_keys FOR UPDATE
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own API keys"
-    ON public.api_keys FOR DELETE
-    USING (auth.uid() = user_id);
-
--- ============================================
 -- Function: touch_api_key_last_used
 -- Purpose: Callable function to stamp last_used_at when
 --          an API key is verified (invoked from app code).

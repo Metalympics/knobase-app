@@ -67,9 +67,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Look up the agent user to get the actual UUID (not bot_id)
+    const { data: agentUser, error: agentError } = await admin
+      .from("users")
+      .select("id")
+      .eq("bot_id", agentId)
+      .eq("school_id", schoolId)
+      .eq("type", "agent")
+      .single();
+
+    if (agentError || !agentUser) {
+      return NextResponse.json(
+        { error: "Agent not found — please register the agent first" },
+        { status: 404 }
+      );
+    }
+
     const { key, rawKey } = await createApiKey({
       school_id: schoolId,
-      agent_id: agentId,
+      agent_id: agentUser.id,  // Use the UUID, not bot_id
       name: name ?? `API Key for ${agentId}`,
       scopes: scopes ?? ["read", "write", "task"],
     });
