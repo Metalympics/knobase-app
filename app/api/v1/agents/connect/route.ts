@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createApiKey } from "@/lib/supabase/api-keys";
+
+interface DeviceCodeRecord {
+  id: string;
+  device_code: string;
+  user_code: string;
+  client_id: string;
+  user_id: string | null;
+  scope: string[];
+  expires_at: string;
+  interval: number;
+  last_polled_at: string | null;
+  access_token: string | null;
+  created_at: string;
+}
 
 /**
  * POST /api/v1/agents/connect
@@ -30,11 +45,13 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient();
 
     // Look up the device code record
-    const { data: record, error: dcError } = await admin
-      .from("oauth_device_codes")
+    const { data, error: dcError } = await (admin
+      .from("oauth_device_codes") as any)
       .select("*")
       .eq("device_code", deviceCode)
       .single();
+
+    const record = data as DeviceCodeRecord | null;
 
     if (dcError || !record) {
       return NextResponse.json(
@@ -75,8 +92,8 @@ export async function POST(request: NextRequest) {
     const botId = record.client_id;
 
     // Check if an agent user already exists for this bot in this workspace
-    const { data: existingAgent } = await admin
-      .from("users")
+    const { data: existingAgent } = await (admin
+      .from("users") as any)
       .select("id")
       .eq("bot_id", botId)
       .eq("school_id", schoolId)
@@ -88,16 +105,21 @@ export async function POST(request: NextRequest) {
     if (existingAgent) {
       agentId = existingAgent.id;
     } else {
+      const agentAuthId = randomUUID();
+      const agentEmail = `agent+${botId}@bot.knobase`;
+
       // Create the agent user record
       const { data: newAgent, error: insertError } = await admin
         .from("users")
         .insert({
+          auth_id: agentAuthId,
+          email: agentEmail,
           type: "agent",
           bot_id: botId,
           school_id: schoolId,
           name: botId,
           owner_id: authorizingUser.id,
-        })
+        } as any)
         .select("id")
         .single();
 
@@ -121,8 +143,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Mark the device code as completed
-    await admin
-      .from("oauth_device_codes")
+    await (admin
+      .from("oauth_device_codes") as any)
       .update({ access_token: rawKey })
       .eq("device_code", deviceCode);
 

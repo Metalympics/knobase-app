@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { randomUUID } from "crypto";
 
+interface DeviceCodeRecord {
+  id: string;
+  device_code: string;
+  user_code: string;
+  client_id: string;
+  user_id: string | null;
+  scope: string[];
+  expires_at: string;
+  interval: number;
+  last_polled_at: string | null;
+  access_token: string | null;
+  created_at: string;
+}
+
 const ACCESS_TOKEN_EXPIRES_IN = 3600;
 
 export async function POST(request: NextRequest) {
@@ -30,11 +44,13 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    const { data: record, error } = await supabase
+    const { data, error } = await supabase
       .from("oauth_device_codes")
       .select("*")
       .eq("device_code", deviceCode)
       .single();
+
+    const record = data as unknown as DeviceCodeRecord | null;
 
     if (error || !record) {
       return NextResponse.json(
@@ -59,9 +75,9 @@ export async function POST(request: NextRequest) {
 
     const accessToken = randomUUID();
 
-    await supabase
-      .from("oauth_device_codes")
-      .update({ status: "completed" })
+    await (supabase
+      .from("oauth_device_codes") as any)
+      .delete()
       .eq("device_code", deviceCode);
 
     return NextResponse.json({

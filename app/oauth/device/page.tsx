@@ -14,6 +14,21 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 
+interface DeviceCodeRecord {
+  id: string;
+  device_code: string;
+  user_code: string;
+  client_id: string;
+  user_id: string | null;
+  scope: string[];
+  status: string;
+  expires_at: string;
+  interval: number;
+  last_polled_at: string | null;
+  access_token: string | null;
+  created_at: string;
+}
+
 export default function DeviceVerificationPage() {
   return (
     <Suspense
@@ -126,11 +141,13 @@ function DeviceVerificationContent() {
 
     const supabase = createClient();
 
-    const { data: device, error: lookupErr } = await supabase
-      .from("oauth_device_codes")
+    const { data, error: lookupErr } = await (supabase
+      .from("oauth_device_codes") as any)
       .select("id, status, expires_at")
       .eq("user_code", userCode)
       .single();
+
+    const device = data as DeviceCodeRecord | null;
 
     if (lookupErr || !device) {
       setStatus("error");
@@ -155,8 +172,8 @@ function DeviceVerificationContent() {
       updatePayload.school_id = selectedWorkspace;
     }
 
-    const { error: updateErr } = await supabase
-      .from("oauth_device_codes")
+    const { error: updateErr } = await (supabase
+      .from("oauth_device_codes") as any)
       .update(updatePayload)
       .eq("id", device.id);
 
