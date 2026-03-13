@@ -561,6 +561,7 @@ export default function WorkspaceDocumentPage() {
                       </div>
                     )}
                   </div>
+                  <div data-tutorial="editor-area">
                   <TiptapEditor
                     key={docId}
                     onEditorReady={handleEditorReady}
@@ -578,6 +579,7 @@ export default function WorkspaceDocumentPage() {
                     userId={user?.id ?? ""}
                     onCreateSubPage={handleCreateSubPage}
                   />
+                  </div>
                   {/* Sub-pages listed below editor content */}
                   {(() => {
                     const childPages = documents.filter((d) => d.parentId === docId);

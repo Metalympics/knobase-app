@@ -192,7 +192,7 @@ export function Sidebar({
   const isAtLimit = docLimit?.isAtLimit ?? false;
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa] [&_a]:cursor-pointer [&_button]:cursor-pointer">
+    <aside data-tutorial="sidebar" className="flex h-screen w-60 shrink-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa] [&_a]:cursor-pointer [&_button]:cursor-pointer">
       <div className="flex items-center gap-2 border-b border-[#e5e5e5] px-4 py-3">
         {workspace ? (
           <WorkspaceSwitcher
@@ -373,6 +373,7 @@ export function Sidebar({
           </button>
         ) : (
           <button
+            data-tutorial="new-document"
             onClick={onAdd}
             className="rounded p-0.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
             aria-label="Add document"
