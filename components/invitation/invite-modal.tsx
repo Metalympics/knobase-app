@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Users, Bot, Copy, Check, Loader2, KeyRound } from "lucide-react";
+import { Users, Bot, Copy, Check, Loader2, KeyRound, ExternalLink, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import type { SchoolRole } from "@/lib/schools/types";
 
 /* ------------------------------------------------------------------ */
@@ -67,6 +69,11 @@ export function InviteModal({
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [keyCopied, setKeyCopied] = useState(false);
 
+  // OpenClaw state
+  const [openclawExpanded, setOpenclawExpanded] = useState(false);
+  const [openclawCmdCopied, setOpenclawCmdCopied] = useState(false);
+  const [customAgentExpanded, setCustomAgentExpanded] = useState(false);
+
   const resetHuman = useCallback(() => {
     setEmail("");
     setRole("viewer");
@@ -81,6 +88,9 @@ export function InviteModal({
     setAgentError(null);
     setGeneratedKey(null);
     setKeyCopied(false);
+    setOpenclawExpanded(false);
+    setOpenclawCmdCopied(false);
+    setCustomAgentExpanded(false);
   }, []);
 
   /* ── Human invite ────────────────────────────────────────────────── */
@@ -175,6 +185,12 @@ export function InviteModal({
     setKeyCopied(true);
     setTimeout(() => setKeyCopied(false), 2000);
   }, [generatedKey]);
+
+  const handleCopyOpenclawCmd = useCallback(() => {
+    navigator.clipboard.writeText("npx openclaw-knobase setup");
+    setOpenclawCmdCopied(true);
+    setTimeout(() => setOpenclawCmdCopied(false), 2000);
+  }, []);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -320,72 +336,176 @@ export function InviteModal({
               </div>
             ) : (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="agent-name">Agent name</Label>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                      @
-                    </span>
-                    <Input
-                      id="agent-name"
-                      placeholder="research-bot"
-                      value={agentName.replace(/^@/, "")}
-                      onChange={(e) => setAgentName(e.target.value.replace(/^@/, ""))}
-                      className="pl-7"
-                    />
+                {/* ── Quick Connect: OpenClaw ──────────────────────── */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="size-3.5 text-amber-500" />
+                    <span className="text-sm font-medium">Quick Connect</span>
+                  </div>
+
+                  <div className="rounded-lg border">
+                    <button
+                      type="button"
+                      onClick={() => setOpenclawExpanded((v) => !v)}
+                      className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-8 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 text-xs font-bold text-white">
+                          OC
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">@openclaw</span>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              Featured
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Legal research &amp; contract analysis agent
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!openclawExpanded && (
+                          <span className="text-xs font-medium text-primary">Connect</span>
+                        )}
+                        {openclawExpanded ? (
+                          <ChevronUp className="size-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="size-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </button>
+
+                    {openclawExpanded && (
+                      <div className="border-t px-4 py-3 space-y-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">One-command setup</Label>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-xs">
+                              npx openclaw-knobase setup
+                            </code>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="shrink-0"
+                              onClick={handleCopyOpenclawCmd}
+                              aria-label="Copy setup command"
+                            >
+                              {openclawCmdCopied ? (
+                                <Check className="size-4 text-emerald-600" />
+                              ) : (
+                                <Copy className="size-4" />
+                              )}
+                            </Button>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Run this in your project directory to connect OpenClaw to this workspace.
+                          </p>
+                        </div>
+
+                        <a
+                          href="https://docs.openclaw.ai/knobase-integration"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                        >
+                          <ExternalLink className="size-3" />
+                          View full documentation
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="agent-desc">Description</Label>
-                  <Input
-                    id="agent-desc"
-                    placeholder="Summarises research papers and extracts citations"
-                    value={agentDescription}
-                    onChange={(e) => setAgentDescription(e.target.value)}
-                  />
-                </div>
+                <Separator />
 
-                <div className="space-y-2">
-                  <Label htmlFor="agent-role">Role</Label>
-                  <Select
-                    value={agentRole}
-                    onValueChange={(v) => setAgentRole(v as SchoolRole)}
+                {/* ── Custom Agent ─────────────────────────────────── */}
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setCustomAgentExpanded((v) => !v)}
+                    className="flex w-full items-center justify-between text-left"
                   >
-                    <SelectTrigger id="agent-role" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AGENT_ROLES.map((r) => (
-                        <SelectItem key={r.value} value={r.value}>
-                          <span>{r.label}</span>
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            — {r.description}
+                    <span className="text-sm font-medium">Custom Agent</span>
+                    {customAgentExpanded ? (
+                      <ChevronUp className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    )}
+                  </button>
+
+                  {customAgentExpanded && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="agent-name">Agent name</Label>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                            @
                           </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                          <Input
+                            id="agent-name"
+                            placeholder="research-bot"
+                            value={agentName.replace(/^@/, "")}
+                            onChange={(e) => setAgentName(e.target.value.replace(/^@/, ""))}
+                            className="pl-7"
+                          />
+                        </div>
+                      </div>
 
-                {agentError && (
-                  <p className="text-sm text-destructive">{agentError}</p>
-                )}
+                      <div className="space-y-2">
+                        <Label htmlFor="agent-desc">Description</Label>
+                        <Input
+                          id="agent-desc"
+                          placeholder="Summarises research papers and extracts citations"
+                          value={agentDescription}
+                          onChange={(e) => setAgentDescription(e.target.value)}
+                        />
+                      </div>
 
-                <Button
-                  className="w-full"
-                  disabled={!agentName.replace(/^@/, "").trim() || agentLoading}
-                  onClick={handleInviteAgent}
-                >
-                  {agentLoading ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Creating agent...
-                    </>
-                  ) : (
-                    "Create agent & generate key"
+                      <div className="space-y-2">
+                        <Label htmlFor="agent-role">Role</Label>
+                        <Select
+                          value={agentRole}
+                          onValueChange={(v) => setAgentRole(v as SchoolRole)}
+                        >
+                          <SelectTrigger id="agent-role" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AGENT_ROLES.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>
+                                <span>{r.label}</span>
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  — {r.description}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {agentError && (
+                        <p className="text-sm text-destructive">{agentError}</p>
+                      )}
+
+                      <Button
+                        className="w-full"
+                        disabled={!agentName.replace(/^@/, "").trim() || agentLoading}
+                        onClick={handleInviteAgent}
+                      >
+                        {agentLoading ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Creating agent...
+                          </>
+                        ) : (
+                          "Create agent & generate key"
+                        )}
+                      </Button>
+                    </div>
                   )}
-                </Button>
+                </div>
               </>
             )}
           </TabsContent>

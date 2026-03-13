@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,8 +53,19 @@ type Status = "idle" | "loading" | "success" | "error";
 function DeviceVerificationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const codeInputRef = useRef<HTMLInputElement>(null);
 
-  const [userCode, setUserCode] = useState(searchParams.get("code") ?? "");
+  const formatCode = useCallback((raw: string) => {
+    const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 8);
+    if (clean.length > 4) {
+      return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+    }
+    return clean;
+  }, []);
+
+  const [userCode, setUserCode] = useState(() =>
+    formatCode(searchParams.get("code") ?? ""),
+  );
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
   const [status, setStatus] = useState<Status>("idle");
@@ -117,13 +128,11 @@ function DeviceVerificationContent() {
     };
   }, [router, userCode]);
 
-  const formatCode = useCallback((raw: string) => {
-    const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 8);
-    if (clean.length > 4) {
-      return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+  useEffect(() => {
+    if (!authLoading && status !== "success") {
+      codeInputRef.current?.focus();
     }
-    return clean;
-  }, []);
+  }, [authLoading, status]);
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUserCode(formatCode(e.target.value));
@@ -230,6 +239,7 @@ function DeviceVerificationContent() {
                 Device code
               </label>
               <Input
+                ref={codeInputRef}
                 id="user-code"
                 type="text"
                 placeholder="XXXX-XXXX"
