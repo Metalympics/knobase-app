@@ -478,6 +478,12 @@
 .agent-response-body th { font-weight: 600; background: rgba(0,0,0,0.04); }
 .agent-response-body hr { border: none; border-top: 1px solid rgba(0,0,0,0.12); margin: 0.5rem 0; }
 
+/* Document header bar — ensure pointer cursor on all interactive elements (matches sidebar) */
+.document-header button,
+.document-header a {
+  cursor: pointer;
+}
+
 /* ------------------------------------------------------------------ */
 /* Mention badges (inline in editor)                                   */
 /* ------------------------------------------------------------------ */

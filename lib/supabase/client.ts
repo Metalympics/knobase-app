@@ -12,9 +12,7 @@ export type Database = {
           name: string | null;
           avatar_url: string | null;
           school_id: string | null;
-          /** Legacy column — prefer role_id */
           role: string | null;
-          /** Primary permission level: "system-admin" | "system-member" | null */
           role_id: string | null;
           type: string | null;
           is_deleted: boolean;

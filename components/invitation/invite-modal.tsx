@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Users, Bot, Copy, Check, Loader2, KeyRound, ExternalLink, Zap, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import { Users, Bot, Copy, Check, Loader2, Zap, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,18 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import type { SchoolRole } from "@/lib/schools/types";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
-
-const AGENT_ROLES: { value: SchoolRole; label: string; description: string }[] = [
-  { value: "admin", label: "Admin", description: "Full workspace control" },
-  { value: "editor", label: "Editor", description: "Create and edit documents" },
-  { value: "viewer", label: "Viewer", description: "View and comment only" },
-];
 
 interface InviteModalProps {
   open: boolean;
@@ -51,7 +44,7 @@ export function InviteModal({
   workspaceId,
   workspaceName,
 }: InviteModalProps) {
-  const [tab, setTab] = useState<"human" | "agent" | "quick-connect">("human");
+  const [tab, setTab] = useState<"human" | "agent">("human");
 
   // Human state
   const [email, setEmail] = useState("");
@@ -60,27 +53,13 @@ export function InviteModal({
   const [humanSuccess, setHumanSuccess] = useState(false);
   const [humanError, setHumanError] = useState<string | null>(null);
 
-  // Agent state
-  const [agentName, setAgentName] = useState("");
-  const [agentDescription, setAgentDescription] = useState("");
-  const [agentRole, setAgentRole] = useState<SchoolRole>("viewer");
+  // Agent (device code connect) state
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const [keyCopied, setKeyCopied] = useState(false);
-
-  // OpenClaw state
-  const [openclawExpanded, setOpenclawExpanded] = useState(false);
-  const [openclawCmdCopied, setOpenclawCmdCopied] = useState(false);
-  const [customAgentExpanded, setCustomAgentExpanded] = useState(false);
-
-  // Quick Connect state
-  const [quickConnectLoading, setQuickConnectLoading] = useState(false);
-  const [quickConnectError, setQuickConnectError] = useState<string | null>(null);
-  const [quickConnectCommand, setQuickConnectCommand] = useState<string | null>(null);
-  const [quickConnectExpiresAt, setQuickConnectExpiresAt] = useState<Date | null>(null);
-  const [quickConnectCopied, setQuickConnectCopied] = useState(false);
-  const [quickConnectAgentName, setQuickConnectAgentName] = useState("OpenClaw Agent");
+  const [agentCommand, setAgentCommand] = useState<string | null>(null);
+  const [agentExpiresAt, setAgentExpiresAt] = useState<Date | null>(null);
+  const [agentCopied, setAgentCopied] = useState(false);
+  const [agentName, setAgentName] = useState("OpenClaw Agent");
 
   const resetHuman = useCallback(() => {
     setEmail("");
@@ -90,24 +69,12 @@ export function InviteModal({
   }, []);
 
   const resetAgent = useCallback(() => {
-    setAgentName("");
-    setAgentDescription("");
-    setAgentRole("viewer");
+    setAgentLoading(false);
     setAgentError(null);
-    setGeneratedKey(null);
-    setKeyCopied(false);
-    setOpenclawExpanded(false);
-    setOpenclawCmdCopied(false);
-    setCustomAgentExpanded(false);
-  }, []);
-
-  const resetQuickConnect = useCallback(() => {
-    setQuickConnectLoading(false);
-    setQuickConnectError(null);
-    setQuickConnectCommand(null);
-    setQuickConnectExpiresAt(null);
-    setQuickConnectCopied(false);
-    setQuickConnectAgentName("OpenClaw Agent");
+    setAgentCommand(null);
+    setAgentExpiresAt(null);
+    setAgentCopied(false);
+    setAgentName("OpenClaw Agent");
   }, []);
 
   /* ── Human invite ────────────────────────────────────────────────── */
@@ -145,84 +112,20 @@ export function InviteModal({
     }
   }, [email, role, workspaceId]);
 
-  /* ── Agent invite ────────────────────────────────────────────────── */
+  /* ── Agent connect ────────────────────────────────────────────────── */
 
-  const handleInviteAgent = useCallback(async () => {
-    const name = agentName.startsWith("@") ? agentName : `@${agentName}`;
-    if (name.length < 2) return;
-
+  const handleAgentConnect = useCallback(async () => {
     setAgentLoading(true);
     setAgentError(null);
-    setGeneratedKey(null);
-
-    try {
-      const registerRes = await fetch("/api/v1/agents/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: name.slice(1),
-          schoolId: workspaceId,
-          name: name,
-          role: agentRole,
-          description: agentDescription.trim() || undefined,
-        }),
-      });
-
-      if (!registerRes.ok) {
-        const data = await registerRes.json().catch(() => null);
-        throw new Error(data?.error ?? `Agent registration failed (${registerRes.status})`);
-      }
-
-      const keyRes = await fetch("/api/v1/agents/generate-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: name.slice(1),
-          schoolId: workspaceId,
-        }),
-      });
-
-      if (!keyRes.ok) {
-        const data = await keyRes.json().catch(() => null);
-        throw new Error(data?.error ?? `Key generation failed (${keyRes.status})`);
-      }
-
-      const data = await keyRes.json();
-      setGeneratedKey(data.apiKey);
-    } catch (err) {
-      setAgentError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setAgentLoading(false);
-    }
-  }, [agentName, agentDescription, agentRole, workspaceId]);
-
-  const handleCopyKey = useCallback(() => {
-    if (!generatedKey) return;
-    navigator.clipboard.writeText(generatedKey);
-    setKeyCopied(true);
-    setTimeout(() => setKeyCopied(false), 2000);
-  }, [generatedKey]);
-
-  const handleCopyOpenclawCmd = useCallback(() => {
-    navigator.clipboard.writeText("npx openclaw-knobase setup");
-    setOpenclawCmdCopied(true);
-    setTimeout(() => setOpenclawCmdCopied(false), 2000);
-  }, []);
-
-  /* ── Quick Connect ──────────────────────────────────────────────── */
-
-  const handleQuickConnect = useCallback(async () => {
-    setQuickConnectLoading(true);
-    setQuickConnectError(null);
-    setQuickConnectCommand(null);
-    setQuickConnectExpiresAt(null);
+    setAgentCommand(null);
+    setAgentExpiresAt(null);
 
     try {
       const res = await fetch("/api/agents/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agent_name: quickConnectAgentName.trim() || undefined,
+          agent_name: agentName.trim() || undefined,
         }),
       });
 
@@ -232,32 +135,31 @@ export function InviteModal({
       }
 
       const data = await res.json();
-      setQuickConnectCommand(data.command);
-      setQuickConnectExpiresAt(new Date(Date.now() + data.expires_in * 1000));
+      setAgentCommand(data.command);
+      setAgentExpiresAt(new Date(Date.now() + data.expires_in * 1000));
     } catch (err) {
-      setQuickConnectError(err instanceof Error ? err.message : "Something went wrong");
+      setAgentError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      setQuickConnectLoading(false);
+      setAgentLoading(false);
     }
-  }, [quickConnectAgentName]);
+  }, [agentName]);
 
-  const handleCopyQuickConnect = useCallback(() => {
-    if (!quickConnectCommand) return;
-    navigator.clipboard.writeText(quickConnectCommand);
-    setQuickConnectCopied(true);
-    setTimeout(() => setQuickConnectCopied(false), 2000);
-  }, [quickConnectCommand]);
+  const handleCopyAgentCommand = useCallback(() => {
+    if (!agentCommand) return;
+    navigator.clipboard.writeText(agentCommand);
+    setAgentCopied(true);
+    setTimeout(() => setAgentCopied(false), 2000);
+  }, [agentCommand]);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) {
         resetHuman();
         resetAgent();
-        resetQuickConnect();
       }
       onOpenChange(next);
     },
-    [onOpenChange, resetHuman, resetAgent, resetQuickConnect],
+    [onOpenChange, resetHuman, resetAgent],
   );
 
   return (
@@ -274,7 +176,7 @@ export function InviteModal({
 
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v as "human" | "agent" | "quick-connect")}
+          onValueChange={(v) => setTab(v as "human" | "agent")}
           className="mt-1"
         >
           <TabsList className="w-full">
@@ -285,10 +187,6 @@ export function InviteModal({
             <TabsTrigger value="agent" className="flex-1 gap-1.5">
               <Bot className="size-3.5" />
               Agent
-            </TabsTrigger>
-            <TabsTrigger value="quick-connect" className="flex-1 gap-1.5">
-              <Zap className="size-3.5" />
-              Quick Connect
             </TabsTrigger>
           </TabsList>
 
@@ -351,7 +249,7 @@ export function InviteModal({
           </TabsContent>
 
           {/* ── Quick Connect tab ─────────────────────────────────── */}
-          <TabsContent value="quick-connect" className="space-y-4 pt-4">
+          <TabsContent value="agent" className="space-y-4 pt-4">
             {quickConnectCommand ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-800 dark:bg-violet-950">
@@ -462,226 +360,6 @@ export function InviteModal({
             )}
           </TabsContent>
 
-          {/* ── Agent tab ──────────────────────────────────────────── */}
-          <TabsContent value="agent" className="space-y-4 pt-4">
-            {generatedKey ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-950">
-                  <KeyRound className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-                    Agent created — save this API key now
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>API Key</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      readOnly
-                      value={generatedKey}
-                      className="font-mono text-xs"
-                    />
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={handleCopyKey}
-                      aria-label="Copy API key"
-                    >
-                      {keyCopied ? (
-                        <Check className="size-4 text-emerald-600" />
-                      ) : (
-                        <Copy className="size-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    This key will not be shown again. Store it securely.
-                  </p>
-                </div>
-
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={resetAgent}
-                >
-                  Invite another agent
-                </Button>
-              </div>
-            ) : (
-              <>
-                {/* ── Quick Connect: OpenClaw ──────────────────────── */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Zap className="size-3.5 text-amber-500" />
-                    <span className="text-sm font-medium">Quick Connect</span>
-                  </div>
-
-                  <div className="rounded-lg border">
-                    <button
-                      type="button"
-                      onClick={() => setOpenclawExpanded((v) => !v)}
-                      className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-8 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 text-xs font-bold text-white">
-                          OC
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">@openclaw</span>
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                              Featured
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Legal research &amp; contract analysis agent
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!openclawExpanded && (
-                          <span className="text-xs font-medium text-primary">Connect</span>
-                        )}
-                        {openclawExpanded ? (
-                          <ChevronUp className="size-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="size-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </button>
-
-                    {openclawExpanded && (
-                      <div className="border-t px-4 py-3 space-y-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">One-command setup</Label>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-xs">
-                              npx openclaw-knobase setup
-                            </code>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="shrink-0"
-                              onClick={handleCopyOpenclawCmd}
-                              aria-label="Copy setup command"
-                            >
-                              {openclawCmdCopied ? (
-                                <Check className="size-4 text-emerald-600" />
-                              ) : (
-                                <Copy className="size-4" />
-                              )}
-                            </Button>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground">
-                            Run this in your project directory to connect OpenClaw to this workspace.
-                          </p>
-                        </div>
-
-                        <a
-                          href="https://docs.openclaw.ai/knobase-integration"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-                        >
-                          <ExternalLink className="size-3" />
-                          View full documentation
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* ── Custom Agent ─────────────────────────────────── */}
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => setCustomAgentExpanded((v) => !v)}
-                    className="flex w-full items-center justify-between text-left"
-                  >
-                    <span className="text-sm font-medium">Custom Agent</span>
-                    {customAgentExpanded ? (
-                      <ChevronUp className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    )}
-                  </button>
-
-                  {customAgentExpanded && (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="agent-name">Agent name</Label>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                            @
-                          </span>
-                          <Input
-                            id="agent-name"
-                            placeholder="research-bot"
-                            value={agentName.replace(/^@/, "")}
-                            onChange={(e) => setAgentName(e.target.value.replace(/^@/, ""))}
-                            className="pl-7"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="agent-desc">Description</Label>
-                        <Input
-                          id="agent-desc"
-                          placeholder="Summarises research papers and extracts citations"
-                          value={agentDescription}
-                          onChange={(e) => setAgentDescription(e.target.value)}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="agent-role">Role</Label>
-                        <Select
-                          value={agentRole}
-                          onValueChange={(v) => setAgentRole(v as SchoolRole)}
-                        >
-                          <SelectTrigger id="agent-role" className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AGENT_ROLES.map((r) => (
-                              <SelectItem key={r.value} value={r.value}>
-                                <span>{r.label}</span>
-                                <span className="ml-2 text-xs text-muted-foreground">
-                                  — {r.description}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {agentError && (
-                        <p className="text-sm text-destructive">{agentError}</p>
-                      )}
-
-                      <Button
-                        className="w-full"
-                        disabled={!agentName.replace(/^@/, "").trim() || agentLoading}
-                        onClick={handleInviteAgent}
-                      >
-                        {agentLoading ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            Creating agent...
-                          </>
-                        ) : (
-                          "Create agent & generate key"
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>

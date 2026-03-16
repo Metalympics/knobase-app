@@ -164,7 +164,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   );
 
   // Track online users via Supabase Realtime presence channel
-  const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string; color: string; isAgent?: boolean }[]>([]);
+  const [presenceUsers, setPresenceUsers] = useState<{ id: string; name: string; color: string; isAgent?: boolean }[]>([]);
   useEffect(() => {
     if (!workspace) return;
     const supabase = createClient();
@@ -196,13 +196,53 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         isAgent: p.isAgent ?? false,
       }));
       const unique = Array.from(new Map(users.map(u => [u.id, u])).values());
-      setOnlineUsers(unique);
+      setPresenceUsers(unique);
     });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [workspace?.id]);
+
+  // Fetch workspace agents from public.users so they always show in the sidebar
+  const AGENT_COLORS = ["#E94560", "#8B5CF6", "#2563EB", "#10B981", "#F59E0B", "#3B82F6"];
+  const [workspaceAgents, setWorkspaceAgents] = useState<{ id: string; name: string; color: string; isAgent: boolean }[]>([]);
+  useEffect(() => {
+    if (!workspace) return;
+    let cancelled = false;
+    const supabase = createClient();
+
+    supabase
+      .from("users")
+      .select("id, name, display_name, avatar_url")
+      .eq("type", "agent")
+      .eq("school_id", workspace.id)
+      .eq("is_deleted", false)
+      .eq("is_suspended", false)
+      .order("name", { ascending: true })
+      .limit(30)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setWorkspaceAgents(
+          data.map((a, i) => ({
+            id: a.id,
+            name: a.display_name ?? a.name ?? "Agent",
+            color: AGENT_COLORS[i % AGENT_COLORS.length],
+            isAgent: true,
+          })),
+        );
+      });
+
+    return () => { cancelled = true; };
+  }, [workspace?.id]);
+
+  // Merge real-time presence with workspace agents (deduplicate by id)
+  const onlineUsers = (() => {
+    const map = new Map<string, { id: string; name: string; color: string; isAgent?: boolean }>();
+    for (const u of presenceUsers) map.set(u.id, u);
+    for (const a of workspaceAgents) if (!map.has(a.id)) map.set(a.id, a);
+    return Array.from(map.values());
+  })();
 
   if (!mounted || !workspace) {
     return (

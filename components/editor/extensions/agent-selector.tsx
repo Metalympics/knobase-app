@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Editor } from "@tiptap/react";
-import { Bot, Sparkles, Zap, FileText, Edit2 } from "lucide-react";
+import { Bot, Edit2 } from "lucide-react";
 import { insertHumanMention } from "./inline-agent";
 import { searchWorkspaceUsers } from "@/lib/mentions/store";
 import { getInitial } from "@/lib/mentions/store";
@@ -23,45 +23,6 @@ interface AgentOption {
   color?: string;
   agent?: Agent;
 }
-
-const BASE_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = [
-  {
-    id: "openclaw",
-    model: "openclaw",
-    provider: "OpenClaw",
-    icon: <Image src="/openclaw.png" alt="OpenClaw" width={32} height={32} className="h-full w-full rounded-md object-cover" />,
-    avatarSrc: "/openclaw.png",
-    description: "Full agent workspace integration",
-  },
-  {
-    id: "gpt-4",
-    model: "gpt-4",
-    provider: "OpenAI",
-    icon: <Sparkles className="h-4 w-4" />,
-    description: "Advanced reasoning and generation",
-  },
-  {
-    id: "claude-3",
-    model: "claude-3",
-    provider: "Anthropic",
-    icon: <Bot className="h-4 w-4" />,
-    description: "Long context understanding",
-  },
-  {
-    id: "gemini-pro",
-    model: "gemini-pro",
-    provider: "Google",
-    icon: <Zap className="h-4 w-4" />,
-    description: "Fast and efficient",
-  },
-  {
-    id: "summarizer",
-    model: "summarizer",
-    provider: "Knobase",
-    icon: <FileText className="h-4 w-4" />,
-    description: "Summarize documents and sections",
-  },
-];
 
 const DEMO_AGENT_OPTIONS: Omit<AgentOption, 'agent'>[] = DEMO_AGENTS.map((a) => ({
   id: a.id,
@@ -185,17 +146,27 @@ export function AgentSelector({
 
         if (cancelled || !data?.length) return;
 
-        const opts: AgentOption[] = data.map((row: any) => ({
-          id: row.id,
-          model: row.agent_type ?? "custom",
-          provider: row.name ?? "Agent",
-          icon: row.avatar_url
-            ? <Image src={row.avatar_url} alt={row.name} width={32} height={32} className="h-full w-full rounded-md object-cover" unoptimized />
-            : <Bot className="h-4 w-4" />,
-          avatarSrc: row.avatar_url ?? undefined,
-          description: row.description ?? "Workspace agent",
-          agent: getOrCreateAgentForModel(row.id, row.name ?? "Agent"),
-        }));
+        const opts: AgentOption[] = data.map((row: any) => {
+          const name = row.name ?? "Agent";
+          const agent = (() => {
+            const existing = listAgents().find((a) => a.id === row.id);
+            if (existing) return existing;
+            return createAgent({ name, avatar: "🤖", color: "#8B5CF6" });
+          })();
+          // Keep local agent name in sync with the DB
+          if (agent.name !== name) updateAgentName(agent.id, name);
+          return {
+            id: row.id,
+            model: row.agent_type ?? "custom",
+            provider: name,
+            icon: row.avatar_url
+              ? <Image src={row.avatar_url} alt={name} width={32} height={32} className="h-full w-full rounded-md object-cover" unoptimized />
+              : <Bot className="h-4 w-4" />,
+            avatarSrc: row.avatar_url ?? undefined,
+            description: row.description ?? "Workspace agent",
+            agent,
+          };
+        });
         setDbAgentOptions(opts);
       } catch {
         // best effort
@@ -205,14 +176,9 @@ export function AgentSelector({
     return () => { cancelled = true; };
   }, [isDemo, workspaceId]);
 
-  const baseOptions = isDemo ? DEMO_AGENT_OPTIONS : BASE_AGENT_OPTIONS;
-
   const AGENT_OPTIONS: AgentOption[] = isDemo
-    ? baseOptions.map(base => ({ ...base, agent: getOrCreateAgentForModel(base.model, base.provider) }))
-    : [
-        ...dbAgentOptions,
-        ...baseOptions.map(base => ({ ...base, agent: getOrCreateAgentForModel(base.model, base.provider) })),
-      ];
+    ? DEMO_AGENT_OPTIONS.map(base => ({ ...base, agent: getOrCreateAgentForModel(base.model, base.provider) }))
+    : dbAgentOptions;
 
   const filteredAgents = AGENT_OPTIONS.filter((agent) => {
     const q = query.toLowerCase();

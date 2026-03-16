@@ -68,7 +68,7 @@ export function OfflineIndicator() {
     <div className="relative">
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${color}`}
+        className={`flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${color}`}
         title="Sync status"
       >
         {icon}

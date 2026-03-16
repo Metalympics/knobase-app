@@ -409,7 +409,7 @@ export default function WorkspaceDocumentPage() {
     <>
       <main className="flex flex-1 flex-col overflow-hidden">
         {/* ── Compact header: breadcrumb + save status + share + presence + overflow ── */}
-        <header className="flex items-center justify-between border-b border-[#f0f0f0] px-6 py-1.5">
+        <header className="document-header flex items-center justify-between border-b border-[#f0f0f0] px-6 py-1.5">
           <div className="flex items-center gap-3 min-w-0">
             <Breadcrumb
               items={[
@@ -441,7 +441,7 @@ export default function WorkspaceDocumentPage() {
               <>
                 <button
                   onClick={() => setShowShareDialog(true)}
-                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100"
                   title="Share document"
                 >
                   <Share2 className="h-3.5 w-3.5" />
@@ -449,7 +449,7 @@ export default function WorkspaceDocumentPage() {
                 </button>
                 <button
                   onClick={() => setShowInviteModal(true)}
-                  className="flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   Invite
@@ -471,7 +471,7 @@ export default function WorkspaceDocumentPage() {
             <div className="relative" ref={overflowRef}>
               <button
                 onClick={() => setShowOverflowMenu(!showOverflowMenu)}
-                className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                className="cursor-pointer rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
                 title="More actions"
               >
                 <MoreHorizontal className="h-4 w-4" />

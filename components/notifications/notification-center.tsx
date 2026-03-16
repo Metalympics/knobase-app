@@ -127,7 +127,7 @@ export function NotificationCenter({
             setOpen(!open);
             if (!open) refresh();
           }}
-          className="relative rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+          className="relative cursor-pointer rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
           aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
         >
           <Bell className="h-4 w-4" />

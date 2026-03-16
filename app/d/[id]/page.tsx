@@ -219,7 +219,7 @@ function UniversalDocumentContent() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       {/* Simplified header for shared document view */}
-      <header className="sticky top-0 z-50 flex h-12 items-center justify-between border-b border-neutral-200 bg-white/95 px-4 backdrop-blur-sm">
+      <header className="document-header sticky top-0 z-50 flex h-12 items-center justify-between border-b border-neutral-200 bg-white/95 px-4 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white">
             <BookOpen className="h-4 w-4 text-neutral-700" />
