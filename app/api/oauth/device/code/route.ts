@@ -21,7 +21,7 @@ export async function POST() {
   const userCode = generateUserCode();
 
   const verificationUri =
-    `${process.env.NEXT_PUBLIC_APP_URL ?? "https://knobase.app"}/device`;
+    `${process.env.NEXT_PUBLIC_APP_URL ?? "https://knobase.app"}/oauth/device`;
 
   return NextResponse.json({
     device_code: deviceCode,
