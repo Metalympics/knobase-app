@@ -71,15 +71,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    const { data: record, error } = await supabase
       .from("oauth_device_codes")
       .select("*")
       .eq("device_code", deviceCode)
       .single();
 
-    console.log("[OAuth Token] Query result:", { hasData: !!data, error: error?.message });
-
-    const record = data as unknown as DeviceCodeRecord | null;
+    console.log("[OAuth Token] Query result:", { hasRecord: !!record, error: error?.message });
 
     if (error || !record) {
       console.error("[OAuth Token] Record not found:", error);
@@ -105,10 +103,8 @@ export async function POST(request: NextRequest) {
 
     const accessToken = randomUUID();
 
-    await (supabase
-      .from("oauth_device_codes") as any)
-      .delete()
-      .eq("device_code", deviceCode);
+    // Don't delete the record here - let the connect endpoint handle it
+    // after it retrieves the agent information
 
     return NextResponse.json({
       access_token: accessToken,

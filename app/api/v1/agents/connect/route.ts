@@ -164,10 +164,16 @@ export async function POST(request: NextRequest) {
       scopes: ["read", "write", "task"],
     });
 
-    // Mark the device code as completed
+    // Mark the device code as completed and delete it
     await (admin
       .from("oauth_device_codes") as any)
       .update({ access_token: rawKey })
+      .eq("device_code", deviceCode);
+    
+    // Clean up the device code record
+    await (admin
+      .from("oauth_device_codes") as any)
+      .delete()
       .eq("device_code", deviceCode);
 
     console.log("[AgentConnect] Success! Returning agent_id:", agentId);
