@@ -83,7 +83,9 @@ function DeviceVerificationContent() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  /** Map school_id -> public.users.id (oauth_device_codes.user_id references public.users, not auth.users) */
+  const [userIdBySchool, setUserIdBySchool] = useState<Record<string, string>>({});
+  const [defaultUserId, setDefaultUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,15 +103,20 @@ function DeviceVerificationContent() {
         return;
       }
 
-      setUserId(session.user.id);
-
       const { data: userRows } = await supabase
         .from("users")
-        .select("school_id")
+        .select("id, school_id")
         .eq("auth_id", session.user.id)
         .not("school_id", "is", null);
 
       if (cancelled) return;
+
+      const bySchool: Record<string, string> = {};
+      for (const u of userRows ?? []) {
+        if (u.school_id) bySchool[u.school_id] = u.id;
+      }
+      setUserIdBySchool(bySchool);
+      setDefaultUserId(userRows?.[0]?.id ?? null);
 
       const schoolIds = [
         ...new Set(
@@ -195,6 +202,9 @@ function DeviceVerificationContent() {
 
   const handleAuthorize = async (e: React.FormEvent) => {
     e.preventDefault();
+    const userId = selectedWorkspace
+      ? (userIdBySchool[selectedWorkspace] ?? defaultUserId)
+      : defaultUserId;
     if (!isCodeValid || !userId) return;
 
     setStatus("loading");
@@ -252,7 +262,7 @@ function DeviceVerificationContent() {
       return;
     }
 
-    const updatePayload: Record<string, string> = { user_id: userId };
+    const updatePayload: Record<string, string> = { user_id: userId as string };
     if (selectedWorkspace) {
       updatePayload.school_id = selectedWorkspace;
     }
