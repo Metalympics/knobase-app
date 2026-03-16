@@ -116,7 +116,14 @@ export function buildMCPCall(
     case "create_document":
       return {
         method: "tools/call",
-        params: { name: "write_document", arguments: args },
+        params: {
+          name: "create_document",
+          arguments: {
+            title: args.title,
+            content: args.content,
+            parent_id: args.parent_id,
+          },
+        },
       };
     case "edit_with_ai":
       return {

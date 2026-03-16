@@ -2,6 +2,7 @@ import type { Document, DocumentMeta } from "@/lib/documents/types";
 import type { Agent } from "@/lib/agents/types";
 import type { Mention, MentionInsert } from "@/lib/supabase/types";
 import { createMention } from "@/lib/supabase/mentions";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   type BlockOperation,
   type BlockMutationResult,
@@ -535,7 +536,22 @@ export async function handleCreateMention(
   }
 
   const sourceType: MentionInsert["source_type"] = ctx.agentId ? "agent" : "human";
-  const targetType: MentionInsert["target_type"] = "human";
+
+  // Resolve target_type from users table: agents use type='agent', humans use type='human' or null
+  let targetType: MentionInsert["target_type"] = "human";
+  try {
+    const adminClient = createAdminClient();
+    const { data: targetUser } = await adminClient
+      .from("users")
+      .select("type")
+      .eq("id", target_user_id)
+      .single();
+    if (targetUser?.type === "agent") {
+      targetType = "agent";
+    }
+  } catch {
+    // Default to human if lookup fails (e.g. user not found)
+  }
 
   const insertPayload: MentionInsert = {
     document_id,

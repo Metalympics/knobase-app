@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Users, Bot, Copy, Check, Loader2, Zap, Clock, ChevronRight, Download, AlertTriangle } from "lucide-react";
+import { Users, Bot, Copy, Check, Loader2, Zap, Clock, Download, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import type { SchoolRole } from "@/lib/schools/types";
 
 /* ------------------------------------------------------------------ */
@@ -61,7 +62,6 @@ export function InviteModal({
   const [agentCopied, setAgentCopied] = useState(false);
   const [installCopied, setInstallCopied] = useState(false);
   const [agentName, setAgentName] = useState("OpenClaw Agent");
-  const [installOpen, setInstallOpen] = useState(false);
 
   const resetHuman = useCallback(() => {
     setEmail("");
@@ -78,7 +78,6 @@ export function InviteModal({
     setAgentCopied(false);
     setInstallCopied(false);
     setAgentName("OpenClaw Agent");
-    setInstallOpen(false);
   }, []);
 
   /* ── Human invite ────────────────────────────────────────────────── */
@@ -148,18 +147,70 @@ export function InviteModal({
     }
   }, [agentName]);
 
-  const handleCopyAgentCommand = useCallback(() => {
-    if (!agentCommand) return;
-    navigator.clipboard.writeText(agentCommand);
-    setAgentCopied(true);
-    setTimeout(() => setAgentCopied(false), 2000);
-  }, [agentCommand]);
-
-  const handleCopyInstallCommand = useCallback(() => {
-    navigator.clipboard.writeText("npm install -g openclaw-knobase");
-    setInstallCopied(true);
-    setTimeout(() => setInstallCopied(false), 2000);
+  const copyToClipboard = useCallback(async (text: string): Promise<boolean> => {
+    const blob = new Blob([text], { type: "text/plain" });
+    try {
+      if (navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ "text/plain": blob }),
+        ]);
+        return true;
+      }
+    } catch {
+      /* try writeText next */
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      ta.style.width = "1px";
+      ta.style.height = "1px";
+      ta.style.pointerEvents = "none";
+      ta.style.opacity = "0";
+      const container =
+        document.querySelector('[role="dialog"]') ?? document.body;
+      container.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      try {
+        const ok = document.execCommand("copy");
+        return ok;
+      } catch {
+        return false;
+      } finally {
+        container.removeChild(ta);
+      }
+    }
   }, []);
+
+  const handleCopyFromCode = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      const group = (e.currentTarget as HTMLElement).closest(".flex.items-center.gap-2");
+      const codeEl = group?.querySelector("code");
+      const text = codeEl?.textContent?.trim();
+      if (!text) return;
+      copyToClipboard(text).then((ok) => {
+        if (ok) {
+          const isConnect = text.startsWith("openclaw");
+          if (isConnect) {
+            setAgentCopied(true);
+            setTimeout(() => setAgentCopied(false), 2000);
+          } else {
+            setInstallCopied(true);
+            setTimeout(() => setInstallCopied(false), 2000);
+          }
+        }
+      });
+    },
+    [copyToClipboard],
+  );
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -270,72 +321,58 @@ export function InviteModal({
                   </p>
                 </div>
 
-                {/* Step 1 – Install (collapsible) */}
-                <div className="rounded-lg border">
-                  <button
-                    type="button"
-                    onClick={() => setInstallOpen((v) => !v)}
-                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium hover:bg-muted/50 transition-colors"
-                  >
-                    <ChevronRight
-                      className={`size-4 shrink-0 text-muted-foreground transition-transform ${
-                        installOpen ? "rotate-90" : ""
-                      }`}
-                    />
-                    <Download className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="flex-1">
-                      Step 1 &mdash; Install the OpenClaw skill
-                    </span>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      {installOpen ? "hide" : "show"}
-                    </span>
-                  </button>
-
-                  {installOpen && (
-                    <div className="border-t px-4 pb-4 pt-3 space-y-2">
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        If you haven&apos;t installed the OpenClaw skill yet, run:
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed select-all break-all">
-                          npx openclaw-knobase
-                        </code>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={handleCopyInstallCommand}
-                          aria-label="Copy install command"
-                          className="shrink-0"
-                        >
-                          {installCopied ? (
-                            <Check className="size-4 text-emerald-600" />
-                          ) : (
-                            <Copy className="size-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Step 2 – Connect command */}
+                {/* Connect to workspace — primary, ready instantly */}
                 <div className="rounded-lg border px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Zap className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
-                    Step 2 &mdash; Connect to this workspace
+                    Connect to this workspace
                   </div>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed select-all break-all">
                       {agentCommand}
                     </code>
                     <Button
+                      type="button"
                       size="icon"
                       variant="outline"
-                      onClick={handleCopyAgentCommand}
+                      onClick={handleCopyFromCode}
                       aria-label="Copy command"
                       className="shrink-0"
                     >
                       {agentCopied ? (
+                        <Check className="size-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="size-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Install (optional, always visible) */}
+                <div className="rounded-lg border px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Download className="size-4 shrink-0 text-muted-foreground" />
+                    <span>Install the CLI</span>
+                    <Badge variant="outline" className="ml-0.5 font-normal text-muted-foreground">
+                      Optional
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    If you haven&apos;t installed the CLI yet, run:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed select-all break-all">
+                      npx openclaw-knobase
+                    </code>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      onClick={handleCopyFromCode}
+                      aria-label="Copy install command"
+                      className="shrink-0"
+                    >
+                      {installCopied ? (
                         <Check className="size-4 text-emerald-600" />
                       ) : (
                         <Copy className="size-4" />
@@ -389,16 +426,17 @@ export function InviteModal({
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <div className="space-y-1.5">
                     <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                      New to OpenClaw? Install the skill first:
+                      New to OpenClaw? Install the CLI first:
                     </p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 rounded-md bg-amber-100 px-3 py-2 font-mono text-xs leading-relaxed text-amber-900 select-all break-all dark:bg-amber-900 dark:text-amber-100">
                         npm install -g openclaw-knobase
                       </code>
                       <Button
+                        type="button"
                         size="icon"
                         variant="outline"
-                        onClick={handleCopyInstallCommand}
+                        onClick={handleCopyFromCode}
                         aria-label="Copy install command"
                         className="shrink-0 border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900"
                       >
