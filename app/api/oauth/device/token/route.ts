@@ -20,10 +20,26 @@ const ACCESS_TOKEN_EXPIRES_IN = 3600;
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.formData().catch(() => null);
-    const params = body
-      ? Object.fromEntries(body.entries())
-      : await request.json();
+    // Read body as text first, then parse based on content-type
+    const bodyText = await request.text();
+    let params: Record<string, string> = {};
+    
+    const contentType = request.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      // Parse form data
+      const searchParams = new URLSearchParams(bodyText);
+      searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+    } else {
+      // Parse as JSON
+      try {
+        params = JSON.parse(bodyText);
+      } catch {
+        // Empty or invalid JSON
+      }
+    }
 
     const grantType = params.grant_type as string | undefined;
     const deviceCode = params.device_code as string | undefined;
