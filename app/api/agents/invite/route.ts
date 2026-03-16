@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       device_code: deviceCode,
       user_code: userCode,
-      command: `openclaw-knobase connect --code ${userCode}`,
+      command: `openclaw-knobase connect --device-code ${deviceCode}`,
       expires_in: EXPIRES_IN,
       ...(agentName ? { agent_name: agentName } : {}),
     });
