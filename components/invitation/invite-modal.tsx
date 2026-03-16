@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Users, Bot, Copy, Check, Loader2, KeyRound, ExternalLink, Zap, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, Bot, Copy, Check, Loader2, KeyRound, ExternalLink, Zap, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -51,7 +51,7 @@ export function InviteModal({
   workspaceId,
   workspaceName,
 }: InviteModalProps) {
-  const [tab, setTab] = useState<"human" | "agent">("human");
+  const [tab, setTab] = useState<"human" | "agent" | "quick-connect">("human");
 
   // Human state
   const [email, setEmail] = useState("");
@@ -74,6 +74,13 @@ export function InviteModal({
   const [openclawCmdCopied, setOpenclawCmdCopied] = useState(false);
   const [customAgentExpanded, setCustomAgentExpanded] = useState(false);
 
+  // Quick Connect state
+  const [quickConnectLoading, setQuickConnectLoading] = useState(false);
+  const [quickConnectError, setQuickConnectError] = useState<string | null>(null);
+  const [quickConnectCommand, setQuickConnectCommand] = useState<string | null>(null);
+  const [quickConnectExpiresAt, setQuickConnectExpiresAt] = useState<Date | null>(null);
+  const [quickConnectCopied, setQuickConnectCopied] = useState(false);
+
   const resetHuman = useCallback(() => {
     setEmail("");
     setRole("viewer");
@@ -91,6 +98,14 @@ export function InviteModal({
     setOpenclawExpanded(false);
     setOpenclawCmdCopied(false);
     setCustomAgentExpanded(false);
+  }, []);
+
+  const resetQuickConnect = useCallback(() => {
+    setQuickConnectLoading(false);
+    setQuickConnectError(null);
+    setQuickConnectCommand(null);
+    setQuickConnectExpiresAt(null);
+    setQuickConnectCopied(false);
   }, []);
 
   /* ── Human invite ────────────────────────────────────────────────── */
@@ -192,15 +207,52 @@ export function InviteModal({
     setTimeout(() => setOpenclawCmdCopied(false), 2000);
   }, []);
 
+  /* ── Quick Connect ──────────────────────────────────────────────── */
+
+  const handleQuickConnect = useCallback(async () => {
+    setQuickConnectLoading(true);
+    setQuickConnectError(null);
+    setQuickConnectCommand(null);
+    setQuickConnectExpiresAt(null);
+
+    try {
+      const res = await fetch("/api/agents/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? `Failed to generate invite (${res.status})`);
+      }
+
+      const data = await res.json();
+      setQuickConnectCommand(data.command);
+      setQuickConnectExpiresAt(new Date(Date.now() + data.expires_in * 1000));
+    } catch (err) {
+      setQuickConnectError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setQuickConnectLoading(false);
+    }
+  }, []);
+
+  const handleCopyQuickConnect = useCallback(() => {
+    if (!quickConnectCommand) return;
+    navigator.clipboard.writeText(quickConnectCommand);
+    setQuickConnectCopied(true);
+    setTimeout(() => setQuickConnectCopied(false), 2000);
+  }, [quickConnectCommand]);
+
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) {
         resetHuman();
         resetAgent();
+        resetQuickConnect();
       }
       onOpenChange(next);
     },
-    [onOpenChange, resetHuman, resetAgent],
+    [onOpenChange, resetHuman, resetAgent, resetQuickConnect],
   );
 
   return (
@@ -217,7 +269,7 @@ export function InviteModal({
 
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v as "human" | "agent")}
+          onValueChange={(v) => setTab(v as "human" | "agent" | "quick-connect")}
           className="mt-1"
         >
           <TabsList className="w-full">
@@ -228,6 +280,10 @@ export function InviteModal({
             <TabsTrigger value="agent" className="flex-1 gap-1.5">
               <Bot className="size-3.5" />
               Agent
+            </TabsTrigger>
+            <TabsTrigger value="quick-connect" className="flex-1 gap-1.5">
+              <Zap className="size-3.5" />
+              Quick Connect
             </TabsTrigger>
           </TabsList>
 
@@ -287,6 +343,105 @@ export function InviteModal({
                 "Send invite"
               )}
             </Button>
+          </TabsContent>
+
+          {/* ── Quick Connect tab ─────────────────────────────────── */}
+          <TabsContent value="quick-connect" className="space-y-4 pt-4">
+            {quickConnectCommand ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-800 dark:bg-violet-950">
+                  <Zap className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
+                  <p className="text-sm font-medium text-violet-800 dark:text-violet-200">
+                    Run this in your terminal to connect OpenClaw
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Setup command</Label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed select-all break-all">
+                      {quickConnectCommand}
+                    </code>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={handleCopyQuickConnect}
+                      aria-label="Copy command"
+                      className="shrink-0"
+                    >
+                      {quickConnectCopied ? (
+                        <Check className="size-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="size-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Clock className="size-3" />
+                  <span>
+                    Expires in 15 minutes
+                    {quickConnectExpiresAt && (
+                      <> (at {quickConnectExpiresAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})</>
+                    )}
+                  </span>
+                </div>
+
+                <Separator />
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={resetQuickConnect}
+                >
+                  Generate new code
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold text-white">
+                      OC
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">One-Click Setup</p>
+                      <p className="text-xs text-muted-foreground">
+                        Connect OpenClaw to this workspace with a single command
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Generate a unique invite code and run the provided command in
+                    your terminal. The code expires after 15 minutes.
+                  </p>
+                </div>
+
+                {quickConnectError && (
+                  <p className="text-sm text-destructive">{quickConnectError}</p>
+                )}
+
+                <Button
+                  className="w-full"
+                  disabled={quickConnectLoading}
+                  onClick={handleQuickConnect}
+                >
+                  {quickConnectLoading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="size-4" />
+                      Generate connect command
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           {/* ── Agent tab ──────────────────────────────────────────── */}
