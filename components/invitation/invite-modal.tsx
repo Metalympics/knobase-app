@@ -398,7 +398,7 @@ export function InviteModal({
                   className="w-full"
                   onClick={resetAgent}
                 >
-                  Generate new code
+                  Generate new device code
                 </Button>
               </div>
             ) : (
@@ -417,7 +417,7 @@ export function InviteModal({
                   </div>
 
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Generate a unique invite code and run the provided command in
+                      Generate a unique device code and run the provided command in
                     your terminal. The code expires after 15 minutes.
                   </p>
                 </div>
