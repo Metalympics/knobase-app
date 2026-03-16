@@ -80,6 +80,7 @@ export function InviteModal({
   const [quickConnectCommand, setQuickConnectCommand] = useState<string | null>(null);
   const [quickConnectExpiresAt, setQuickConnectExpiresAt] = useState<Date | null>(null);
   const [quickConnectCopied, setQuickConnectCopied] = useState(false);
+  const [quickConnectAgentName, setQuickConnectAgentName] = useState("OpenClaw Agent");
 
   const resetHuman = useCallback(() => {
     setEmail("");
@@ -106,6 +107,7 @@ export function InviteModal({
     setQuickConnectCommand(null);
     setQuickConnectExpiresAt(null);
     setQuickConnectCopied(false);
+    setQuickConnectAgentName("OpenClaw Agent");
   }, []);
 
   /* ── Human invite ────────────────────────────────────────────────── */
@@ -219,6 +221,9 @@ export function InviteModal({
       const res = await fetch("/api/agents/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_name: quickConnectAgentName.trim() || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -234,7 +239,7 @@ export function InviteModal({
     } finally {
       setQuickConnectLoading(false);
     }
-  }, []);
+  }, [quickConnectAgentName]);
 
   const handleCopyQuickConnect = useCallback(() => {
     if (!quickConnectCommand) return;
@@ -352,7 +357,8 @@ export function InviteModal({
                 <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-800 dark:bg-violet-950">
                   <Zap className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
                   <p className="text-sm font-medium text-violet-800 dark:text-violet-200">
-                    Run this in your terminal to connect OpenClaw
+                    Run this in your terminal to connect{" "}
+                    <span className="font-semibold">{quickConnectAgentName.trim() || "OpenClaw"}</span>
                   </p>
                 </div>
 
@@ -417,6 +423,18 @@ export function InviteModal({
                     Generate a unique invite code and run the provided command in
                     your terminal. The code expires after 15 minutes.
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quick-connect-agent-name">
+                    Agent Name <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <Input
+                    id="quick-connect-agent-name"
+                    placeholder="OpenClaw Agent"
+                    value={quickConnectAgentName}
+                    onChange={(e) => setQuickConnectAgentName(e.target.value)}
+                  />
                 </div>
 
                 {quickConnectError && (

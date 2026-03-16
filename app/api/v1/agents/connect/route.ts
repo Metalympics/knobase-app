@@ -15,6 +15,7 @@ interface DeviceCodeRecord {
   interval: number;
   last_polled_at: string | null;
   access_token: string | null;
+  agent_name: string | null;
   created_at: string;
 }
 
@@ -106,8 +107,9 @@ export async function POST(request: NextRequest) {
       );
     }
     const botId = record.client_id;
+    const agentName = record.agent_name?.trim() || "OpenClaw Agent";
 
-    console.log("[AgentConnect] Creating/connecting agent for bot:", botId, "school:", schoolId);
+    console.log("[AgentConnect] Creating/connecting agent for bot:", botId, "school:", schoolId, "name:", agentName);
 
     // Check if an agent user already exists for this bot in this workspace
     const { data: existingAgent } = await (admin
@@ -137,7 +139,7 @@ export async function POST(request: NextRequest) {
           type: "agent",
           bot_id: botId,
           school_id: schoolId,
-          name: botId,
+          name: agentName,
           owner_id: authorizingUser.id,
         } as any)
         .select("id")

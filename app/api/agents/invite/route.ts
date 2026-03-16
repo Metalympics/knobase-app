@@ -18,8 +18,11 @@ function generateUserCode(): string {
   return `${chars.slice(0, 4).join("")}-${chars.slice(4).join("")}`;
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    const body = await request.json().catch(() => ({}));
+    const agentName: string | undefined = body.agent_name;
+
     const supabase = await createServerClient();
     const {
       data: { user },
@@ -61,6 +64,7 @@ export async function POST() {
       school_id: profile.school_id,
       expires_at: expiresAt,
       status: "pending",
+      ...(agentName ? { agent_name: agentName } : {}),
     });
 
     if (insertError) {
@@ -76,6 +80,7 @@ export async function POST() {
       user_code: userCode,
       command: `openclaw knobase connect --code ${userCode}`,
       expires_in: EXPIRES_IN,
+      ...(agentName ? { agent_name: agentName } : {}),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
