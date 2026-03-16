@@ -1074,6 +1074,53 @@ export type Database = {
         };
         Relationships: [];
       };
+      oauth_device_codes: {
+        Row: {
+          id: string;
+          device_code: string;
+          user_code: string;
+          client_id: string;
+          user_id: string | null;
+          school_id: string | null;
+          scope: string[];
+          status: "pending" | "authorized" | "completed";
+          expires_at: string;
+          interval: number;
+          last_polled_at: string | null;
+          access_token: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          device_code: string;
+          user_code: string;
+          client_id: string;
+          user_id?: string | null;
+          school_id?: string | null;
+          scope?: string[];
+          status?: "pending" | "authorized" | "completed";
+          expires_at: string;
+          interval?: number;
+          last_polled_at?: string | null;
+          access_token?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          device_code?: string;
+          user_code?: string;
+          client_id?: string;
+          user_id?: string | null;
+          school_id?: string | null;
+          scope?: string[];
+          status?: "pending" | "authorized" | "completed";
+          expires_at?: string;
+          interval?: number;
+          last_polled_at?: string | null;
+          access_token?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
