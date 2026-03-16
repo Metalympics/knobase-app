@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Users, Bot, Copy, Check, Loader2, Zap, Clock, Download, AlertTriangle } from "lucide-react";
+import { Users, Bot, Copy, Check, Loader2, Zap, Clock, Download, AlertTriangle, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +62,7 @@ export function InviteModal({
   const [agentCopied, setAgentCopied] = useState(false);
   const [installCopied, setInstallCopied] = useState(false);
   const [agentName, setAgentName] = useState("OpenClaw Agent");
+  const [regenerating, setRegenerating] = useState(false);
 
   const resetHuman = useCallback(() => {
     setEmail("");
@@ -144,6 +145,35 @@ export function InviteModal({
       setAgentError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setAgentLoading(false);
+    }
+  }, [agentName]);
+
+  const handleRegenerateCode = useCallback(async () => {
+    setRegenerating(true);
+    setAgentError(null);
+
+    try {
+      const res = await fetch("/api/agents/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_name: agentName.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? `Failed to regenerate code (${res.status})`);
+      }
+
+      const data = await res.json();
+      setAgentCommand(data.command);
+      setAgentExpiresAt(new Date(Date.now() + data.expires_in * 1000));
+      setAgentCopied(false);
+    } catch (err) {
+      setAgentError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setRegenerating(false);
     }
   }, [agentName]);
 
@@ -345,6 +375,17 @@ export function InviteModal({
                         <Copy className="size-4" />
                       )}
                     </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      onClick={handleRegenerateCode}
+                      disabled={regenerating}
+                      aria-label="Regenerate device code"
+                      className="shrink-0"
+                    >
+                      <RefreshCw className={`size-4 ${regenerating ? "animate-spin" : ""}`} />
+                    </Button>
                   </div>
                 </div>
 
@@ -381,6 +422,10 @@ export function InviteModal({
                   </div>
                 </div>
 
+                {agentError && (
+                  <p className="text-sm text-destructive">{agentError}</p>
+                )}
+
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="size-3" />
                   <span>
@@ -398,7 +443,7 @@ export function InviteModal({
                   className="w-full"
                   onClick={resetAgent}
                 >
-                  Generate new device code
+                  Start over
                 </Button>
               </div>
             ) : (
