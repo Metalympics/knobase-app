@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Users, Bot, Copy, Check, Loader2, Zap, Clock } from "lucide-react";
+import { Users, Bot, Copy, Check, Loader2, Zap, Clock, ChevronRight, Download, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -59,7 +59,9 @@ export function InviteModal({
   const [agentCommand, setAgentCommand] = useState<string | null>(null);
   const [agentExpiresAt, setAgentExpiresAt] = useState<Date | null>(null);
   const [agentCopied, setAgentCopied] = useState(false);
+  const [installCopied, setInstallCopied] = useState(false);
   const [agentName, setAgentName] = useState("OpenClaw Agent");
+  const [installOpen, setInstallOpen] = useState(false);
 
   const resetHuman = useCallback(() => {
     setEmail("");
@@ -74,7 +76,9 @@ export function InviteModal({
     setAgentCommand(null);
     setAgentExpiresAt(null);
     setAgentCopied(false);
+    setInstallCopied(false);
     setAgentName("OpenClaw Agent");
+    setInstallOpen(false);
   }, []);
 
   /* ── Human invite ────────────────────────────────────────────────── */
@@ -150,6 +154,12 @@ export function InviteModal({
     setAgentCopied(true);
     setTimeout(() => setAgentCopied(false), 2000);
   }, [agentCommand]);
+
+  const handleCopyInstallCommand = useCallback(() => {
+    navigator.clipboard.writeText("npm install -g openclaw-knobase");
+    setInstallCopied(true);
+    setTimeout(() => setInstallCopied(false), 2000);
+  }, []);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -248,32 +258,84 @@ export function InviteModal({
             </Button>
           </TabsContent>
 
-          {/* ── Quick Connect tab ─────────────────────────────────── */}
+          {/* ── Agent tab ──────────────────────────────────────────── */}
           <TabsContent value="agent" className="space-y-4 pt-4">
-            {quickConnectCommand ? (
+            {agentCommand ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-800 dark:bg-violet-950">
                   <Zap className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
                   <p className="text-sm font-medium text-violet-800 dark:text-violet-200">
                     Run this in your terminal to connect{" "}
-                    <span className="font-semibold">{quickConnectAgentName.trim() || "OpenClaw"}</span>
+                    <span className="font-semibold">{agentName.trim() || "OpenClaw"}</span>
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Setup command</Label>
+                {/* Step 1 – Install (collapsible) */}
+                <div className="rounded-lg border">
+                  <button
+                    type="button"
+                    onClick={() => setInstallOpen((v) => !v)}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium hover:bg-muted/50 transition-colors"
+                  >
+                    <ChevronRight
+                      className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+                        installOpen ? "rotate-90" : ""
+                      }`}
+                    />
+                    <Download className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1">
+                      Step 1 &mdash; Install the OpenClaw skill
+                    </span>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {installOpen ? "hide" : "show"}
+                    </span>
+                  </button>
+
+                  {installOpen && (
+                    <div className="border-t px-4 pb-4 pt-3 space-y-2">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        If you haven&apos;t installed the OpenClaw skill yet, run:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed select-all break-all">
+                          npx openclaw-knobase
+                        </code>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={handleCopyInstallCommand}
+                          aria-label="Copy install command"
+                          className="shrink-0"
+                        >
+                          {installCopied ? (
+                            <Check className="size-4 text-emerald-600" />
+                          ) : (
+                            <Copy className="size-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2 – Connect command */}
+                <div className="rounded-lg border px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Zap className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
+                    Step 2 &mdash; Connect to this workspace
+                  </div>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed select-all break-all">
-                      {quickConnectCommand}
+                      {agentCommand}
                     </code>
                     <Button
                       size="icon"
                       variant="outline"
-                      onClick={handleCopyQuickConnect}
+                      onClick={handleCopyAgentCommand}
                       aria-label="Copy command"
                       className="shrink-0"
                     >
-                      {quickConnectCopied ? (
+                      {agentCopied ? (
                         <Check className="size-4 text-emerald-600" />
                       ) : (
                         <Copy className="size-4" />
@@ -286,8 +348,8 @@ export function InviteModal({
                   <Clock className="size-3" />
                   <span>
                     Expires in 15 minutes
-                    {quickConnectExpiresAt && (
-                      <> (at {quickConnectExpiresAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})</>
+                    {agentExpiresAt && (
+                      <> (at {agentExpiresAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})</>
                     )}
                   </span>
                 </div>
@@ -297,7 +359,7 @@ export function InviteModal({
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={resetQuickConnect}
+                  onClick={resetAgent}
                 >
                   Generate new code
                 </Button>
@@ -323,28 +385,55 @@ export function InviteModal({
                   </p>
                 </div>
 
+                <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                      New to OpenClaw? Install the skill first:
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 rounded-md bg-amber-100 px-3 py-2 font-mono text-xs leading-relaxed text-amber-900 select-all break-all dark:bg-amber-900 dark:text-amber-100">
+                        npm install -g openclaw-knobase
+                      </code>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={handleCopyInstallCommand}
+                        aria-label="Copy install command"
+                        className="shrink-0 border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900"
+                      >
+                        {installCopied ? (
+                          <Check className="size-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="size-4 text-amber-700 dark:text-amber-300" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="quick-connect-agent-name">
+                  <Label htmlFor="agent-name">
                     Agent Name <span className="text-muted-foreground font-normal">(optional)</span>
                   </Label>
                   <Input
-                    id="quick-connect-agent-name"
+                    id="agent-name"
                     placeholder="OpenClaw Agent"
-                    value={quickConnectAgentName}
-                    onChange={(e) => setQuickConnectAgentName(e.target.value)}
+                    value={agentName}
+                    onChange={(e) => setAgentName(e.target.value)}
                   />
                 </div>
 
-                {quickConnectError && (
-                  <p className="text-sm text-destructive">{quickConnectError}</p>
+                {agentError && (
+                  <p className="text-sm text-destructive">{agentError}</p>
                 )}
 
                 <Button
                   className="w-full"
-                  disabled={quickConnectLoading}
-                  onClick={handleQuickConnect}
+                  disabled={agentLoading}
+                  onClick={handleAgentConnect}
                 >
-                  {quickConnectLoading ? (
+                  {agentLoading ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
                       Generating...
