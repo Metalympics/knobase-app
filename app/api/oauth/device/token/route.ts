@@ -42,7 +42,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createAdminClient();
+    console.log("[OAuth Token] Looking up device code:", deviceCode);
+
+    let supabase;
+    try {
+      supabase = createAdminClient();
+    } catch (clientErr: any) {
+      console.error("[OAuth Token] Failed to create admin client:", clientErr.message);
+      return NextResponse.json(
+        { error: "server_error", error_description: "Database client initialization failed" },
+        { status: 500 },
+      );
+    }
 
     const { data, error } = await supabase
       .from("oauth_device_codes")
@@ -50,9 +61,12 @@ export async function POST(request: NextRequest) {
       .eq("device_code", deviceCode)
       .single();
 
+    console.log("[OAuth Token] Query result:", { hasData: !!data, error: error?.message });
+
     const record = data as unknown as DeviceCodeRecord | null;
 
     if (error || !record) {
+      console.error("[OAuth Token] Record not found:", error);
       return NextResponse.json(
         { error: "invalid_grant", error_description: "Unknown device code" },
         { status: 400 },
@@ -85,10 +99,10 @@ export async function POST(request: NextRequest) {
       token_type: "Bearer",
       expires_in: ACCESS_TOKEN_EXPIRES_IN,
     });
-  } catch (err) {
-    console.error("[OAuth Device Token]", err);
+  } catch (err: any) {
+    console.error("[OAuth Device Token] Unhandled error:", err.message, err);
     return NextResponse.json(
-      { error: "server_error", error_description: "Internal server error" },
+      { error: "server_error", error_description: "Internal server error: " + err.message },
       { status: 500 },
     );
   }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -13,6 +13,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
+
+const CODE_LENGTH = 8;
+const VALID_CHAR = /^[A-Za-z0-9]$/;
+
+function parseCodeToDigits(raw: string): string[] {
+  const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, CODE_LENGTH);
+  const digits = Array(CODE_LENGTH).fill("");
+  for (let i = 0; i < clean.length; i++) {
+    digits[i] = clean[i];
+  }
+  return digits;
+}
+
+function digitsToCode(digits: string[]): string {
+  const joined = digits.join("");
+  if (joined.length > 4) {
+    return `${joined.slice(0, 4)}-${joined.slice(4)}`;
+  }
+  return joined;
+}
 
 interface DeviceCodeRecord {
   id: string;
@@ -53,18 +73,10 @@ type Status = "idle" | "loading" | "success" | "error";
 function DeviceVerificationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const codeInputRef = useRef<HTMLInputElement>(null);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const formatCode = useCallback((raw: string) => {
-    const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 8);
-    if (clean.length > 4) {
-      return `${clean.slice(0, 4)}-${clean.slice(4)}`;
-    }
-    return clean;
-  }, []);
-
-  const [userCode, setUserCode] = useState(() =>
-    formatCode(searchParams.get("code") ?? ""),
+  const [digits, setDigits] = useState<string[]>(() =>
+    parseCodeToDigits(searchParams.get("code") ?? ""),
   );
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
@@ -81,8 +93,9 @@ function DeviceVerificationContent() {
       if (cancelled) return;
 
       if (!session?.user) {
-        const returnPath = userCode
-          ? `/oauth/device?code=${encodeURIComponent(userCode)}`
+        const codeStr = digitsToCode(digits);
+        const returnPath = codeStr
+          ? `/oauth/device?code=${encodeURIComponent(codeStr)}`
           : "/oauth/device";
         router.push(`/auth/login?redirect=${encodeURIComponent(returnPath)}`);
         return;
@@ -126,19 +139,58 @@ function DeviceVerificationContent() {
     return () => {
       cancelled = true;
     };
-  }, [router, userCode]);
+  }, [router, digits]);
 
   useEffect(() => {
     if (!authLoading && status !== "success") {
-      codeInputRef.current?.focus();
+      inputRefs.current[0]?.focus();
     }
   }, [authLoading, status]);
 
-  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUserCode(formatCode(e.target.value));
+  const updateDigit = (index: number, value: string) => {
+    const next = [...digits];
+    next[index] = value.toUpperCase().replace(/[^A-Z0-9]/, "") || "";
+    setDigits(next);
     setError(null);
+    if (value && index < CODE_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
   };
 
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      e.preventDefault();
+      const next = [...digits];
+      next[index - 1] = "";
+      setDigits(next);
+      setError(null);
+      inputRefs.current[index - 1]?.focus();
+    }
+    if (e.key === "ArrowLeft" && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+    if (e.key === "ArrowRight" && index < CODE_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, CODE_LENGTH);
+    const next = [...digits];
+    for (let i = 0; i < pasted.length; i++) {
+      next[i] = pasted[i];
+    }
+    setDigits(next);
+    setError(null);
+    const focusIndex = Math.min(pasted.length, CODE_LENGTH - 1);
+    inputRefs.current[focusIndex]?.focus();
+  };
+
+  const userCode = digitsToCode(digits);
   const isCodeValid = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(userCode);
 
   const handleAuthorize = async (e: React.FormEvent) => {
@@ -150,17 +202,41 @@ function DeviceVerificationContent() {
 
     const supabase = createClient();
 
-    const { data, error: lookupErr } = await (supabase
+    console.log("[OAuth Device] Looking up code:", userCode);
+
+    // Use limit(1) instead of single()/maybeSingle() to avoid 406 when no rows
+    const { data: rows, error: lookupErr } = await (supabase
       .from("oauth_device_codes") as any)
       .select("id, status, expires_at")
       .eq("user_code", userCode)
-      .single();
+      .limit(1);
 
-    const device = data as DeviceCodeRecord | null;
+    const device = (rows as DeviceCodeRecord[] | null)?.[0] ?? null;
+
+    if (lookupErr) {
+      console.error("[OAuth Device] Lookup error:", {
+        code: lookupErr.code,
+        message: lookupErr.message,
+        details: lookupErr.details,
+        status: (lookupErr as { status?: number })?.status,
+      });
+    }
+    if (!device) {
+      console.log("[OAuth Device] No device found for code:", userCode, "(rows:", rows?.length ?? 0, ")");
+    }
 
     if (lookupErr || !device) {
       setStatus("error");
-      setError("Invalid code. Please check and try again.");
+      const isSetupError =
+        lookupErr?.code === "PGRST301" ||
+        lookupErr?.message?.includes("404") ||
+        lookupErr?.message?.includes("does not exist") ||
+        lookupErr?.message?.includes("relation");
+      setError(
+        isSetupError
+          ? "Device authorization is not set up. Please run database migrations (e.g. supabase db push) or contact support."
+          : "Invalid code. Please check and try again."
+      );
       return;
     }
 
@@ -187,10 +263,17 @@ function DeviceVerificationContent() {
       .eq("id", device.id);
 
     if (updateErr) {
+      console.error("[OAuth Device] Update error:", {
+        code: updateErr.code,
+        message: updateErr.message,
+        details: updateErr.details,
+      });
       setStatus("error");
       setError("Failed to authorize device. Please try again.");
       return;
     }
+
+    console.log("[OAuth Device] Authorization successful");
 
     setStatus("success");
   };
@@ -233,24 +316,56 @@ function DeviceVerificationContent() {
           <form onSubmit={handleAuthorize} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label
-                htmlFor="user-code"
+                htmlFor="code-0"
                 className="text-sm font-medium text-neutral-700"
               >
                 Device code
               </label>
-              <Input
-                ref={codeInputRef}
-                id="user-code"
-                type="text"
-                placeholder="XXXX-XXXX"
-                value={userCode}
-                onChange={handleCodeChange}
-                maxLength={9}
-                className="h-11 border-neutral-200 bg-white text-center font-mono text-lg tracking-widest text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-300"
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-              />
+              <div
+                className="flex items-center justify-center gap-2"
+                role="group"
+                aria-label="Device code"
+              >
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <span key={i} className="flex items-center gap-2">
+                    <input
+                      ref={(el) => {
+                        inputRefs.current[i] = el;
+                      }}
+                      id={i === 0 ? "code-0" : undefined}
+                      type="text"
+                      inputMode="text"
+                      maxLength={1}
+                      value={digits[i]}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v.length <= 1) updateDigit(i, v.slice(-1));
+                      }}
+                      onKeyDown={(e) => handleKeyDown(i, e)}
+                      onPaste={handlePaste}
+                      autoComplete="off"
+                      spellCheck={false}
+                      autoFocus={i === 0}
+                      className={cn(
+                        "h-12 w-12 rounded-lg border border-neutral-200 bg-white text-center font-mono text-xl font-semibold text-neutral-900 transition-colors",
+                        "focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-200 focus:ring-offset-0",
+                        "placeholder:text-neutral-300",
+                        i === 4 && "ml-1",
+                      )}
+                      placeholder=""
+                      aria-label={`Character ${i + 1} of 8`}
+                    />
+                    {i === 3 && (
+                      <span
+                        className="text-lg font-medium text-neutral-400"
+                        aria-hidden
+                      >
+                        –
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {workspaces.length > 1 && (

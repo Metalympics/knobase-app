@@ -211,27 +211,21 @@ function PairingCodeSection({
     setError(null);
 
     try {
-      const res = await fetch("/api/oauth/device/code", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to generate device code");
+      const res = await fetch("/api/oauth/device/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(
+          errBody.error_description ?? errBody.message ?? "Failed to generate device code"
+        );
+      }
 
       const data = await res.json();
 
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error("Not authenticated");
-
-      const { error: insertError } = await (supabase as unknown as { from: (table: string) => { insert: (row: Record<string, unknown>) => Promise<{ error: { message: string } | null }> } })
-        .from("oauth_device_codes")
-        .insert({
-          device_code: data.device_code,
-          user_code: data.user_code,
-          client_id: "openclaw-cli",
-          scope: ["read", "write", "task"],
-          expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-          interval: data.interval,
-        });
-
-      if (insertError) throw new Error("Failed to store device code");
 
       const newCode: DeviceCode = {
         id: data.device_code,
@@ -249,22 +243,14 @@ function PairingCodeSection({
       onStatusChange("pending");
 
       stopPolling();
-      const pollClient = supabase as unknown as {
-        from: (table: string) => {
-          select: (cols: string) => {
-            eq: (col: string, val: string) => {
-              single: () => Promise<{ data: { user_id: string | null; access_token: string | null } | null }>
-            }
-          }
-        }
-      };
       pollRef.current = setInterval(async () => {
-        const { data: record } = await pollClient
+        const { data: rows } = await supabase
           .from("oauth_device_codes")
           .select("user_id, access_token")
           .eq("device_code", data.device_code)
-          .single();
+          .limit(1);
 
+        const record = (rows as { user_id: string | null; access_token: string | null }[] | null)?.[0] ?? null;
         if (record?.user_id) {
           stopPolling();
           onStatusChange("connected");

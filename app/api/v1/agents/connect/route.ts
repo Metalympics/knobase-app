@@ -9,6 +9,7 @@ interface DeviceCodeRecord {
   user_code: string;
   client_id: string;
   user_id: string | null;
+  school_id: string | null;
   scope: string[];
   expires_at: string;
   interval: number;
@@ -81,14 +82,20 @@ export async function POST(request: NextRequest) {
       .eq("id", record.user_id)
       .single();
 
-    if (userError || !authorizingUser?.school_id) {
+    if (userError || !authorizingUser) {
+      return NextResponse.json(
+        { error: "user_not_found", message: "Authorizing user not found" },
+        { status: 404 },
+      );
+    }
+
+    const schoolId = record.school_id ?? authorizingUser.school_id;
+    if (!schoolId) {
       return NextResponse.json(
         { error: "user_not_found", message: "Authorizing user or workspace not found" },
         { status: 404 },
       );
     }
-
-    const schoolId = authorizingUser.school_id;
     const botId = record.client_id;
 
     // Check if an agent user already exists for this bot in this workspace
