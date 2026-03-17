@@ -298,6 +298,11 @@ export default function WorkspaceDocumentPage() {
     const apiKey = localStorage.getItem("knobase-app:openclaw-apikey") ?? "";
     if (endpoint) {
       openClawBridge.configure(endpoint, apiKey);
+      // Advertise Knobase's MCP endpoint so OpenClaw can discover tools
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      if (origin) {
+        openClawBridge.setKnobaseEndpoints(`${origin}/api/mcp`, apiKey);
+      }
       openClawBridge.connect();
     }
 
@@ -399,9 +404,9 @@ export default function WorkspaceDocumentPage() {
 
   if (!activeDoc) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <main className="flex h-full flex-1 items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
-      </div>
+      </main>
     );
   }
 
@@ -622,7 +627,11 @@ export default function WorkspaceDocumentPage() {
           {rightPanel === "comments" && (
             <CommentSidebar
               documentId={docId}
+              isOpen={rightPanel === "comments"}
+              activeCommentId={null}
               onClose={() => setRightPanel("none")}
+              onCommentFocus={() => {}}
+              onCommentsChange={() => {}}
             />
           )}
 

@@ -15,6 +15,19 @@ export interface Comment {
   timestamp: string;
   replies: Comment[];
   resolved?: boolean;
+  /** ProseMirror positions for text-anchored comments */
+  selectionFrom?: number;
+  selectionTo?: number;
+  /** The quoted/selected text this comment is anchored to */
+  selectedText?: string;
+  /** Parsed @mentions found in the comment text */
+  mentions?: CommentMention[];
+}
+
+export interface CommentMention {
+  name: string;
+  type: "user" | "agent";
+  id?: string;
 }
 
 export interface Document {

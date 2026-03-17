@@ -22,6 +22,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SettingsSubNav } from "@/components/settings/settings-sub-nav";
 import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
+import { AgentFiles } from "@/components/agent/agent-files";
+
+type DetailTab = "overview" | "files" | "settings";
 
 interface AgentItem {
   id: string;
@@ -103,6 +106,7 @@ export default function AgentsPage() {
   const [revoking, setRevoking] = useState<string | null>(null);
 
   const [selectedAgent, setSelectedAgent] = useState<AgentItem | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
 
@@ -293,7 +297,7 @@ export default function AgentsPage() {
                 <Card
                   key={agent.id}
                   className="cursor-pointer gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md"
-                  onClick={() => setSelectedAgent(agent)}
+                  onClick={() => { setSelectedAgent(agent); setDetailTab("overview"); }}
                 >
                   <CardHeader className="px-5 py-4">
                     <div className="flex items-center gap-4">

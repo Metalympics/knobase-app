@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
         const { data: agentProfile, error: agentErr } = await adminClient
           .from("users")
-          .select("id, type, display_name, name, email")
+          .select("id, type, name, email")
           .eq("id", identity.user_id)
           .single();
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
         sourceId = agentProfile.id;
         sourceType = agentProfile.type === "agent" ? "agent" : "human";
-        sourceName = agentProfile.display_name || agentProfile.name || agentProfile.email || "Agent";
+        sourceName = agentProfile.name || agentProfile.email || "Agent";
       } catch (err) {
         if (err instanceof ApiKeyError) {
           return errorResponse(err.message, err.code, err.statusCode);

@@ -526,3 +526,66 @@
   color: rgb(21 128 61); /* green-700 */
   border: 1px solid rgb(187 247 208); /* green-200 */
 }
+
+/* ------------------------------------------------------------------ */
+/* Selection Agent — pulse highlight on selected blocks while agent    */
+/* is processing the selection                                         */
+/* ------------------------------------------------------------------ */
+
+@keyframes selection-agent-pulse {
+  0%, 100% {
+    background-color: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.25);
+  }
+  50% {
+    background-color: rgba(139, 92, 246, 0.16);
+    border-color: rgba(139, 92, 246, 0.45);
+  }
+}
+
+.selection-agent-highlight {
+  background-color: rgba(139, 92, 246, 0.1);
+  border-left: 2px solid rgba(139, 92, 246, 0.4);
+  border-radius: 2px;
+  padding-left: 4px;
+  margin-left: -6px;
+  transition: background-color 0.3s ease;
+}
+
+.selection-agent-highlight.processing {
+  animation: selection-agent-pulse 2s ease-in-out infinite;
+}
+
+.selection-agent-highlight-inline {
+  background-color: rgba(139, 92, 246, 0.12);
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color 0.3s ease;
+}
+
+.selection-agent-highlight-inline.processing {
+  animation: selection-agent-pulse 2s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Comment highlights — Google Docs style yellow marks on commented     */
+/* text, with a brighter variant for the active/focused comment        */
+/* ------------------------------------------------------------------ */
+
+.comment-highlight {
+  background-color: rgba(250, 204, 21, 0.20);
+  border-bottom: 2px solid rgba(250, 204, 21, 0.50);
+  border-radius: 1px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.comment-highlight:hover {
+  background-color: rgba(250, 204, 21, 0.35);
+}
+
+.comment-highlight-active {
+  background-color: rgba(250, 204, 21, 0.40);
+  border-bottom-color: rgba(234, 179, 8, 0.70);
+}

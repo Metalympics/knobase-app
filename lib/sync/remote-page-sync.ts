@@ -62,7 +62,7 @@ export async function hydratePageFromSupabase(
       .from("pages")
       .select("id, title, content_md, icon, parent_id, school_id, created_at, updated_at")
       .eq("id", pageId)
-      .single();
+      .maybeSingle();
 
     if (error || !data) return null;
 

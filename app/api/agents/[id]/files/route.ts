@@ -14,7 +14,7 @@ async function verifyAgent(
 
   const { data: existing, error } = await supabase
     .from("users")
-    .select("id, type, school_id, is_suspended")
+    .select("id, type, school_id, is_suspended, display_name, name")
     .eq("id", agentId)
     .single();
 
@@ -27,6 +27,8 @@ async function verifyAgent(
     type: string | null;
     school_id: string | null;
     is_suspended: boolean;
+    display_name: string | null;
+    name: string | null;
   };
 
   if (row.type !== "agent") {
@@ -39,13 +41,16 @@ async function verifyAgent(
     return { ok: false as const, response: apiError("Agent is suspended", "FORBIDDEN", 403) };
   }
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    agentName: row.display_name || row.name || "Agent",
+  };
 }
 
 /**
  * GET /api/agents/[id]/files
  *
- * Returns all files for the given agent.
+ * Returns all linked pages for the given agent with their titles, IDs, and filenames.
  */
 export async function GET(request: NextRequest, context: RouteContext) {
   const auth = await withAuth(request);
@@ -61,7 +66,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const { data, error } = await supabase
     .from("agent_files")
-    .select("filename, content, updated_at")
+    .select("filename, page_id, updated_at, pages!inner(id, title)")
     .eq("agent_id", agentId)
     .order("filename");
 
@@ -70,14 +75,25 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return apiError("Failed to list agent files", "INTERNAL_ERROR", 500);
   }
 
-  return apiJson({ files: data ?? [] });
+  const files = (data ?? []).map((row) => {
+    const page = row.pages as unknown as { id: string; title: string };
+    return {
+      filename: row.filename,
+      page_id: row.page_id,
+      page_title: page.title,
+      updated_at: row.updated_at,
+    };
+  });
+
+  return apiJson({ files });
 }
 
 /**
  * POST /api/agents/[id]/files
  *
- * Upsert a file for the given agent. Creates the file if it doesn't exist,
- * or updates it if a file with the same filename already exists.
+ * Creates a new Knobase page with the provided content, then links it
+ * to the agent via agent_files. If a file with the same filename already
+ * exists, the linked page's content is updated instead.
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   const auth = await withAuth(request);
@@ -108,19 +124,82 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
 
-  const { error } = await supabase
+  const { data: existingLink } = await supabase
     .from("agent_files")
-    .upsert(
-      { agent_id: agentId, filename, content, updated_at: now },
-      { onConflict: "agent_id,filename" },
-    );
+    .select("id, page_id")
+    .eq("agent_id", agentId)
+    .eq("filename", filename)
+    .maybeSingle();
 
-  if (error) {
-    console.error("[Agent Files POST] Error:", error);
-    return apiError("Failed to upsert agent file", "INTERNAL_ERROR", 500);
+  if (existingLink) {
+    const { error: updateErr } = await supabase
+      .from("pages")
+      .update({ content_md: content })
+      .eq("id", existingLink.page_id);
+
+    if (updateErr) {
+      console.error("[Agent Files POST] Page update error:", updateErr);
+      return apiError("Failed to update page content", "INTERNAL_ERROR", 500);
+    }
+
+    const { error: linkErr } = await supabase
+      .from("agent_files")
+      .update({ updated_at: now })
+      .eq("id", existingLink.id);
+
+    if (linkErr) {
+      console.error("[Agent Files POST] Link update error:", linkErr);
+    }
+
+    return apiJson({
+      success: true,
+      filename,
+      page_id: existingLink.page_id,
+      updated_at: now,
+    });
   }
 
-  return apiJson({ success: true, filename, updated_at: now }, 201);
+  const stripExt = filename.replace(/\.[^/.]+$/, "");
+  const pageTitle = `${stripExt} - ${check.agentName}`;
+
+  const { data: page, error: pageErr } = await supabase
+    .from("pages")
+    .insert({
+      school_id,
+      created_by: agentId,
+      title: pageTitle,
+      content_md: content,
+      visibility: "shared" as const,
+    })
+    .select("id")
+    .single();
+
+  if (pageErr || !page) {
+    console.error("[Agent Files POST] Page creation error:", pageErr);
+    return apiError("Failed to create page", "INTERNAL_ERROR", 500);
+  }
+
+  const { error: linkErr } = await supabase
+    .from("agent_files")
+    .insert({
+      agent_id: agentId,
+      page_id: page.id,
+      filename,
+      updated_at: now,
+    });
+
+  if (linkErr) {
+    console.error("[Agent Files POST] Link creation error:", linkErr);
+    return apiError("Failed to link page to agent", "INTERNAL_ERROR", 500);
+  }
+
+  return apiJson({
+    success: true,
+    filename,
+    page_id: page.id,
+    page_title: pageTitle,
+    updated_at: now,
+  }, 201);
 }
 
 export async function OPTIONS() {

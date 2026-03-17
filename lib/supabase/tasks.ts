@@ -133,11 +133,25 @@ export async function cancelTask(taskId: string): Promise<AgentTask> {
   });
 }
 
+/** Retry a failed task — reset to pending so the agent can pick it up again */
+export async function retryTask(taskId: string): Promise<AgentTask> {
+  return updateTask(taskId, {
+    status: "pending",
+    error_message: null,
+    current_action: null,
+    progress_percent: 0,
+    started_at: null,
+    completed_at: null,
+    last_activity_at: new Date().toISOString(),
+  });
+}
+
 /** Mark task as acknowledged (agent picked it up) */
 export async function acknowledgeTask(taskId: string): Promise<AgentTask> {
   return updateTask(taskId, {
     status: "acknowledged",
     acknowledged_at: new Date().toISOString(),
+    last_activity_at: new Date().toISOString(),
   });
 }
 
@@ -151,6 +165,7 @@ export async function startTask(
     started_at: new Date().toISOString(),
     current_action: currentAction ?? "processing",
     progress_percent: 0,
+    last_activity_at: new Date().toISOString(),
   });
 }
 
@@ -163,6 +178,7 @@ export async function updateTaskProgress(
   return updateTask(taskId, {
     progress_percent: Math.min(100, Math.max(0, percent)),
     ...(currentAction ? { current_action: currentAction } : {}),
+    last_activity_at: new Date().toISOString(),
   });
 }
 
@@ -179,6 +195,7 @@ export async function completeTask(
     current_action: null,
     result_summary: resultSummary,
     result_blocks: resultBlocks ?? null,
+    last_activity_at: new Date().toISOString(),
   });
 }
 
@@ -191,12 +208,12 @@ export async function failTask(
   const retryCount = (task?.retry_count ?? 0) + 1;
 
   if (task && retryCount <= (task.max_retries ?? 3)) {
-    // Retry: reset to pending
     return updateTask(taskId, {
       status: "pending",
       error_message: errorMessage,
       retry_count: retryCount,
       current_action: null,
+      last_activity_at: new Date().toISOString(),
     });
   }
 
@@ -206,6 +223,7 @@ export async function failTask(
     error_message: errorMessage,
     retry_count: retryCount,
     current_action: null,
+    last_activity_at: new Date().toISOString(),
   });
 }
 

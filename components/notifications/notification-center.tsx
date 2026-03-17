@@ -21,10 +21,38 @@ import {
   markAllAsRead,
   archiveNotification,
   archiveAll,
+  addNotification,
   onNotification,
   type Notification,
   type NotificationType,
 } from "@/lib/notifications/store";
+import { createClient } from "@/lib/supabase/client";
+
+/* ------------------------------------------------------------------ */
+/* Map a DB notifications row → frontend Notification                  */
+/* ------------------------------------------------------------------ */
+function dbRowToNotification(row: Record<string, unknown>): Notification {
+  const dbType = (row.type as string | null) ?? "message";
+  const typeMap: Record<string, NotificationType> = {
+    mention: "mention",
+    task: "agent-completed-task",
+    message: "mention",
+    system: "mention",
+  };
+  const actorType = (row.actor_type as string) === "agent" ? "agent" : "user";
+  return {
+    id: row.id as string,
+    type: typeMap[dbType] ?? "mention",
+    message: (row.content as string) ?? "",
+    read: (row.read as boolean) ?? false,
+    archived: false,
+    timestamp: (row.created_at as string) ?? new Date().toISOString(),
+    link: (row.link as string | undefined) ?? undefined,
+    actorName: (row.actor_name as string | undefined) ?? undefined,
+    actorType,
+    documentId: (row.document_id as string | undefined) ?? undefined,
+  };
+}
 
 interface NotificationCenterProps {
   onNavigate?: (documentId: string) => void;
@@ -74,6 +102,7 @@ export function NotificationCenter({
     setUnreadCount(getUnreadCount());
   }, []);
 
+  // In-memory listener (localStorage-based notifications from the same session)
   useEffect(() => {
     const unsub = onNotification((notif) => {
       refresh();
@@ -82,6 +111,83 @@ export function NotificationCenter({
     });
     return unsub;
   }, [refresh]);
+
+  // Supabase Realtime subscription — picks up DB-persisted notifications
+  // created by the trg_create_notification_on_mention trigger (cross-device,
+  // cross-session mentions from other users and agents).
+  useEffect(() => {
+    const supabase = createClient();
+    let userId: string | null = null;
+
+    async function setup() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      userId = user.id;
+
+      // Resolve the users.id (public profile) from auth_id
+      const { data: profile } = await supabase
+        .from("users")
+        .select("id")
+        .eq("auth_id", user.id)
+        .maybeSingle();
+
+      if (!profile?.id) return;
+      const profileId = profile.id;
+
+      // 1. Backfill: load existing unread notifications from DB that are not
+      //    already in localStorage (identified by matching DB id).
+      const { data: existing } = await supabase
+        .from("notifications")
+        .select("id, type, content, read, created_at, link, actor_name, actor_type, document_id")
+        .eq("user_id", profileId)
+        .eq("read", false)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (existing?.length) {
+        const stored = listNotifications();
+        const storedIds = new Set(stored.map((n) => n.id));
+        for (const row of existing) {
+          if (!storedIds.has(row.id as string)) {
+            // Silently add to localStorage without showing a toast (already existed)
+            addNotification(dbRowToNotification(row as Record<string, unknown>));
+          }
+        }
+        refresh();
+      }
+
+      // 2. Real-time: subscribe to new notification rows for this user
+      const channel = supabase
+        .channel(`notifications:${profileId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${profileId}`,
+          },
+          (payload) => {
+            const notif = dbRowToNotification(payload.new as Record<string, unknown>);
+            addNotification(notif);
+            // Toast is shown by the in-memory onNotification listener above
+          },
+        )
+        .subscribe();
+
+      return channel;
+    }
+
+    let channelCleanup: ReturnType<typeof supabase.channel> | null = null;
+    setup().then((ch) => {
+      if (ch) channelCleanup = ch;
+    });
+
+    return () => {
+      if (channelCleanup) supabase.removeChannel(channelCleanup);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

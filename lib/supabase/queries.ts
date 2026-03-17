@@ -195,7 +195,7 @@ export async function movePage(
       .from("pages")
       .select("school_id")
       .eq("id", pageId)
-      .single();
+      .maybeSingle();
     if (page) {
       const { data: siblings } = await supabase
         .from("pages")
@@ -237,7 +237,7 @@ export async function getPageById(pageId: string) {
     .from("pages")
     .select("*, users:created_by(id, name, avatar_url), schools:school_id(*)")
     .eq("id", pageId)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
   return data;
@@ -329,7 +329,7 @@ export async function canAccessDocument(userId: string, pageId: string) {
     .from("users")
     .select("school_id")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   if (!user?.school_id) return false;
 
@@ -337,7 +337,7 @@ export async function canAccessDocument(userId: string, pageId: string) {
     .from("pages")
     .select("school_id, visibility")
     .eq("id", pageId)
-    .single();
+    .maybeSingle();
 
   if (!page) return false;
   if (page.school_id === user.school_id) return true;
@@ -353,7 +353,7 @@ export async function canEditDocument(userId: string, pageId: string) {
     .from("users")
     .select("school_id, role_id")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   if (!user?.school_id) return false;
 
@@ -361,7 +361,7 @@ export async function canEditDocument(userId: string, pageId: string) {
     .from("pages")
     .select("school_id, created_by")
     .eq("id", pageId)
-    .single();
+    .maybeSingle();
 
   if (!page || page.school_id !== user.school_id) return false;
   if (page.created_by === userId) return true;

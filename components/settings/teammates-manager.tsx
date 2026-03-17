@@ -13,14 +13,15 @@ import {
   AlertCircle,
   Check,
   Loader2,
+  UserPlus,
 } from "lucide-react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
+import { InviteModal } from "@/components/invitation/invite-modal";
 
 /* ------------------------------------------------------------------ */
 /* Types & Constants                                                    */
@@ -102,6 +103,7 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
   const [filter, setFilter] = useState<"all" | "human" | "agent">("all");
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
   const [roleSuccessId, setRoleSuccessId] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const fetchTeammates = useCallback(async () => {
     if (!workspaceId) return;
@@ -245,6 +247,14 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
+
+          <button
+            onClick={() => setInviteOpen(true)}
+            className="flex items-center gap-1.5 rounded-full bg-purple-600 px-3.5 py-1.5 text-[11px] font-medium text-white shadow-sm transition-colors hover:bg-purple-700"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Invite
+          </button>
         </div>
       </div>
 
@@ -282,12 +292,20 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
             {filter === "all" ? "No teammates yet" : `No ${filter}s yet`}
           </h3>
           <p className="mt-1 text-xs text-neutral-500">
-            Invite teammates from the document page using the Invite button.
+            Add humans or connect agents to collaborate in this workspace.
           </p>
+          <button
+            onClick={() => setInviteOpen(true)}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-purple-700"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Invite teammate
+          </button>
         </div>
       )}
 
       {/* Teammate list */}
+      {filteredTeammates.length > 0 && (
       <div className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <AnimatePresence initial={false}>
           {filteredTeammates.map((teammate) => {
@@ -380,8 +398,8 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
                   )}
                 </div>
 
-                {/* Role selector — fixed width, no layout shift */}
-                <div className="w-[90px] shrink-0">
+                {/* Role selector */}
+                <div className="w-[110px] shrink-0">
                   {isChanging ? (
                     <div className="flex h-8 items-center justify-center gap-1.5">
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-neutral-400" />
@@ -400,20 +418,20 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
                         size="sm"
                         className="h-8 w-full border-transparent bg-transparent px-2 text-xs font-medium shadow-none hover:border-neutral-200 hover:bg-white data-[state=open]:border-neutral-200 data-[state=open]:bg-white"
                       >
-                        <span className="flex items-center gap-1.5 overflow-hidden">
+                        <span className="flex items-center gap-1.5">
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${roleConfig.dot}`} />
-                          <SelectValue />
+                          <span className={roleConfig.color}>{roleConfig.label}</span>
                         </span>
                       </SelectTrigger>
                       <SelectContent align="end">
                         {(Object.entries(ROLE_CONFIG) as [Role, typeof roleConfig][]).map(
                           ([key, cfg]) => (
-                            <SelectItem key={key} value={key} textValue={cfg.label}>
+                            <SelectItem key={key} value={key}>
                               <span className="flex items-center gap-2">
                                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
                                 <span className="font-medium">{cfg.label}</span>
                                 <span className="text-[11px] text-neutral-400">
-                                  — {cfg.description}
+                                  {cfg.description}
                                 </span>
                               </span>
                             </SelectItem>
@@ -437,6 +455,15 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
           })}
         </AnimatePresence>
       </div>
+      )}
+
+      {workspaceId && (
+        <InviteModal
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          workspaceId={workspaceId}
+        />
+      )}
     </div>
   );
 }

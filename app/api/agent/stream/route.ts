@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 
 /**
  * SSE streaming endpoint for OpenClaw agent responses.
@@ -21,6 +22,35 @@ import { NextRequest, NextResponse } from "next/server";
  */
 
 export const runtime = "edge";
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createSupabaseAdmin(url, key);
+}
+
+type TaskStatus = "pending" | "acknowledged" | "working" | "completed" | "failed" | "cancelled";
+const TERMINAL_STATUSES: TaskStatus[] = ["completed", "failed", "cancelled"];
+
+async function updateTaskStatus(
+  taskId: string,
+  status: TaskStatus,
+  extra: Record<string, unknown> = {},
+) {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data: task } = await sb
+    .from("agent_tasks")
+    .select("status")
+    .eq("id", taskId)
+    .single();
+  if (task && TERMINAL_STATUSES.includes(task.status as TaskStatus)) return;
+  await sb
+    .from("agent_tasks")
+    .update({ status, last_activity_at: new Date().toISOString(), ...extra })
+    .eq("id", taskId);
+}
 
 export async function POST(request: NextRequest) {
   let body: {
@@ -52,6 +82,14 @@ export async function POST(request: NextRequest) {
   const openclawEndpoint = body.openclawEndpoint;
   const openclawApiKey = body.openclawApiKey;
 
+  // Derive the public base URL so OpenClaw can call back
+  const origin =
+    request.headers.get("x-forwarded-proto") && request.headers.get("host")
+      ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("host")}`
+      : request.nextUrl.origin;
+  const callbackUrl = `${origin}/api/v1/agents/tasks/${taskId}`;
+  const mcpEndpoint = `${origin}/api/mcp`;
+
   const encoder = new TextEncoder();
 
   function sendEvent(
@@ -66,23 +104,48 @@ export async function POST(request: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      // If we have an OpenClaw endpoint, proxy the real stream
+      // Server-side fallback: mark the task as working before streaming begins.
+      // If OpenClaw or the browser already updated the status, this is a safe no-op
+      // because updateTaskStatus checks for terminal statuses.
+      await updateTaskStatus(taskId, "working", {
+        started_at: new Date().toISOString(),
+        current_action: "processing",
+      }).catch(() => {});
+
+      let streamResult = "";
+      let streamError: string | null = null;
+
       if (openclawEndpoint) {
         try {
-          await streamFromOpenClaw(
+          streamResult = await streamFromOpenClaw(
             controller,
             sendEvent,
             openclawEndpoint,
             openclawApiKey ?? "",
-            { taskId, prompt, documentId, documentTitle, agentId, context },
+            { taskId, prompt, documentId, documentTitle, agentId, context, callbackUrl, mcpEndpoint },
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : "OpenClaw stream failed";
+          streamError = msg;
           sendEvent(controller, "error", { message: msg });
         }
       } else {
-        // Fallback: local demo stream so frontend works without OpenClaw
-        await streamLocalDemo(controller, sendEvent, prompt, taskId);
+        streamResult = await streamLocalDemo(controller, sendEvent, prompt, taskId);
+      }
+
+      // Server-side fallback: mark complete or failed after stream ends.
+      if (streamError) {
+        await updateTaskStatus(taskId, "failed", {
+          error_message: streamError,
+          completed_at: new Date().toISOString(),
+        }).catch(() => {});
+      } else {
+        await updateTaskStatus(taskId, "completed", {
+          completed_at: new Date().toISOString(),
+          progress_percent: 100,
+          current_action: null,
+          result_summary: streamResult.slice(0, 500) || null,
+        }).catch(() => {});
       }
 
       controller.close();
@@ -119,8 +182,10 @@ async function streamFromOpenClaw(
     documentTitle?: string;
     agentId?: string;
     context?: string;
+    callbackUrl: string;
+    mcpEndpoint: string;
   },
-) {
+): Promise<string> {
   sendEvent(controller, "status", { status: "connecting" });
 
   const res = await fetch(endpoint, {
@@ -137,12 +202,16 @@ async function streamFromOpenClaw(
       params: {
         name: "agent_respond",
         arguments: {
+          taskId: params.taskId,
           prompt: params.prompt,
           documentId: params.documentId,
           documentTitle: params.documentTitle,
           agentId: params.agentId,
           context: params.context,
           stream: true,
+          callbackUrl: params.callbackUrl,
+          mcpEndpoint: params.mcpEndpoint,
+          apiKey: apiKey || undefined,
         },
       },
     }),
@@ -150,15 +219,15 @@ async function streamFromOpenClaw(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "Unknown error");
-    sendEvent(controller, "error", {
-      message: `OpenClaw returned ${res.status}: ${errorText}`,
-    });
-    return;
+    const msg = `OpenClaw returned ${res.status}: ${errorText}`;
+    sendEvent(controller, "error", { message: msg });
+    throw new Error(msg);
   }
 
   if (!res.body) {
-    sendEvent(controller, "error", { message: "No response body from OpenClaw" });
-    return;
+    const msg = "No response body from OpenClaw";
+    sendEvent(controller, "error", { message: msg });
+    throw new Error(msg);
   }
 
   sendEvent(controller, "status", { status: "responding" });
@@ -202,10 +271,9 @@ async function streamFromOpenClaw(
           } else if (data.type === "done" || data.type === "complete") {
             fullText = data.result ?? data.content ?? fullText;
           } else if (data.type === "error") {
-            sendEvent(controller, "error", {
-              message: data.message ?? "Unknown error",
-            });
-            return;
+            const errMsg = data.message ?? "Unknown error";
+            sendEvent(controller, "error", { message: errMsg });
+            throw new Error(errMsg as string);
           }
         } catch {
           // Non-JSON data line — treat as raw text delta
@@ -220,6 +288,7 @@ async function streamFromOpenClaw(
   }
 
   sendEvent(controller, "done", { result: fullText });
+  return fullText;
 }
 
 /* ------------------------------------------------------------------ */
@@ -235,7 +304,7 @@ async function streamLocalDemo(
   ) => void,
   prompt: string,
   taskId: string,
-) {
+): Promise<string> {
   sendEvent(controller, "status", { status: "thinking" });
   await sleep(400);
 
@@ -257,6 +326,7 @@ async function streamLocalDemo(
   }
 
   sendEvent(controller, "done", { result: fullText });
+  return fullText;
 }
 
 function generateDemoResponse(prompt: string): string {

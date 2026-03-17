@@ -6,8 +6,7 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
-  Save,
-  X,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,40 +16,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 interface AgentFile {
   filename: string;
-  content: string;
+  page_id: string;
+  page_title: string;
   updated_at: string;
 }
 
 interface AgentFilesProps {
   agentId: string;
   apiKey: string;
-}
-
-function formatFileSize(content: string): string {
-  const bytes = new TextEncoder().encode(content).length;
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatTimestamp(iso: string): string {
@@ -70,11 +47,6 @@ export function AgentFiles({ agentId, apiKey }: AgentFilesProps) {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
-
-  const [selectedFile, setSelectedFile] = useState<AgentFile | null>(null);
-  const [editContent, setEditContent] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   const authHeaders = useCallback(
     (): Record<string, string> => ({
@@ -143,189 +115,97 @@ export function AgentFiles({ agentId, apiKey }: AgentFilesProps) {
     }
   }, [agentId, apiKey, files, authHeaders, fetchFiles]);
 
-  const openFile = useCallback((file: AgentFile) => {
-    setSelectedFile(file);
-    setEditContent(file.content);
-    setSaveError(null);
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    if (!selectedFile) return;
-    setSaving(true);
-    setSaveError(null);
-
-    try {
-      const res = await fetch(`/api/agents/${agentId}/files`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          filename: selectedFile.filename,
-          content: editContent,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? `Save failed (${res.status})`);
-      }
-
-      setSelectedFile(null);
-      await fetchFiles();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  }, [agentId, selectedFile, editContent, authHeaders, fetchFiles]);
-
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="size-4" />
-                Agent Files
-              </CardTitle>
-              <CardDescription>
-                Files stored in this agent&apos;s cloud workspace
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              {syncResult && (
-                <Badge variant="secondary" className="text-xs">
-                  {syncResult}
-                </Badge>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSync}
-                disabled={syncing || loading}
-              >
-                {syncing ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                Sync
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading files...</span>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <AlertCircle className="size-8 text-destructive/60" />
-              <p className="text-sm text-destructive">{error}</p>
-              <Button variant="outline" size="sm" onClick={fetchFiles}>
-                Retry
-              </Button>
-            </div>
-          ) : files.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-              <FileText className="size-8 opacity-40" />
-              <p className="text-sm">No files yet</p>
-              <p className="text-xs">Files will appear here once the agent creates them.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Filename</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Last Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {files.map((file) => (
-                  <TableRow
-                    key={file.filename}
-                    className="cursor-pointer"
-                    onClick={() => openFile(file)}
-                  >
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <FileText className="size-4 shrink-0 text-muted-foreground" />
-                        {file.filename}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatFileSize(file.content)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatTimestamp(file.updated_at)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog
-        open={!!selectedFile}
-        onOpenChange={(open) => {
-          if (!open) setSelectedFile(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
               <FileText className="size-4" />
-              {selectedFile?.filename}
-            </DialogTitle>
-            <DialogDescription>
-              Last updated {selectedFile ? formatTimestamp(selectedFile.updated_at) : ""}
-              {" \u00b7 "}
-              {selectedFile ? formatFileSize(selectedFile.content) : ""}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 min-h-0">
-            <textarea
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              className="h-[400px] w-full resize-none rounded-md border bg-muted/30 px-4 py-3 font-mono text-sm leading-relaxed outline-none focus:border-ring focus:ring-1 focus:ring-ring/50"
-              spellCheck={false}
-            />
+              Agent Files
+            </CardTitle>
+            <CardDescription>
+              Knobase pages linked to this agent
+            </CardDescription>
           </div>
-
-          {saveError && (
-            <p className="text-sm text-destructive">{saveError}</p>
-          )}
-
-          <DialogFooter>
+          <div className="flex items-center gap-2">
+            {syncResult && (
+              <Badge variant="secondary" className="text-xs">
+                {syncResult}
+              </Badge>
+            )}
             <Button
               variant="outline"
-              onClick={() => setSelectedFile(null)}
-              disabled={saving}
+              size="sm"
+              onClick={handleSync}
+              disabled={syncing || loading}
             >
-              <X className="size-4" />
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving || editContent === selectedFile?.content}
-            >
-              {saving ? (
+              {syncing ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                <Save className="size-4" />
+                <RefreshCw className="size-4" />
               )}
-              Save
+              Sync
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading files...</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-12">
+            <AlertCircle className="size-8 text-destructive/60" />
+            <p className="text-sm text-destructive">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchFiles}>
+              Retry
+            </Button>
+          </div>
+        ) : files.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
+            <FileText className="size-8 opacity-40" />
+            <p className="text-sm">No files yet</p>
+            <p className="text-xs">Files will appear here once the agent creates them.</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {files.map((file) => (
+              <li key={file.page_id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                <div className="flex items-start gap-3 min-w-0">
+                  <FileText className="size-4 mt-0.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {file.page_title}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                        {file.filename}
+                      </Badge>
+                      <span>&middot;</span>
+                      <span>{formatTimestamp(file.updated_at)}</span>
+                    </div>
+                  </div>
+                </div>
+                <a
+                  href={`/d/${file.page_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0"
+                >
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                    <ExternalLink className="size-3.5" />
+                    Open
+                  </Button>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }

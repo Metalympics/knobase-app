@@ -24,7 +24,7 @@ export function BacklinksPanel({ documentId, onNavigate }: BacklinksPanelProps) 
             Linked References ({backlinks.length})
           </h3>
           <div className="space-y-2">
-            {backlinks.map((bl) => (
+            {backlinks.filter((bl) => bl?.doc?.id).map((bl) => (
               <button
                 key={bl.doc.id}
                 onClick={() => onNavigate(bl.doc.id)}
@@ -33,7 +33,7 @@ export function BacklinksPanel({ documentId, onNavigate }: BacklinksPanelProps) 
                 <FileText className="mt-0.5 h-4 w-4 shrink-0 text-neutral-400" />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-neutral-900">
-                    {bl.doc.title || "Untitled"}
+                    {bl.doc?.title || "Untitled"}
                   </div>
                   {bl.context && (
                     <div className="mt-0.5 truncate text-xs text-neutral-400">

@@ -70,6 +70,7 @@ export function syncWorkspaceStructure() {
       status: a.status,
       capabilities: a.capabilities,
     })),
+    mcpEndpoint: openClawBridge.mcpEndpoint || undefined,
     timestamp: new Date().toISOString(),
   });
 }

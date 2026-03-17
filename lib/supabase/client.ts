@@ -140,6 +140,8 @@ export type Database = {
           logo_url: string | null;
           icon: string | null;
           color: string | null;
+          custom_domain: string | null;
+          is_public_workspace: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -154,6 +156,8 @@ export type Database = {
           logo_url?: string | null;
           icon?: string | null;
           color?: string | null;
+          custom_domain?: string | null;
+          is_public_workspace?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -168,6 +172,8 @@ export type Database = {
           logo_url?: string | null;
           icon?: string | null;
           color?: string | null;
+          custom_domain?: string | null;
+          is_public_workspace?: boolean;
           updated_at?: string;
         };
         Relationships: [];
@@ -272,6 +278,8 @@ export type Database = {
           visibility: "private" | "shared" | "public";
           position: number;
           depth: number;
+          is_public: boolean;
+          public_slug: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -285,6 +293,8 @@ export type Database = {
           icon?: string | null;
           created_by: string;
           visibility?: "private" | "shared" | "public";
+          is_public?: boolean;
+          public_slug?: string | null;
           position?: number;
           depth?: number;
           created_at?: string;
@@ -297,6 +307,8 @@ export type Database = {
           content_json?: Record<string, unknown> | null;
           icon?: string | null;
           visibility?: "private" | "shared" | "public";
+          is_public?: boolean;
+          public_slug?: string | null;
           position?: number;
           depth?: number;
         };
@@ -367,6 +379,7 @@ export type Database = {
           retry_count: number;
           max_retries: number;
           visibility: "private" | "collaborators" | "public";
+          last_activity_at: string;
         };
         Insert: {
           id?: string;
@@ -403,6 +416,7 @@ export type Database = {
           error_message?: string | null;
           retry_count?: number;
           visibility?: "private" | "collaborators" | "public";
+          last_activity_at?: string;
         };
         Relationships: [];
       };
@@ -528,6 +542,29 @@ export type Database = {
           decided_by?: string | null;
           decided_at?: string | null;
           modified_content?: Record<string, unknown> | null;
+        };
+        Relationships: [];
+      };
+      agent_files: {
+        Row: {
+          id: string;
+          agent_id: string;
+          page_id: string;
+          filename: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          agent_id: string;
+          page_id: string;
+          filename: string;
+          updated_at?: string;
+        };
+        Update: {
+          agent_id?: string;
+          page_id?: string;
+          filename?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

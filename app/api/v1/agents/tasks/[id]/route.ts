@@ -61,7 +61,6 @@ export async function PATCH(
 
   const supabase = getSupabaseAdmin();
 
-  // Only allow specific fields to be updated
   const allowedFields = [
     "progress_percent",
     "current_action",
@@ -78,6 +77,9 @@ export async function PATCH(
   if (Object.keys(update).length === 0) {
     return apiError("No valid fields to update", "INVALID_BODY", 400);
   }
+
+  // Always bump last_activity_at so the UI can track agent liveness
+  update.last_activity_at = new Date().toISOString();
 
   const { data: task, error } = await supabase
     .from("agent_tasks")
@@ -123,6 +125,7 @@ export async function POST(
       current_action: null,
       result_summary: (body.result_summary as string) ?? null,
       result_blocks: (body.result_blocks as string[]) ?? null,
+      last_activity_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()

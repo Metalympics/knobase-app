@@ -214,7 +214,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 
     supabase
       .from("users")
-      .select("id, name, display_name, avatar_url")
+      .select("id, name, avatar_url")
       .eq("type", "agent")
       .eq("school_id", workspace.id)
       .eq("is_deleted", false)
@@ -226,7 +226,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         setWorkspaceAgents(
           data.map((a, i) => ({
             id: a.id,
-            name: a.display_name ?? a.name ?? "Agent",
+            name: a.name ?? "Agent",
             color: AGENT_COLORS[i % AGENT_COLORS.length],
             isAgent: true,
           })),

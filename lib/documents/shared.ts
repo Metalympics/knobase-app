@@ -208,7 +208,7 @@ export async function checkDocumentAccess(
 
   if (permData) {
     const role = permData.permission === "full" ? "admin" : permData.permission === "edit" ? "editor" : "viewer";
-    const { data: pg } = await supabase.from("pages").select("school_id").eq("id", documentId).single();
+    const { data: pg } = await supabase.from("pages").select("school_id").eq("id", documentId).maybeSingle();
     return { hasAccess: true, role, workspaceId: pg?.school_id };
   }
 
@@ -217,7 +217,7 @@ export async function checkDocumentAccess(
     .from("pages")
     .select("school_id, visibility")
     .eq("id", documentId)
-    .single();
+    .maybeSingle();
 
   if (!pageData) return { hasAccess: false };
 

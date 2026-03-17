@@ -25,7 +25,8 @@ export interface DocumentGraph {
 
 const WIKILINK_REGEX = /\[\[([^\]]+)\]\]/g;
 
-export function parseWikilinks(content: string): string[] {
+export function parseWikilinks(content: string | undefined): string[] {
+  if (content == null || typeof content !== "string") return [];
   const matches: string[] = [];
   let match: RegExpExecArray | null;
   const re = new RegExp(WIKILINK_REGEX.source, "g");
@@ -47,9 +48,10 @@ export function getBacklinks(documentId: string): { doc: DocumentMeta; context: 
     const doc = getDocument(meta.id);
     if (!doc) continue;
 
-    const links = parseWikilinks(doc.content);
+    const content = doc.content ?? "";
+    const links = parseWikilinks(content);
     if (links.some((l) => l.toLowerCase() === target.title.toLowerCase())) {
-      const lines = doc.content.split("\n");
+      const lines = content.split("\n");
       const contextLine = lines.find((line) =>
         line.toLowerCase().includes(`[[${target.title.toLowerCase()}]]`)
       );
@@ -68,7 +70,7 @@ export function getOutgoingLinks(documentId: string): { title: string; targetId:
   if (!doc) return [];
 
   const allDocs = listDocuments();
-  const titles = parseWikilinks(doc.content);
+  const titles = parseWikilinks(doc.content ?? "");
   const unique = [...new Set(titles)];
 
   return unique.map((title) => {
@@ -88,7 +90,7 @@ export function buildDocumentGraph(): DocumentGraph {
     const doc = getDocument(meta.id);
     if (!doc) continue;
 
-    const links = parseWikilinks(doc.content);
+    const links = parseWikilinks(doc.content ?? "");
     for (const linkTitle of links) {
       const target = allDocs.find(
         (d) => d.title.toLowerCase() === linkTitle.toLowerCase()

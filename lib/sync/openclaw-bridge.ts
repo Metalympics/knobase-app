@@ -30,6 +30,8 @@ class OpenClawBridge {
   private status: OpenClawConnectionStatus = "disconnected";
   private endpoint: string = "";
   private apiKey: string = "";
+  private knobaseMcpEndpoint: string = "";
+  private knobaseApiKey: string = "";
   private statusListeners = new Set<StatusListener>();
   private commandListeners = new Set<CommandListener>();
   private awarenessListeners = new Set<AwarenessListener>();
@@ -45,9 +47,22 @@ class OpenClawBridge {
     return this.status === "connected";
   }
 
+  get mcpEndpoint(): string {
+    return this.knobaseMcpEndpoint;
+  }
+
   configure(endpoint: string, apiKey: string) {
     this.endpoint = endpoint;
     this.apiKey = apiKey;
+  }
+
+  /**
+   * Tell the bridge the Knobase MCP endpoint and API key so they can
+   * be advertised to OpenClaw during context syncs.
+   */
+  setKnobaseEndpoints(mcpEndpoint: string, apiKey: string) {
+    this.knobaseMcpEndpoint = mcpEndpoint;
+    this.knobaseApiKey = apiKey;
   }
 
   connect() {
@@ -73,6 +88,7 @@ class OpenClawBridge {
       this.eventSource.onopen = () => {
         this.reconnectAttempts = 0;
         this.setStatus("connected");
+        this.advertiseKnobaseEndpoints();
       };
 
       this.eventSource.onmessage = (event) => {
@@ -135,6 +151,17 @@ class OpenClawBridge {
   async sendContextSync(context: Record<string, unknown>) {
     if (!this.endpoint) return;
 
+    // Inject MCP connection info so OpenClaw knows how to reach Knobase
+    const enrichedContext = {
+      ...context,
+      ...(this.knobaseMcpEndpoint && {
+        knobase_mcp_endpoint: this.knobaseMcpEndpoint,
+      }),
+      ...(this.knobaseApiKey && {
+        knobase_api_key: this.knobaseApiKey,
+      }),
+    };
+
     try {
       await fetch(this.endpoint, {
         method: "POST",
@@ -146,12 +173,27 @@ class OpenClawBridge {
           jsonrpc: "2.0",
           id: `ctx-${Date.now()}`,
           method: "resources/read",
-          params: { uri: "workspace://info", context },
+          params: { uri: "workspace://info", context: enrichedContext },
         }),
       });
     } catch {
       // silent fail
     }
+  }
+
+  /**
+   * Send a one-time handshake after connection to let OpenClaw know
+   * the Knobase MCP endpoint and API key for this session.
+   */
+  private async advertiseKnobaseEndpoints() {
+    if (!this.knobaseMcpEndpoint) return;
+
+    await this.sendContextSync({
+      type: "knobase_handshake",
+      mcp_endpoint: this.knobaseMcpEndpoint,
+      api_key: this.knobaseApiKey || undefined,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   onStatusChange(listener: StatusListener): () => void {

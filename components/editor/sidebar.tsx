@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,10 +18,10 @@ import {
   Share2,
   Building2,
   ChevronDown,
+  Clock,
 } from "lucide-react";
 import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
-import { CollectionSidebar } from "@/components/collections/collection-sidebar";
 import { TaskStatusPanel } from "@/components/sidebar/task-status-panel";
 import type { Workspace } from "@/lib/schools/types";
 import {
@@ -29,6 +29,7 @@ import {
   getSubscription,
 } from "@/lib/subscription/store";
 import { getSharedDocuments, type SharedDocument } from "@/lib/documents/shared";
+import { createClient } from "@/lib/supabase/client";
 
 interface PresenceUser {
   id: string;
@@ -36,6 +37,13 @@ interface PresenceUser {
   color: string;
   avatar?: string;
   isAgent?: boolean;
+}
+
+interface RecentPage {
+  id: string;
+  title: string;
+  icon: string | null;
+  updated_at: string;
 }
 
 interface SidebarProps {
@@ -56,6 +64,18 @@ interface SidebarProps {
     selection?: { from: number; to: number },
   ) => void;
   onlineUsers?: PresenceUser[];
+}
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function DocTreeItem({
@@ -143,6 +163,48 @@ function DocTreeItem({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Section header with collapsible toggle                              */
+/* ------------------------------------------------------------------ */
+function SectionHeader({
+  label,
+  icon,
+  count,
+  expanded,
+  onToggle,
+  action,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  count?: number;
+  expanded: boolean;
+  onToggle: () => void;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between px-3 pt-3 pb-1">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1.5 text-left"
+      >
+        <ChevronDown
+          className={`h-3 w-3 text-neutral-400 transition-transform ${expanded ? "" : "-rotate-90"}`}
+        />
+        <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+          {icon}
+          {label}
+        </span>
+        {count !== undefined && count > 0 && (
+          <span className="rounded-full bg-neutral-100 px-1.5 text-[10px] font-medium text-neutral-500">
+            {count}
+          </span>
+        )}
+      </button>
+      {action}
+    </div>
+  );
+}
+
 export function Sidebar({
   workspaceName,
   documents,
@@ -159,29 +221,49 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  
-  // State for shared documents
-  const [sharedDocs, setSharedDocs] = useState<SharedDocument[]>([]);
-  const [sharedDocsExpanded, setSharedDocsExpanded] = useState(true);
-  const [loadingShared, setLoadingShared] = useState(false);
 
-  // Fetch shared documents
+  // Section expand/collapse state
+  const [recentExpanded, setRecentExpanded] = useState(true);
+  const [sharedExpanded, setSharedExpanded] = useState(true);
+  const [myPagesExpanded, setMyPagesExpanded] = useState(true);
+
+  // Recent pages from Supabase
+  const [recentPages, setRecentPages] = useState<RecentPage[]>([]);
   useEffect(() => {
-    async function loadSharedDocuments() {
-      if (!workspace) return;
-      
-      setLoadingShared(true);
-      try {
-        const docs = await getSharedDocuments(workspace.id);
-        setSharedDocs(docs);
-      } catch (error) {
-        console.error("Failed to load shared documents:", error);
-      } finally {
-        setLoadingShared(false);
-      }
-    }
-    
-    loadSharedDocuments();
+    if (!workspace) return;
+    let cancelled = false;
+    const supabase = createClient();
+
+    supabase
+      .from("pages")
+      .select("id, title, icon, updated_at")
+      .eq("school_id", workspace.id)
+      .order("updated_at", { ascending: false })
+      .limit(5)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setRecentPages(data as RecentPage[]);
+      });
+
+    return () => { cancelled = true; };
+  }, [workspace?.id]);
+
+  // Shared documents from other workspaces
+  const [sharedDocs, setSharedDocs] = useState<SharedDocument[]>([]);
+  const [loadingShared, setLoadingShared] = useState(false);
+  useEffect(() => {
+    if (!workspace) return;
+    let cancelled = false;
+    setLoadingShared(true);
+
+    getSharedDocuments(workspace.id)
+      .then((docs) => {
+        if (!cancelled) setSharedDocs(docs);
+      })
+      .catch((err) => console.error("Failed to load shared documents:", err))
+      .finally(() => { if (!cancelled) setLoadingShared(false); });
+
+    return () => { cancelled = true; };
   }, [workspace?.id]);
 
   const docLimit = workspace ? getDocumentLimitInfo(workspace.id) : null;
@@ -191,8 +273,21 @@ export function Sidebar({
   const isNearLimit = docLimit && !isUnlimited && docLimit.percentage >= 80;
   const isAtLimit = docLimit?.isAtLimit ?? false;
 
+  const handleSelectRecent = useCallback(
+    (pageId: string) => {
+      if (workspace) {
+        router.push(`/s/${workspace.id}/d/${pageId}`);
+      }
+    },
+    [router, workspace],
+  );
+
   return (
-    <aside data-tutorial="sidebar" className="flex h-screen w-60 shrink-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa] [&_a]:cursor-pointer [&_button]:cursor-pointer">
+    <aside
+      data-tutorial="sidebar"
+      className="flex h-screen w-60 shrink-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa] [&_a]:cursor-pointer [&_button]:cursor-pointer"
+    >
+      {/* ── Top: workspace switcher ── */}
       <div className="flex items-center gap-2 border-b border-[#e5e5e5] px-4 py-3">
         {workspace ? (
           <WorkspaceSwitcher
@@ -217,6 +312,7 @@ export function Sidebar({
         )}
       </div>
 
+      {/* ── Quick actions ── */}
       <div className="flex flex-col gap-0.5 px-2 py-2">
         <button
           onClick={onSearch}
@@ -258,147 +354,190 @@ export function Sidebar({
           <Store className="h-4 w-4" />
           Marketplace
         </button>
-        <button
-          onClick={() => router.push("/pricing")}
-          className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
-        >
-          <Crown className="h-4 w-4" />
-          Plans & Billing
-        </button>
       </div>
 
-      {/* Collections */}
-      <CollectionSidebar
-        activeDocumentId={activeId}
-        onSelectDocument={onSelect}
-        documents={documents.map((d) => ({ id: d.id, title: d.title }))}
-      />
-
-      {/* Shared Documents */}
-      {sharedDocs.length > 0 && (
-        <div className="border-t border-[#e5e5e5] px-2 py-2">
-          <button
-            onClick={() => setSharedDocsExpanded(!sharedDocsExpanded)}
-            className="flex w-full items-center justify-between px-2 py-1.5 text-left"
-          >
-            <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
-              <Share2 className="h-3.5 w-3.5" />
-              Shared with me
-            </span>
-            <ChevronDown
-              className={`h-3.5 w-3.5 text-neutral-400 transition-transform ${
-                sharedDocsExpanded ? "" : "-rotate-90"
-              }`}
-            />
-          </button>
-          
-          {sharedDocsExpanded && (
-            <div className="mt-1 space-y-0.5">
-              {sharedDocs.map((doc) => (
-                <button
-                  key={doc.id}
-                  onClick={() => router.push(`/d/${doc.id}`)}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
-                    pathname === `/d/${doc.id}`
-                      ? "bg-neutral-100 font-medium text-neutral-900"
-                      : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
-                  }`}
-                >
-                  <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                  <div className="flex min-w-0 flex-1 flex-col items-start">
-                    <span className="truncate text-sm">{doc.title || "Untitled"}</span>
-                    <span className="flex items-center gap-1 text-[10px] text-neutral-400">
-                      <Building2 className="h-2.5 w-2.5" />
-                      {doc.workspaceName}
-                    </span>
-                  </div>
-                  {doc.role === "editor" && (
-                    <span className="text-[9px] rounded bg-blue-100 px-1.5 py-0.5 text-blue-600">
-                      Can edit
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Online presence */}
+      {/* ── Online presence ── */}
       {onlineUsers.length > 0 && (
         <div className="border-t border-[#e5e5e5] px-3 py-2">
           <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
             Online — {onlineUsers.length}
           </span>
-          <div className="mt-2 space-y-1">
+          <div className="mt-1.5 flex flex-wrap gap-1">
             {onlineUsers.map((u) => (
-              <div key={u.id} className="flex items-center gap-2 rounded-md px-1.5 py-1">
-                <div className="relative">
-                  <div
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                    style={{ backgroundColor: u.color }}
-                  >
-                    {u.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#fafafa] bg-emerald-400" />
+              <div
+                key={u.id}
+                className="relative"
+                title={`${u.name}${u.isAgent ? " (Agent)" : ""}`}
+              >
+                <div
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                  style={{ backgroundColor: u.color }}
+                >
+                  {u.name.charAt(0).toUpperCase()}
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="truncate text-xs font-medium text-neutral-700">{u.name}</span>
-                  {u.isAgent && (
-                    <span className="text-[9px] text-neutral-400">Agent</span>
-                  )}
-                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-[1.5px] border-[#fafafa] bg-emerald-400" />
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Agent Tasks */}
+      {/* ── Agent Tasks ── */}
       <TaskStatusPanel onNavigateToTask={onNavigateToTask} />
 
-      <div className="flex items-center justify-between px-4 pt-4 pb-1">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
-          Documents
-        </span>
-        {isAtLimit ? (
-          <button
-            onClick={() => router.push("/pricing")}
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-600 transition-colors hover:bg-amber-50"
-            aria-label="Upgrade to add more documents"
-            title="Document limit reached — upgrade to add more"
-          >
-            <Crown className="h-3 w-3" />
-            Upgrade
-          </button>
-        ) : (
-          <button
-            data-tutorial="new-document"
-            onClick={onAdd}
-            className="rounded p-0.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-            aria-label="Add document"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ── Scrollable pages area ──                                    */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="flex-1 overflow-y-auto border-t border-[#e5e5e5]">
 
-      <div className="flex-1 overflow-y-auto px-1">
-        {documents
-          .filter((doc) => !doc.parentId)
-          .map((doc) => (
-            <DocTreeItem
-              key={doc.id}
-              doc={doc}
-              allDocs={documents}
-              activeId={activeId}
-              onSelect={onSelect}
-              onDelete={onDelete}
+        {/* ── Recent ── */}
+        {recentPages.length > 0 && (
+          <div>
+            <SectionHeader
+              label="Recent"
+              icon={<Clock className="h-3 w-3" />}
+              expanded={recentExpanded}
+              onToggle={() => setRecentExpanded((p) => !p)}
             />
-          ))}
+            {recentExpanded && (
+              <div className="px-2 pb-1">
+                {recentPages.map((page) => {
+                  const isActive = page.id === activeId;
+                  return (
+                    <button
+                      key={page.id}
+                      onClick={() => handleSelectRecent(page.id)}
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                        isActive
+                          ? "bg-neutral-100 font-medium text-neutral-900"
+                          : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
+                      }`}
+                    >
+                      {page.icon ? (
+                        <span className="shrink-0 text-sm">{page.icon}</span>
+                      ) : (
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+                      )}
+                      <span className="flex-1 truncate text-left">
+                        {page.title || "Untitled"}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-neutral-300">
+                        {relativeTime(page.updated_at)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Shared with me ── */}
+        {sharedDocs.length > 0 && (
+          <div>
+            <SectionHeader
+              label="Shared"
+              icon={<Share2 className="h-3 w-3" />}
+              count={sharedDocs.length}
+              expanded={sharedExpanded}
+              onToggle={() => setSharedExpanded((p) => !p)}
+            />
+            {sharedExpanded && (
+              <div className="px-2 pb-1">
+                {sharedDocs.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => router.push(`/d/${doc.id}`)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                      pathname === `/d/${doc.id}`
+                        ? "bg-neutral-100 font-medium text-neutral-900"
+                        : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
+                    }`}
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                    <div className="flex min-w-0 flex-1 flex-col items-start">
+                      <span className="w-full truncate text-left text-sm">{doc.title || "Untitled"}</span>
+                      <span className="flex items-center gap-1 text-[10px] text-neutral-400">
+                        <Building2 className="h-2.5 w-2.5" />
+                        {doc.workspaceName}
+                      </span>
+                    </div>
+                    {doc.role === "editor" && (
+                      <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-500">
+                        Edit
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── My Pages (document tree) ── */}
+        <div>
+          <SectionHeader
+            label="My Pages"
+            icon={<FileText className="h-3 w-3" />}
+            count={documents.length}
+            expanded={myPagesExpanded}
+            onToggle={() => setMyPagesExpanded((p) => !p)}
+            action={
+              isAtLimit ? (
+                <button
+                  onClick={() => router.push("/pricing")}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-600 transition-colors hover:bg-amber-50"
+                  title="Document limit reached — upgrade"
+                >
+                  <Crown className="h-3 w-3" />
+                  Upgrade
+                </button>
+              ) : (
+                <button
+                  data-tutorial="new-document"
+                  onClick={onAdd}
+                  className="rounded p-0.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                  aria-label="Add document"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              )
+            }
+          />
+          {myPagesExpanded && (
+            <div className="px-1 pb-2">
+              {documents.filter((doc) => !doc.parentId).length === 0 ? (
+                <div className="px-3 py-4 text-center">
+                  <p className="text-xs text-neutral-400">No pages yet</p>
+                  <button
+                    onClick={onAdd}
+                    className="mt-2 inline-flex items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-neutral-800"
+                  >
+                    <Plus className="h-3 w-3" />
+                    New page
+                  </button>
+                </div>
+              ) : (
+                documents
+                  .filter((doc) => !doc.parentId)
+                  .map((doc) => (
+                    <DocTreeItem
+                      key={doc.id}
+                      doc={doc}
+                      allDocs={documents}
+                      activeId={activeId}
+                      onSelect={onSelect}
+                      onDelete={onDelete}
+                    />
+                  ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="border-t border-[#e5e5e5] px-4 py-3">
+      {/* ── Bottom: document count ── */}
+      <div className="border-t border-[#e5e5e5] px-4 py-2.5">
         {isUnlimited ? (
           <div className="flex items-center justify-between">
             <span className="text-xs text-neutral-400">Documents</span>
@@ -425,7 +564,7 @@ export function Sidebar({
                 }}
               />
             </div>
-            {isAtLimit ? (
+            {isAtLimit && (
               <button
                 onClick={() => router.push("/pricing")}
                 className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-[11px] font-semibold text-white transition-opacity hover:opacity-90"
@@ -433,7 +572,8 @@ export function Sidebar({
                 <Crown className="h-3 w-3" />
                 Upgrade for unlimited docs
               </button>
-            ) : isNearLimit ? (
+            )}
+            {!isAtLimit && isNearLimit && (
               <button
                 onClick={() => router.push("/pricing")}
                 className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-medium text-amber-700 transition-colors hover:bg-amber-100"
@@ -441,12 +581,13 @@ export function Sidebar({
                 <AlertTriangle className="h-3 w-3" />
                 Running low — upgrade to Pro
               </button>
-            ) : null}
+            )}
           </>
         )}
       </div>
 
-      <div className="flex items-center gap-3 border-t border-[#e5e5e5] px-4 py-2.5">
+      {/* ── Footer ── */}
+      <div className="flex items-center gap-3 border-t border-[#e5e5e5] px-4 py-2">
         <Link
           href="https://www.knobase.com"
           target="_blank"

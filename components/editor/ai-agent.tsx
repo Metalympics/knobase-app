@@ -3,9 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Editor } from "@tiptap/react";
-import { Sparkles, MessageSquare, X, Wifi, WifiOff } from "lucide-react";
+import { Sparkles, Wifi, WifiOff } from "lucide-react";
 import { AgentAvatar } from "@/components/agent/agent-avatar";
-import { AgentChat } from "@/components/agent/agent-chat";
 import { AgentSuggestionPanel } from "@/components/agent/agent-suggestion";
 import { OpenClawStatusBadge } from "@/components/openclaw/status-badge";
 import { getDefaultAgent, updateAgent } from "@/lib/agents/store";
@@ -22,7 +21,6 @@ interface AiAgentProps {
 
 export function AiAgent({ editor, documentId, documentContent, openClawStatus = "disconnected" }: AiAgentProps) {
   const [agent, setAgent] = useState<Agent | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState<AgentSuggestion | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("online");
   const [syncEnabled, setSyncEnabled] = useState(false);
@@ -203,44 +201,6 @@ export function AiAgent({ editor, documentId, documentContent, openClawStatus = 
           )}
         </motion.div>
       )}
-
-      {/* Chat toggle button */}
-      <motion.button
-        onClick={() => setChatOpen(!chatOpen)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-purple-200 bg-white px-4 py-2.5 shadow-lg transition-colors hover:bg-purple-50"
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        {chatOpen ? (
-          <X className="h-4 w-4 text-purple-500" />
-        ) : (
-          <MessageSquare className="h-4 w-4 text-purple-500" />
-        )}
-        <span className="text-sm font-medium text-neutral-700">
-          {chatOpen ? "Close" : agent.name}
-        </span>
-        <AgentAvatar
-          name={agent.name}
-          avatar={agent.avatar}
-          color={agent.color}
-          status={agentStatus}
-          size="sm"
-        />
-      </motion.button>
-
-      {/* Chat sidebar */}
-      <AnimatePresence>
-        {chatOpen && (
-          <AgentChat
-            agent={agent}
-            documentId={documentId}
-            documentContent={documentContent}
-            onTyping={handleAgentTyping}
-            onDone={handleAgentDone}
-            onSuggestion={handleSuggestion}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Suggestion diff panel */}
       <AnimatePresence>

@@ -92,7 +92,7 @@ function UniversalDocumentContent() {
           .from("pages")
           .select("id, title, content_md, created_at, updated_at, visibility, school_id")
           .eq("id", docId)
-          .single();
+          .maybeSingle();
 
         if (error || !data) {
           console.error("Error loading document:", error);

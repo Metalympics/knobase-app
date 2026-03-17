@@ -81,6 +81,7 @@ export function InviteModal({
   const [isPolling, setIsPolling] = useState(false);
   const [connectedAgent, setConnectedAgent] = useState<ConnectedAgent | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [codeIssuedAt, setCodeIssuedAt] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -112,6 +113,7 @@ export function InviteModal({
     setIsPolling(false);
     setConnectedAgent(null);
     setStatusMessage(null);
+    setCodeIssuedAt(null);
   }, [stopPolling]);
 
   useEffect(() => {
@@ -180,6 +182,7 @@ export function InviteModal({
       setAgentCommand(data.command);
       setDeviceCode(data.device_code);
       setAgentExpiresAt(new Date(Date.now() + data.expires_in * 1000));
+      setCodeIssuedAt(new Date());
     } catch (err) {
       setAgentError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -193,6 +196,7 @@ export function InviteModal({
     setAgentError(null);
     setStatusMessage(null);
     setConnectedAgent(null);
+    setCodeIssuedAt(null);
 
     try {
       const res = await fetch("/api/agents/invite", {
@@ -213,6 +217,7 @@ export function InviteModal({
       setDeviceCode(data.device_code);
       setAgentExpiresAt(new Date(Date.now() + data.expires_in * 1000));
       setAgentCopied(false);
+      setCodeIssuedAt(new Date());
     } catch (err) {
       setAgentError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -229,9 +234,9 @@ export function InviteModal({
     setStatusMessage(null);
 
     try {
-      const res = await fetch(
-        `/api/agents/invite/status?device_code=${encodeURIComponent(deviceCode)}`,
-      );
+      const params = new URLSearchParams({ device_code: deviceCode });
+      if (codeIssuedAt) params.set("created_after", codeIssuedAt.toISOString());
+      const res = await fetch(`/api/agents/invite/status?${params}`);
       const data = await res.json();
 
       if (data.status === "connected" && data.agent) {
@@ -241,8 +246,14 @@ export function InviteModal({
         stopPolling();
         setStatusMessage("Device code has expired. Please regenerate.");
       } else if (data.status === "not_found") {
-        stopPolling();
-        setStatusMessage("Device code not found. Please regenerate.");
+        // Row was cleaned up by the agent CLI — keep polling via the fallback
+        // only give up if we have no fallback params at all
+        if (!codeIssuedAt) {
+          stopPolling();
+          setStatusMessage("Device code not found. Please regenerate.");
+        } else {
+          setStatusMessage("Waiting for agent to connect...");
+        }
       } else {
         setStatusMessage("Waiting for agent to connect...");
       }
@@ -251,7 +262,7 @@ export function InviteModal({
     } finally {
       setChecking(false);
     }
-  }, [deviceCode, stopPolling]);
+  }, [deviceCode, codeIssuedAt, stopPolling]);
 
   const startAutoPolling = useCallback(() => {
     stopPolling();

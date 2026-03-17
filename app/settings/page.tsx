@@ -23,8 +23,8 @@ import {
   Bot,
   Webhook,
   Server,
-  TrendingUp,
   RefreshCw,
+  Globe,
 } from "lucide-react";
 import Link from "next/link";
 import { OpenClawImport } from "@/components/settings/openclaw-import";
@@ -34,15 +34,15 @@ import { AgentPersonaSettings } from "@/components/settings/agent-persona";
 import WebhooksSettings from "@/components/settings/webhooks";
 import { MCPConfig } from "@/components/settings/mcp-config";
 import { CredentialsManager } from "@/components/settings/credentials-manager";
-import { AgentAnalyticsDashboard } from "@/components/settings/agent-analytics";
 import { TeammatesManager } from "@/components/settings/teammates-manager";
 import { ApiKeysManager } from "@/components/settings/api-keys-manager";
+import { DomainSettings } from "@/components/settings/domain-settings";
 import { getSubscription, getUsage, refreshUsage, updateSubscriptionTier, cancelSubscription } from "@/lib/subscription/store";
 import { PLANS } from "@/lib/subscription/plans";
 import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
 import type { PlanTier, Subscription, UsageRecord } from "@/lib/subscription/types";
 
-type Tab = "teammates" | "import" | "export" | "marketplace" | "apikeys" | "subscription" | "analytics" | "webhooks" | "mcp" | "credentials";
+type Tab = "teammates" | "import" | "export" | "marketplace" | "apikeys" | "subscription" | "webhooks" | "mcp" | "credentials" | "domain";
 
 export default function SettingsPage() {
   return (
@@ -68,8 +68,8 @@ function SettingsSkeleton() {
 
 const VALID_TABS = new Set<Tab>([
   "teammates", "import", "export", "marketplace",
-  "apikeys", "subscription", "analytics", "webhooks",
-  "mcp", "credentials",
+  "apikeys", "subscription", "webhooks",
+  "mcp", "credentials", "domain",
 ]);
 
 function SettingsPageInner() {
@@ -129,7 +129,7 @@ function SettingsPageInner() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "subscription", label: "Subscription", icon: <CreditCard className="h-4 w-4" /> },
     { id: "teammates", label: "Teammates", icon: <Users className="h-4 w-4" /> },
-    { id: "analytics", label: "Agent Analytics", icon: <TrendingUp className="h-4 w-4" /> },
+    { id: "domain", label: "Domain", icon: <Globe className="h-4 w-4" /> },
     { id: "webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" /> },
     { id: "mcp", label: "MCP Server", icon: <Server className="h-4 w-4" /> },
     { id: "import", label: "Import", icon: <Upload className="h-4 w-4" /> },
@@ -526,26 +526,6 @@ function SettingsPageInner() {
                   </p>
                 </div>
                 <TeammatesManager workspaceId={workspaceId} />
-              </motion.div>
-            )}
-
-            {activeTab === "analytics" && workspaceId && (
-              <motion.div
-                key="analytics"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="space-y-6"
-              >
-                <div>
-                  <h2 className="text-lg font-semibold text-neutral-900">
-                    Agent Analytics
-                  </h2>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    Track agent performance, acceptance rates, response times, and usage patterns.
-                  </p>
-                </div>
-                <AgentAnalyticsDashboard workspaceId={workspaceId} />
               </motion.div>
             )}
 

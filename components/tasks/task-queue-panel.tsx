@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo,
@@ -11,10 +11,34 @@ import {
   ChevronDown,
   ChevronRight,
   X,
+  AlertTriangle,
+  RotateCcw,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDocumentTasks } from "@/hooks/use-agent-tasks";
 import type { AgentTask } from "@/lib/supabase/types";
+
+const INACTIVE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 0) return "just now";
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function isInactive(task: AgentTask): boolean {
+  if (task.status !== "working" && task.status !== "acknowledged") return false;
+  const lastActivity = task.last_activity_at ?? task.created_at;
+  return Date.now() - new Date(lastActivity).getTime() > INACTIVE_THRESHOLD_MS;
+}
 
 /* ------------------------------------------------------------------ */
 /* Status helpers                                                      */
@@ -98,13 +122,19 @@ function ProgressBar({ progress }: { progress: number }) {
 function TaskRow({
   task,
   onCancel,
+  onRetry,
+  onNudge,
 }: {
   task: AgentTask;
   onCancel: (id: string) => void;
+  onRetry?: (id: string) => void;
+  onNudge?: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isActive = task.status === "working" || task.status === "acknowledged";
   const canCancel = task.status === "pending" || isActive;
+  const inactive = isInactive(task);
+  const lastActivity = task.last_activity_at ?? task.created_at;
 
   return (
     <div className="group rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-800/50">
@@ -124,14 +154,27 @@ function TaskRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <StatusBadge status={task.status} />
+            {inactive && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="size-3" />
+                Inactive
+              </span>
+            )}
             <span className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
               {task.title}
             </span>
           </div>
 
+          {/* Last activity for active tasks */}
+          {isActive && (
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+              Last activity {relativeTime(lastActivity)}
+            </p>
+          )}
+
           {/* Progress for active tasks */}
           {isActive && task.progress_percent > 0 && (
-            <div className="mt-2">
+            <div className="mt-1">
               <ProgressBar progress={task.progress_percent} />
               {task.current_action && (
                 <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
@@ -142,18 +185,46 @@ function TaskRow({
           )}
         </div>
 
-        {/* Cancel button */}
-        {canCancel && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="shrink-0 opacity-0 group-hover:opacity-100"
-            onClick={() => onCancel(task.id)}
-            title="Cancel task"
-          >
-            <X className="size-3" />
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {/* Nudge button for inactive tasks */}
+          {inactive && onNudge && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-amber-500 hover:text-amber-600"
+              onClick={() => onNudge(task.id)}
+              title="Nudge agent — re-send task notification"
+            >
+              <Bell className="size-3" />
+            </Button>
+          )}
+
+          {/* Retry button for failed tasks */}
+          {task.status === "failed" && onRetry && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-blue-500 hover:text-blue-600"
+              onClick={() => onRetry(task.id)}
+              title="Retry task"
+            >
+              <RotateCcw className="size-3" />
+            </Button>
+          )}
+
+          {/* Cancel button */}
+          {canCancel && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 opacity-0 group-hover:opacity-100"
+              onClick={() => onCancel(task.id)}
+              title="Cancel task"
+            >
+              <X className="size-3" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Expanded details */}
@@ -220,8 +291,26 @@ export function TaskQueuePanel({ documentId, className }: TaskQueuePanelProps) {
   const { tasks, pending, working, completed, failed, loading, cancel } =
     useDocumentTasks(documentId);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [, setTick] = useState(0);
 
-  // Current (working/acknowledged) + pending tasks take priority
+  // Re-render every 30s so relative timestamps stay fresh
+  useEffect(() => {
+    const iv = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const handleRetry = useCallback(async (taskId: string) => {
+    try {
+      await fetch(`/api/v1/agents/tasks/${taskId}/nudge`, { method: "POST" });
+    } catch { /* best effort */ }
+  }, []);
+
+  const handleNudge = useCallback(async (taskId: string) => {
+    try {
+      await fetch(`/api/v1/agents/tasks/${taskId}/nudge`, { method: "POST" });
+    } catch { /* best effort */ }
+  }, []);
+
   const activeTasks = [...working, ...pending];
   const doneTasks = showCompleted ? [...completed, ...failed] : [];
 
@@ -272,7 +361,12 @@ export function TaskQueuePanel({ documentId, className }: TaskQueuePanelProps) {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <TaskRow task={task} onCancel={cancel} />
+              <TaskRow
+                task={task}
+                onCancel={cancel}
+                onNudge={handleNudge}
+                onRetry={handleRetry}
+              />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -282,7 +376,12 @@ export function TaskQueuePanel({ documentId, className }: TaskQueuePanelProps) {
       {doneTasks.length > 0 && (
         <div className="space-y-2 opacity-60">
           {doneTasks.map((task) => (
-            <TaskRow key={task.id} task={task} onCancel={cancel} />
+            <TaskRow
+              key={task.id}
+              task={task}
+              onCancel={cancel}
+              onRetry={handleRetry}
+            />
           ))}
         </div>
       )}

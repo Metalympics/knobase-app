@@ -139,21 +139,9 @@ export function useCollaboration(
     return () => {
       cancelled = true;
 
-      // Destroy only the network provider. The ydoc is intentionally NOT
-      // destroyed here: Tiptap may still be mid-unmount and holding an
-      // internal reference to the ydoc (via y-prosemirror). Destroying it
-      // while Tiptap is cleaning up is exactly what causes the ".doc" crash.
-      if (provider) {
-        try {
-          provider.destroy();
-        } catch {
-          /* ignore */
-        }
-      }
-      providerRef.current = null;
-
-      // Drive isReady back to false so no lingering render can mount
-      // TiptapEditor with the now-dead provider.
+      // Drive isReady back to false first so TiptapEditor unmounts before
+      // we destroy the provider. This prevents the ".doc" crash when
+      // y-prosemirror tries to access the provider during Tiptap cleanup.
       setState({
         provider: null,
         ydoc: null,
@@ -161,6 +149,20 @@ export function useCollaboration(
         isSynced: false,
         isReady: false,
       });
+
+      // Defer provider destruction until after React has unmounted
+      // TiptapEditor. Destroying during Tiptap cleanup causes the ".doc" crash.
+      const p = provider;
+      if (p) {
+        queueMicrotask(() => {
+          try {
+            p.destroy();
+          } catch {
+            /* ignore */
+          }
+        });
+      }
+      providerRef.current = null;
     };
     // `user` intentionally omitted from deps — it is stable for the whole page
     // session and reconnecting on every user object recreation would be wrong.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditor, EditorContent, Editor } from "@tiptap/react";
+import { useEditor, EditorContent, Editor, Extension } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -16,7 +16,7 @@ import { TaskItem } from "@tiptap/extension-task-item";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Typography } from "@tiptap/extension-typography";
 import { Markdown } from "tiptap-markdown";
-import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
 import { AnimatePresence } from "framer-motion";
 import { SlashCommandMenu } from "./slash-command";
@@ -32,6 +32,17 @@ import { ChildPage } from "@/lib/editor/extensions/child-page";
 // for parseHTML compatibility with existing documents.
 // import { AgentMention } from "@/lib/editor/extensions/agent-mention";
 import { AgentSelector } from "./extensions/agent-selector";
+import { SelectionAgentMenu } from "./extensions/selection-agent-menu";
+import {
+  createSelectionAgentPlugin,
+  createSelectionAgentTask,
+} from "./extensions/selection-agent";
+import { EditorContextMenu } from "./extensions/editor-context-menu";
+import { createCommentHighlightPlugin, updateCommentHighlights } from "./extensions/comment-highlight";
+import { CommentComposer } from "@/components/comments/CommentComposer";
+import { CommentSidebar } from "@/components/comments/CommentSidebar";
+import { addComment, getComments } from "@/lib/comments/store";
+import type { Comment } from "@/lib/documents/types";
 import { AgentCursorOverlay } from "./agent-cursor";
 import { OpenClawStatus } from "./openclaw-status";
 import {
@@ -122,6 +133,44 @@ export function TiptapEditor({
     position: { top: 0, left: 0 },
     query: "",
   });
+  const [selectionAgentMenu, setSelectionAgentMenu] = useState<{
+    isOpen: boolean;
+    position: { top: number; left: number };
+    selectedText: string;
+    selectionRange: { from: number; to: number };
+  }>({
+    isOpen: false,
+    position: { top: 0, left: 0 },
+    selectedText: "",
+    selectionRange: { from: 0, to: 0 },
+  });
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean;
+    position: { top: number; left: number };
+    hasSelection: boolean;
+    selectedText: string;
+    selectionRange: { from: number; to: number };
+  }>({
+    isOpen: false,
+    position: { top: 0, left: 0 },
+    hasSelection: false,
+    selectedText: "",
+    selectionRange: { from: 0, to: 0 },
+  });
+  const [commentComposer, setCommentComposer] = useState<{
+    isOpen: boolean;
+    position: { top: number; left: number };
+    selectedText: string;
+    selectionRange: { from: number; to: number };
+  }>({
+    isOpen: false,
+    position: { top: 0, left: 0 },
+    selectedText: "",
+    selectionRange: { from: 0, to: 0 },
+  });
+  const [commentSidebarOpen, setCommentSidebarOpen] = useState(false);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [documentComments, setDocumentComments] = useState<Comment[]>([]);
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDirtyRef = useRef(false);
@@ -130,6 +179,29 @@ export function TiptapEditor({
   const onContentChangeRef = useRef(onContentChange);
   const onContentJsonChangeRef = useRef(onContentJsonChange);
   const onDirtyChangeRef = useRef(onDirtyChange);
+
+  // Selection agent + comment highlight ProseMirror plugins wrapped as Tiptap extensions
+  const selectionAgentExt = useMemo(
+    () =>
+      Extension.create({
+        name: "selectionAgentHighlight",
+        addProseMirrorPlugins() {
+          return [createSelectionAgentPlugin()];
+        },
+      }),
+    [],
+  );
+
+  const commentHighlightExt = useMemo(
+    () =>
+      Extension.create({
+        name: "commentHighlight",
+        addProseMirrorPlugins() {
+          return [createCommentHighlightPlugin()];
+        },
+      }),
+    [],
+  );
 
   // Inline suggestion handler
   const editHandlerRef = useRef(new InlineEditHandler());
@@ -212,6 +284,8 @@ export function TiptapEditor({
         }),
         MentionNode,
         BlockId,
+        selectionAgentExt,
+        commentHighlightExt,
         ...(ydoc
           ? [
               Collaboration.configure({ document: ydoc }),
@@ -234,11 +308,51 @@ export function TiptapEditor({
         attributes: {
           class: "tiptap-editor outline-none",
         },
-        handleKeyDown: (_view, event) => {
+        handleKeyDown: (view, event) => {
           if (slashMenu.isOpen) {
             if (
               ["ArrowUp", "ArrowDown", "Enter", "Escape"].includes(event.key)
             ) {
+              return true;
+            }
+          }
+          // Cmd/Ctrl+Shift+K → open selection agent menu
+          if (
+            event.key === "k" &&
+            event.shiftKey &&
+            (event.metaKey || event.ctrlKey)
+          ) {
+            const { from, to } = view.state.selection;
+            if (from !== to) {
+              event.preventDefault();
+              const selectedText = view.state.doc.textBetween(from, to, "\n");
+              const coords = view.coordsAtPos(from);
+              setSelectionAgentMenu({
+                isOpen: true,
+                position: { top: coords.top, left: coords.left },
+                selectedText,
+                selectionRange: { from, to },
+              });
+              return true;
+            }
+          }
+          // Cmd/Ctrl+Shift+M → add comment on selection
+          if (
+            event.key === "m" &&
+            event.shiftKey &&
+            (event.metaKey || event.ctrlKey)
+          ) {
+            const { from, to } = view.state.selection;
+            if (from !== to) {
+              event.preventDefault();
+              const selectedText = view.state.doc.textBetween(from, to, "\n");
+              const coords = view.coordsAtPos(from);
+              setCommentComposer({
+                isOpen: true,
+                position: { top: coords.top, left: coords.left },
+                selectedText,
+                selectionRange: { from, to },
+              });
               return true;
             }
           }
@@ -474,6 +588,203 @@ export function TiptapEditor({
     setAgentSelector((prev) => ({ ...prev, isOpen: false }));
   }, [editor]);
 
+  const closeSelectionAgentMenu = useCallback(() => {
+    setSelectionAgentMenu((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const handleSelectionAgentSubmit = useCallback(
+    (
+      agent: import("@/lib/agents/types").Agent,
+      instruction: string,
+      selectedText: string,
+      range: { from: number; to: number },
+    ) => {
+      if (!editor || editor.isDestroyed) return;
+      createSelectionAgentTask(
+        editor,
+        agent,
+        instruction,
+        selectedText,
+        range,
+        documentId,
+        documentTitle,
+        workspaceId,
+        userId,
+        (suggestion) => {
+          editHandlerRef.current.addSuggestion(suggestion);
+        },
+      ).catch((err) => {
+        console.error("[SelectionAgent] Task failed:", err);
+      });
+    },
+    [editor, documentId, documentTitle, workspaceId, userId],
+  );
+
+  // Right-click context menu handler
+  useEffect(() => {
+    if (!editor || readOnly) return;
+    const editorDom = editor.view.dom;
+
+    function handleContextMenu(e: Event) {
+      const mouseEvent = e as MouseEvent;
+      if (!editor || editor.isDestroyed) return;
+      const { from, to } = editor.state.selection;
+      const hasSelection = from !== to;
+      const selectedText = hasSelection
+        ? editor.state.doc.textBetween(from, to, "\n")
+        : "";
+
+      // Only prevent default and show custom menu when there's a selection
+      if (hasSelection && selectedText.trim()) {
+        mouseEvent.preventDefault();
+        setContextMenu({
+          isOpen: true,
+          position: { top: mouseEvent.clientY, left: mouseEvent.clientX },
+          hasSelection,
+          selectedText,
+          selectionRange: { from, to },
+        });
+      }
+    }
+
+    editorDom.addEventListener("contextmenu", handleContextMenu);
+    return () => {
+      editorDom.removeEventListener("contextmenu", handleContextMenu);
+    };
+  }, [editor, readOnly]);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const closeCommentComposer = useCallback(() => {
+    setCommentComposer((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  // Handle comment submission (with agent mention dispatch)
+  const handleCommentSubmit = useCallback(
+    (
+      text: string,
+      selectedText: string,
+      range: { from: number; to: number },
+      mentionedAgents: { id: string; name: string }[],
+    ) => {
+      if (!documentId) return;
+      const comment = addComment(documentId, "selection", text, "You", {
+        from: range.from,
+        to: range.to,
+        selectedText,
+      });
+
+      // Mark agent mentions in the comment
+      if (mentionedAgents.length > 0 && comment.mentions) {
+        comment.mentions = comment.mentions.map((m) => {
+          const agentMatch = mentionedAgents.find(
+            (a) => a.name.toLowerCase() === m.name.toLowerCase(),
+          );
+          return agentMatch ? { ...m, type: "agent" as const, id: agentMatch.id } : m;
+        });
+      }
+
+      // Refresh comments list and highlight decorations
+      const updated = getComments(documentId);
+      setDocumentComments(updated);
+      if (editor && !editor.isDestroyed) {
+        updateCommentHighlights(editor.view, updated, comment.id);
+      }
+      setCommentSidebarOpen(true);
+      setActiveCommentId(comment.id);
+
+      // Notify mentioned agents via the mention handler
+      for (const agent of mentionedAgents) {
+        import("@/lib/agents/mention-handler")
+          .then(({ handleAgentMention }) => {
+            handleAgentMention({
+              documentId,
+              schoolId: workspaceId,
+              mentionedAgent: `@${agent.name}`,
+              message: text,
+              context: selectedText,
+              userId: userId || "anonymous",
+            }).catch(() => {});
+          })
+          .catch(() => {});
+      }
+    },
+    [documentId, workspaceId, userId, editor],
+  );
+
+  // Load comments and initialize highlights when editor is ready
+  useEffect(() => {
+    if (!editor || !documentId) return;
+    const comments = getComments(documentId);
+    setDocumentComments(comments);
+    updateCommentHighlights(editor.view, comments, null);
+  }, [editor, documentId]);
+
+  // Handle clicking on a comment highlight in the editor
+  useEffect(() => {
+    if (!editor) return;
+    const editorDom = editor.view.dom;
+
+    function handleClick(e: Event) {
+      const target = e.target as HTMLElement;
+      const commentEl = target.closest("[data-comment-id]");
+      if (commentEl) {
+        const commentId = commentEl.getAttribute("data-comment-id");
+        if (commentId) {
+          setActiveCommentId(commentId);
+          setCommentSidebarOpen(true);
+          if (editor && !editor.isDestroyed) {
+            updateCommentHighlights(editor.view, documentComments, commentId);
+          }
+        }
+      }
+    }
+
+    editorDom.addEventListener("click", handleClick);
+    return () => editorDom.removeEventListener("click", handleClick);
+  }, [editor, documentComments]);
+
+  const handleCommentFocus = useCallback(
+    (commentId: string) => {
+      setActiveCommentId(commentId);
+      if (!editor || editor.isDestroyed) return;
+      updateCommentHighlights(editor.view, documentComments, commentId);
+      // Scroll to the comment highlight in the editor
+      const comment = documentComments.find((c) => c.id === commentId);
+      if (comment?.selectionFrom != null) {
+        try {
+          const pos = Math.min(comment.selectionFrom, editor.state.doc.content.size);
+          editor.commands.setTextSelection(pos);
+          const coords = editor.view.coordsAtPos(pos);
+          const editorEl = editor.view.dom.closest(".tiptap-wrapper");
+          if (editorEl) {
+            const rect = editorEl.getBoundingClientRect();
+            if (coords.top < rect.top || coords.top > rect.bottom) {
+              editor.view.dom
+                .querySelector(`[data-comment-id="${commentId}"]`)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }
+        } catch {
+          /* position may be invalid */
+        }
+      }
+    },
+    [editor, documentComments],
+  );
+
+  const handleCommentsChange = useCallback(
+    (comments: Comment[]) => {
+      setDocumentComments(comments);
+      if (editor && !editor.isDestroyed) {
+        updateCommentHighlights(editor.view, comments, activeCommentId);
+      }
+    },
+    [editor, activeCommentId],
+  );
+
   // Supabase proposals for this document (must be called before any early return)
   const supabaseProposals = useDocumentProposals(documentId || null);
 
@@ -606,82 +917,160 @@ export function TiptapEditor({
   };
 
   return (
-    <div ref={editorRef} className="relative flex-1">
-      {/* Agent session indicator + OpenClaw status */}
-      <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
-        {documentId && (
-          <AgentSessionIndicator
-            documentId={documentId}
-            userId={userId || undefined}
-            onNavigate={handleNavigateToSession}
+    <div ref={editorRef} className="relative flex flex-1">
+      {/* Main editor area */}
+      <div className="relative flex-1">
+        {/* Agent session indicator + OpenClaw status */}
+        <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
+          {documentId && (
+            <AgentSessionIndicator
+              documentId={documentId}
+              userId={userId || undefined}
+              onNavigate={handleNavigateToSession}
+            />
+          )}
+          <OpenClawStatus />
+        </div>
+
+        <TableBlock editor={editor} />
+        <TaskListBlock editor={editor} />
+        <EditorContent editor={editor} className="tiptap-wrapper" />
+
+        {/* Agent cursor overlay */}
+        {provider && (
+          <AgentCursorOverlay
+            awareness={(provider as any).awareness ?? null}
+            editor={editor}
           />
         )}
-        <OpenClawStatus />
+
+        {/* Inline suggestions from agent */}
+        <AnimatePresence>
+          {pendingSuggestions.map((s) => (
+            <InlineSuggestion
+              key={s.id}
+              suggestion={s}
+              agent={agentForSuggestions}
+              onAccept={handleAcceptSuggestion}
+              onReject={handleRejectSuggestion}
+              onModify={handleModifySuggestion}
+            />
+          ))}
+        </AnimatePresence>
+
+        {/* Suggestions summary panel */}
+        <AnimatePresence>
+          {pendingSuggestions.length > 1 && (
+            <SuggestionsPanel
+              suggestions={suggestions}
+              agent={agentForSuggestions}
+              onAcceptAll={handleAcceptAll}
+              onRejectAll={handleRejectAll}
+              onNavigate={handleNavigateSuggestion}
+            />
+          )}
+        </AnimatePresence>
+
+        <SlashCommandMenu
+          editor={editor}
+          isOpen={slashMenu.isOpen}
+          position={slashMenu.position}
+          onClose={closeSlashMenu}
+          query={slashMenu.query}
+        />
+        <AgentSelector
+          editor={editor}
+          isOpen={agentSelector.isOpen}
+          position={agentSelector.position}
+          query={agentSelector.query}
+          documentId={documentId}
+          documentTitle={documentTitle}
+          workspaceId={workspaceId}
+          userId={userId}
+          onClose={closeAgentSelector}
+        />
+        <SelectionAgentMenu
+          editor={editor}
+          isOpen={selectionAgentMenu.isOpen}
+          position={selectionAgentMenu.position}
+          selectedText={selectionAgentMenu.selectedText}
+          selectionRange={selectionAgentMenu.selectionRange}
+          documentId={documentId}
+          documentTitle={documentTitle}
+          workspaceId={workspaceId}
+          userId={userId}
+          onClose={closeSelectionAgentMenu}
+          onSubmit={handleSelectionAgentSubmit}
+        />
+
+        {/* Right-click context menu */}
+        <EditorContextMenu
+          isOpen={contextMenu.isOpen}
+          position={contextMenu.position}
+          hasSelection={contextMenu.hasSelection}
+          onClose={closeContextMenu}
+          onAskAgent={() => {
+            setSelectionAgentMenu({
+              isOpen: true,
+              position: contextMenu.position,
+              selectedText: contextMenu.selectedText,
+              selectionRange: contextMenu.selectionRange,
+            });
+          }}
+          onAddComment={() => {
+            setCommentComposer({
+              isOpen: true,
+              position: contextMenu.position,
+              selectedText: contextMenu.selectedText,
+              selectionRange: contextMenu.selectionRange,
+            });
+          }}
+          onCopy={() => {
+            document.execCommand("copy");
+          }}
+          onCut={() => {
+            document.execCommand("cut");
+          }}
+          onPaste={() => {
+            document.execCommand("paste");
+          }}
+        />
+
+        {/* Comment composer (floating input) */}
+        <CommentComposer
+          isOpen={commentComposer.isOpen}
+          position={commentComposer.position}
+          selectedText={commentComposer.selectedText}
+          selectionRange={commentComposer.selectionRange}
+          workspaceId={workspaceId}
+          onClose={closeCommentComposer}
+          onSubmit={handleCommentSubmit}
+        />
+
+        {/* Task queue panel — shows agent tasks for this document */}
+        {documentId && (
+          <TaskQueuePanel
+            documentId={documentId}
+            className="mt-4 border-t border-neutral-100 pt-4 dark:border-neutral-800"
+          />
+        )}
       </div>
 
-      <TableBlock editor={editor} />
-      <TaskListBlock editor={editor} />
-      <EditorContent editor={editor} className="tiptap-wrapper" />
-
-      {/* Agent cursor overlay */}
-      {provider && (
-        <AgentCursorOverlay
-          awareness={(provider as any).awareness ?? null}
-          editor={editor}
-        />
-      )}
-
-      {/* Inline suggestions from agent */}
-      <AnimatePresence>
-        {pendingSuggestions.map((s) => (
-          <InlineSuggestion
-            key={s.id}
-            suggestion={s}
-            agent={agentForSuggestions}
-            onAccept={handleAcceptSuggestion}
-            onReject={handleRejectSuggestion}
-            onModify={handleModifySuggestion}
-          />
-        ))}
-      </AnimatePresence>
-
-      {/* Suggestions summary panel */}
-      <AnimatePresence>
-        {pendingSuggestions.length > 1 && (
-          <SuggestionsPanel
-            suggestions={suggestions}
-            agent={agentForSuggestions}
-            onAcceptAll={handleAcceptAll}
-            onRejectAll={handleRejectAll}
-            onNavigate={handleNavigateSuggestion}
-          />
-        )}
-      </AnimatePresence>
-
-      <SlashCommandMenu
-        editor={editor}
-        isOpen={slashMenu.isOpen}
-        position={slashMenu.position}
-        onClose={closeSlashMenu}
-        query={slashMenu.query}
-      />
-      <AgentSelector
-        editor={editor}
-        isOpen={agentSelector.isOpen}
-        position={agentSelector.position}
-        query={agentSelector.query}
-        documentId={documentId}
-        documentTitle={documentTitle}
-        workspaceId={workspaceId}
-        userId={userId}
-        onClose={closeAgentSelector}
-      />
-
-      {/* Task queue panel — shows agent tasks for this document */}
+      {/* Comment sidebar */}
       {documentId && (
-        <TaskQueuePanel
+        <CommentSidebar
           documentId={documentId}
-          className="mt-4 border-t border-neutral-100 pt-4 dark:border-neutral-800"
+          isOpen={commentSidebarOpen}
+          activeCommentId={activeCommentId}
+          onClose={() => {
+            setCommentSidebarOpen(false);
+            setActiveCommentId(null);
+            if (editor && !editor.isDestroyed) {
+              updateCommentHighlights(editor.view, documentComments, null);
+            }
+          }}
+          onCommentFocus={handleCommentFocus}
+          onCommentsChange={handleCommentsChange}
         />
       )}
     </div>
