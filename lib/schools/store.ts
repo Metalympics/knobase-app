@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/client";
+import { ONBOARDING_TEMPLATES } from "@/lib/templates";
 import type {
   School,
   SchoolMember,
@@ -303,6 +304,19 @@ export async function createSchool(
         name: userData.id,
         school_id: data.id,
       });
+
+      // Seed onboarding template pages so new users land on meaningful content
+      for (const template of ONBOARDING_TEMPLATES) {
+        await supabase.from("pages").insert({
+          title: template.title,
+          icon: template.icon,
+          content_md: template.content_md,
+          school_id: data.id,
+          created_by: userData.id,
+          visibility: "private",
+          position: template.position,
+        });
+      }
     }
 
     return data ? rowToSchoolWithSettings(data, { site_title: input.name, subdomain_id: slugify(input.name) }) : null;

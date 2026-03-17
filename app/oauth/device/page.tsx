@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, CheckCircle2, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, XCircle, School } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -63,9 +64,72 @@ export default function DeviceVerificationPage() {
   );
 }
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+
+const ACCENT_COLORS = ["#4F46E5", "#7C3AED", "#10B981", "#F59E0B", "#EC4899"];
+function seedColor(id: string): string {
+  const hash = id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return ACCENT_COLORS[hash % ACCENT_COLORS.length];
+}
+
+function buildIconUrl(schoolId: string, useCustomIcon: boolean): string | null {
+  if (!useCustomIcon || !SUPABASE_URL) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/organization-custom-styles/${schoolId}/icon-logo.png`;
+}
+
 interface Workspace {
   id: string;
   name: string;
+  icon?: string | null;
+  color?: string | null;
+  iconUrl?: string | null;
+  useCustomIcon?: boolean;
+}
+
+function WorkspaceIcon({ ws, size = "sm" }: { ws: Workspace; size?: "sm" | "md" }) {
+  const [imgError, setImgError] = useState(false);
+  const dim = size === "sm" ? "h-5 w-5" : "h-7 w-7";
+  const rounded = "rounded";
+  const bg = ws.color ?? seedColor(ws.id);
+
+  if (ws.useCustomIcon && ws.iconUrl && !imgError) {
+    return (
+      <div className={`${dim} ${rounded} shrink-0 overflow-hidden`}>
+        <Image
+          src={ws.iconUrl}
+          alt={ws.name}
+          width={size === "sm" ? 20 : 28}
+          height={size === "sm" ? 20 : 28}
+          className="h-full w-full object-cover"
+          unoptimized
+          onError={() => setImgError(true)}
+        />
+      </div>
+    );
+  }
+
+  if (ws.icon) {
+    return (
+      <span
+        className={`${dim} ${rounded} shrink-0 flex items-center justify-center text-sm leading-none`}
+        style={{ backgroundColor: bg }}
+      >
+        {ws.icon}
+      </span>
+    );
+  }
+
+  return (
+    <div
+      className={`${dim} ${rounded} shrink-0 flex items-center justify-center`}
+      style={{ backgroundColor: bg }}
+    >
+      <School
+        className="text-white"
+        style={{ width: size === "sm" ? 11 : 15, height: size === "sm" ? 11 : 15 }}
+      />
+    </div>
+  );
 }
 
 type Status = "idle" | "loading" | "success" | "error";
@@ -127,16 +191,51 @@ function DeviceVerificationContent() {
       ];
 
       if (schoolIds.length > 0) {
-        const { data: schools } = await supabase
-          .from("schools")
-          .select("id, name")
-          .in("id", schoolIds);
+        // Fetch school rows with icon fields
+        const [{ data: schools }, { data: orgSettings }, { data: authProfile }] =
+          await Promise.all([
+            supabase
+              .from("schools")
+              .select("id, name, icon, color")
+              .in("id", schoolIds),
+            supabase
+              .from("organization_settings")
+              .select("school_id, use_custom_icon, site_title")
+              .in("school_id", schoolIds),
+            supabase
+              .from("auth_profiles")
+              .select("last_active_school_id")
+              .eq("auth_id", session.user.id)
+              .maybeSingle(),
+          ]);
 
         if (!cancelled && schools) {
-          setWorkspaces(schools);
-          if (schools.length === 1) {
-            setSelectedWorkspace(schools[0].id);
-          }
+          const settingsBySchool = Object.fromEntries(
+            (orgSettings ?? []).map((s) => [s.school_id, s]),
+          );
+
+          const enriched: Workspace[] = schools.map((s) => {
+            const os = settingsBySchool[s.id];
+            const useCustomIcon = os?.use_custom_icon === true;
+            return {
+              id: s.id,
+              name: os?.site_title ?? s.name,
+              icon: s.icon ?? null,
+              color: s.color ?? null,
+              useCustomIcon,
+              iconUrl: buildIconUrl(s.id, useCustomIcon),
+            };
+          });
+
+          setWorkspaces(enriched);
+
+          // Pre-select: last active school > first workspace
+          const lastActive = authProfile?.last_active_school_id;
+          const preselect =
+            (lastActive && enriched.find((w) => w.id === lastActive)
+              ? lastActive
+              : enriched[0]?.id) ?? "";
+          setSelectedWorkspace(preselect);
         }
       }
 
@@ -378,7 +477,7 @@ function DeviceVerificationContent() {
               </div>
             </div>
 
-            {workspaces.length > 1 && (
+            {workspaces.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="workspace"
@@ -391,12 +490,29 @@ function DeviceVerificationContent() {
                   onValueChange={setSelectedWorkspace}
                 >
                   <SelectTrigger className="h-11 w-full border-neutral-200 bg-white text-neutral-900 focus-visible:ring-neutral-300">
-                    <SelectValue placeholder="Select a workspace" />
+                    {selectedWorkspace ? (
+                      (() => {
+                        const ws = workspaces.find((w) => w.id === selectedWorkspace);
+                        return ws ? (
+                          <div className="flex items-center gap-2">
+                            <WorkspaceIcon ws={ws} size="sm" />
+                            <span className="truncate">{ws.name}</span>
+                          </div>
+                        ) : (
+                          <SelectValue placeholder="Select a workspace" />
+                        );
+                      })()
+                    ) : (
+                      <SelectValue placeholder="Select a workspace" />
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {workspaces.map((ws) => (
                       <SelectItem key={ws.id} value={ws.id}>
-                        {ws.name}
+                        <div className="flex items-center gap-2.5">
+                          <WorkspaceIcon ws={ws} size="sm" />
+                          <span>{ws.name}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -416,7 +532,7 @@ function DeviceVerificationContent() {
               disabled={
                 !isCodeValid ||
                 status === "loading" ||
-                (workspaces.length > 1 && !selectedWorkspace)
+                (workspaces.length > 0 && !selectedWorkspace)
               }
               className="h-11 bg-neutral-900 text-white hover:bg-neutral-800"
             >

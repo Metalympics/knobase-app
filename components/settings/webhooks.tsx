@@ -26,25 +26,28 @@ export default function WebhooksSettings() {
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [testing, setTesting] = useState<string | null>(null);
 
-  const refresh = useCallback(() => setWebhooks(listWebhooks()), []);
+  const refresh = useCallback(async () => {
+    const list = await listWebhooks();
+    setWebhooks(list);
+  }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!newUrl || newEvents.length === 0) return;
-    createWebhook({ url: newUrl, events: newEvents });
+    await createWebhook({ url: newUrl, events: newEvents });
     setNewUrl("");
     setNewEvents([]);
     setShowCreate(false);
     refresh();
   }
 
-  function handleToggle(id: string, active: boolean) {
-    updateWebhook(id, { active: !active });
+  async function handleToggle(id: string, active: boolean) {
+    await updateWebhook(id, { active: !active });
     refresh();
   }
 
-  function handleDelete(id: string) {
-    deleteWebhook(id);
+  async function handleDelete(id: string) {
+    await deleteWebhook(id);
     refresh();
   }
 

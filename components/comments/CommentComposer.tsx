@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquareText, Send, X, Bot } from "lucide-react";
 import { useDemoSafe } from "@/lib/demo/context";
 import { DEMO_AGENTS, DEMO_PEOPLE } from "@/lib/demo/simulated-agents";
-import { searchWorkspaceUsers } from "@/lib/mentions/store";
+import { hashToColor } from "@/lib/mentions/store";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 
@@ -30,6 +30,7 @@ export interface CommentComposerProps {
     selectedText: string,
     range: { from: number; to: number },
     mentionedAgents: { id: string; name: string }[],
+    mentionedUsers: { id: string; name: string }[],
   ) => void;
 }
 
@@ -46,12 +47,13 @@ export function CommentComposer({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [agentOptions, setAgentOptions] = useState<MentionOption[]>([]);
+  const [userOptions, setUserOptions] = useState<MentionOption[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const demoCtx = useDemoSafe();
   const isDemo = !!demoCtx;
 
-  // Fetch agents from Supabase or use demo
+  // Fetch agents + humans from Supabase (or use demo data)
   useEffect(() => {
     if (isDemo) {
       setAgentOptions(
@@ -72,70 +74,85 @@ export function CommentComposer({
           description: a.description,
         })),
       );
+      setUserOptions(
+        DEMO_PEOPLE.map((p) => ({
+          id: p.userId,
+          name: p.displayName,
+          type: "user" as const,
+          color: p.color,
+          description: p.role,
+        })),
+      );
       return;
     }
     if (!workspaceId) return;
     let cancelled = false;
-    async function fetch() {
+
+    async function fetchMembers() {
       try {
         const supabase = createClient();
-        const { data } = await supabase
+
+        // Agents
+        const { data: agents } = await supabase
           .from("users")
           .select("id, name, avatar_url, description")
           .eq("type", "agent")
           .eq("school_id", workspaceId)
-          .eq("is_deleted", false)
+          .or("is_deleted.is.null,is_deleted.eq.false")
           .order("name")
           .limit(20);
-        if (cancelled || !data?.length) return;
-        setAgentOptions(
-          data.map((row: any) => ({
-            id: row.id,
-            name: row.name ?? "Agent",
-            type: "agent" as const,
-            avatar: row.avatar_url ? (
-              <Image
-                src={row.avatar_url}
-                alt={row.name ?? "Agent"}
-                width={20}
-                height={20}
-                className="h-full w-full rounded-full object-cover"
-                unoptimized
-              />
-            ) : (
-              <Bot className="h-3 w-3" />
-            ),
-            description: row.description ?? "Agent",
-          })),
-        );
+
+        if (!cancelled && agents?.length) {
+          setAgentOptions(
+            agents.map((row: any) => ({
+              id: row.id,
+              name: row.name ?? "Agent",
+              type: "agent" as const,
+              avatar: row.avatar_url ? (
+                <Image
+                  src={row.avatar_url}
+                  alt={row.name ?? "Agent"}
+                  width={20}
+                  height={20}
+                  className="h-full w-full rounded-full object-cover"
+                  unoptimized
+                />
+              ) : (
+                <Bot className="h-3 w-3" />
+              ),
+              description: row.description ?? "Agent",
+            })),
+          );
+        }
+
+        // Human members
+        const { data: humans } = await supabase
+          .from("users")
+          .select("id, name, avatar_url")
+          .eq("type", "human")
+          .eq("school_id", workspaceId)
+          .or("is_deleted.is.null,is_deleted.eq.false")
+          .order("name")
+          .limit(30);
+
+        if (!cancelled && humans?.length) {
+          setUserOptions(
+            humans.map((row: any) => ({
+              id: row.id,
+              name: row.name ?? "User",
+              type: "user" as const,
+              color: hashToColor(row.id),
+              description: undefined,
+            })),
+          );
+        }
       } catch {
         /* best effort */
       }
     }
-    fetch();
-    return () => {
-      cancelled = true;
-    };
-  }, [isDemo, workspaceId]);
 
-  // People options
-  const userOptions: MentionOption[] = useMemo(() => {
-    if (isDemo) {
-      return DEMO_PEOPLE.map((p) => ({
-        id: p.userId,
-        name: p.displayName,
-        type: "user" as const,
-        color: p.color,
-        description: p.role,
-      }));
-    }
-    return searchWorkspaceUsers(workspaceId, "").map((u) => ({
-      id: u.userId,
-      name: u.displayName,
-      type: "user" as const,
-      color: u.color,
-      description: u.role,
-    }));
+    fetchMembers();
+    return () => { cancelled = true; };
   }, [isDemo, workspaceId]);
 
   const allMentionOptions = useMemo(
@@ -214,7 +231,10 @@ export function CommentComposer({
     const mentionedAgents = allMentionOptions
       .filter((o) => o.type === "agent" && text.includes(`@${o.name}`))
       .map((o) => ({ id: o.id, name: o.name }));
-    onSubmit(text.trim(), selectedText, selectionRange, mentionedAgents);
+    const mentionedUsers = allMentionOptions
+      .filter((o) => o.type === "user" && text.includes(`@${o.name}`))
+      .map((o) => ({ id: o.id, name: o.name }));
+    onSubmit(text.trim(), selectedText, selectionRange, mentionedAgents, mentionedUsers);
     setText("");
     onClose();
   }, [

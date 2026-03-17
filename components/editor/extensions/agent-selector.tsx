@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Editor } from "@tiptap/react";
 import { Bot, Edit2 } from "lucide-react";
 import { insertHumanMention } from "./inline-agent";
-import { searchWorkspaceUsers } from "@/lib/mentions/store";
-import { getInitial } from "@/lib/mentions/store";
+import { getInitial, hashToColor } from "@/lib/mentions/store";
 import type { MentionableUser } from "@/lib/mentions/types";
 import { listAgents, createAgent, updateAgentName, type Agent } from "@/lib/agents/store";
 import { useDemoSafe } from "@/lib/demo/context";
@@ -59,6 +58,7 @@ interface AgentSelectorProps {
   documentTitle: string;
   workspaceId: string;
   userId?: string;
+  userName?: string;
 }
 
 function getOrCreateAgentForModel(model: string, _provider: string): Agent {
@@ -117,6 +117,7 @@ export function AgentSelector({
   documentTitle,
   workspaceId,
   userId,
+  userName,
 }: AgentSelectorProps) {
   const [selected, setSelected] = useState<SelectedItem>({ type: 'ai', index: 0 });
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
@@ -126,53 +127,76 @@ export function AgentSelector({
   const demoCtx = useDemoSafe();
   const isDemo = !!demoCtx;
   const [dbAgentOptions, setDbAgentOptions] = useState<AgentOption[]>([]);
+  const [dbUserOptions, setDbUserOptions] = useState<MentionableUser[]>([]);
 
-  // Fetch real agent users from Supabase when not in demo mode
+  // Fetch real agent + human users from Supabase when not in demo mode
   useEffect(() => {
     if (isDemo || !workspaceId) return;
     let cancelled = false;
 
-    async function fetchDbAgents() {
+    async function fetchWorkspaceMembers() {
       try {
         const supabase = createClient();
-        const { data } = await supabase
+
+        // Agents first (priority in results)
+        const { data: agentData } = await supabase
           .from("users")
           .select("id, name, avatar_url, description, agent_type")
           .eq("type", "agent")
           .eq("school_id", workspaceId)
-          .eq("is_deleted", false)
+          .or("is_deleted.is.null,is_deleted.eq.false")
           .order("name", { ascending: true })
           .limit(20);
 
-        if (cancelled || !data?.length) return;
+        if (!cancelled && agentData?.length) {
+          const opts: AgentOption[] = agentData.map((row: any) => {
+            const name = row.name ?? "Agent";
+            const agent = (() => {
+              const existing = listAgents().find((a) => a.id === row.id);
+              if (existing) return existing;
+              return createAgent({ name, avatar: "🤖", color: "#8B5CF6" });
+            })();
+            if (agent.name !== name) updateAgentName(agent.id, name);
+            return {
+              id: row.id,
+              model: row.agent_type ?? "custom",
+              provider: name,
+              icon: row.avatar_url
+                ? <Image src={row.avatar_url} alt={name} width={32} height={32} className="h-full w-full rounded-md object-cover" unoptimized />
+                : <Bot className="h-4 w-4" />,
+              avatarSrc: row.avatar_url ?? undefined,
+              description: row.description ?? "Workspace agent",
+              agent,
+            };
+          });
+          setDbAgentOptions(opts);
+        }
 
-        const opts: AgentOption[] = data.map((row: any) => {
-          const name = row.name ?? "Agent";
-          const agent = (() => {
-            const existing = listAgents().find((a) => a.id === row.id);
-            if (existing) return existing;
-            return createAgent({ name, avatar: "🤖", color: "#8B5CF6" });
-          })();
-          // Keep local agent name in sync with the DB
-          if (agent.name !== name) updateAgentName(agent.id, name);
-          return {
-            id: row.id,
-            model: row.agent_type ?? "custom",
-            provider: name,
-            icon: row.avatar_url
-              ? <Image src={row.avatar_url} alt={name} width={32} height={32} className="h-full w-full rounded-md object-cover" unoptimized />
-              : <Bot className="h-4 w-4" />,
-            avatarSrc: row.avatar_url ?? undefined,
-            description: row.description ?? "Workspace agent",
-            agent,
-          };
-        });
-        setDbAgentOptions(opts);
+        // Human members of the same workspace
+        const { data: userData } = await supabase
+          .from("users")
+          .select("id, name, avatar_url")
+          .eq("school_id", workspaceId)
+          .eq("type", "human")
+          .or("is_deleted.is.null,is_deleted.eq.false")
+          .order("name", { ascending: true })
+          .limit(30);
+
+        if (!cancelled && userData?.length) {
+          const users: MentionableUser[] = userData.map((row: any) => ({
+            userId: row.id,
+            displayName: row.name ?? "User",
+            color: hashToColor(row.id),
+            avatarUrl: row.avatar_url ?? undefined,
+          }));
+          setDbUserOptions(users);
+        }
       } catch {
         // best effort
       }
     }
-    fetchDbAgents();
+
+    fetchWorkspaceMembers();
     return () => { cancelled = true; };
   }, [isDemo, workspaceId]);
 
@@ -203,7 +227,12 @@ export function AgentSelector({
       }))
     : [];
 
-  const filteredUsers = isDemo ? demoUsers : searchWorkspaceUsers(workspaceId, query);
+  const filteredUsers = isDemo
+    ? demoUsers
+    : dbUserOptions.filter((u) => {
+        if (!query) return true;
+        return u.displayName.toLowerCase().includes(query.toLowerCase());
+      });
   const hasResults = filteredAgents.length > 0 || filteredUsers.length > 0;
 
   useEffect(() => {
@@ -276,7 +305,7 @@ export function AgentSelector({
       } else {
         const user = filteredUsers[selection.index];
         if (!user) return;
-        insertHumanMention(editor, user, documentId, documentTitle, workspaceId);
+        insertHumanMention(editor, user, documentId, documentTitle, workspaceId, userName);
         onClose();
       }
     },

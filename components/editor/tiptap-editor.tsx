@@ -42,6 +42,7 @@ import { createCommentHighlightPlugin, updateCommentHighlights } from "./extensi
 import { CommentComposer } from "@/components/comments/CommentComposer";
 import { CommentSidebar } from "@/components/comments/CommentSidebar";
 import { addComment, getComments } from "@/lib/comments/store";
+import { subscribeToComments } from "@/lib/comments/store";
 import type { Comment } from "@/lib/documents/types";
 import { AgentCursorOverlay } from "./agent-cursor";
 import { OpenClawStatus } from "./openclaw-status";
@@ -661,33 +662,28 @@ export function TiptapEditor({
     setCommentComposer((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  // Handle comment submission (with agent mention dispatch)
+  // Handle comment submission (with agent + human mention dispatch)
   const handleCommentSubmit = useCallback(
-    (
+    async (
       text: string,
       selectedText: string,
       range: { from: number; to: number },
       mentionedAgents: { id: string; name: string }[],
+      mentionedUsers: { id: string; name: string }[] = [],
     ) => {
-      if (!documentId) return;
-      const comment = addComment(documentId, "selection", text, "You", {
-        from: range.from,
-        to: range.to,
-        selectedText,
-      });
-
-      // Mark agent mentions in the comment
-      if (mentionedAgents.length > 0 && comment.mentions) {
-        comment.mentions = comment.mentions.map((m) => {
-          const agentMatch = mentionedAgents.find(
-            (a) => a.name.toLowerCase() === m.name.toLowerCase(),
-          );
-          return agentMatch ? { ...m, type: "agent" as const, id: agentMatch.id } : m;
-        });
-      }
+      if (!documentId || !workspaceId) return;
+      const comment = await addComment(
+        documentId,
+        workspaceId,
+        "selection",
+        text,
+        user?.name ?? "You",
+        user?.id,
+        { from: range.from, to: range.to, selectedText },
+      );
 
       // Refresh comments list and highlight decorations
-      const updated = getComments(documentId);
+      const updated = await getComments(documentId);
       setDocumentComments(updated);
       if (editor && !editor.isDestroyed) {
         updateCommentHighlights(editor.view, updated, comment.id);
@@ -695,7 +691,25 @@ export function TiptapEditor({
       setCommentSidebarOpen(true);
       setActiveCommentId(comment.id);
 
-      // Notify mentioned agents via the mention handler
+      // Persist human @mentions to DB → triggers notification for the mentioned person
+      for (const hu of mentionedUsers) {
+        fetch("/api/mentions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            document_id: documentId,
+            school_id: workspaceId,
+            target_id: hu.id,
+            target_name: hu.name,
+            target_type: "human",
+            mention_text: `@${hu.name}`,
+            context_text: selectedText,
+            is_agent_generated: false,
+          }),
+        }).catch(() => {});
+      }
+
+      // Notify mentioned agents → creates agent_tasks + webhook
       for (const agent of mentionedAgents) {
         import("@/lib/agents/mention-handler")
           .then(({ handleAgentMention }) => {
@@ -706,20 +720,34 @@ export function TiptapEditor({
               message: text,
               context: selectedText,
               userId: userId || "anonymous",
+              userName: user?.name,
             }).catch(() => {});
           })
           .catch(() => {});
       }
     },
-    [documentId, workspaceId, userId, editor],
+    [documentId, workspaceId, user, userId, editor],
   );
 
   // Load comments and initialize highlights when editor is ready
   useEffect(() => {
     if (!editor || !documentId) return;
-    const comments = getComments(documentId);
-    setDocumentComments(comments);
-    updateCommentHighlights(editor.view, comments, null);
+    getComments(documentId).then((comments) => {
+      setDocumentComments(comments);
+      updateCommentHighlights(editor.view, comments, null);
+    });
+  }, [editor, documentId]);
+
+  // Realtime: refresh comment highlights when any user adds/updates a comment
+  useEffect(() => {
+    if (!editor || !documentId) return;
+    const unsub = subscribeToComments(documentId, (updated) => {
+      setDocumentComments(updated);
+      if (!editor.isDestroyed) {
+        updateCommentHighlights(editor.view, updated, null);
+      }
+    });
+    return unsub;
   }, [editor, documentId]);
 
   // Handle clicking on a comment highlight in the editor
@@ -987,6 +1015,7 @@ export function TiptapEditor({
           documentTitle={documentTitle}
           workspaceId={workspaceId}
           userId={userId}
+          userName={user?.name}
           onClose={closeAgentSelector}
         />
         <SelectionAgentMenu
@@ -1060,6 +1089,7 @@ export function TiptapEditor({
       {documentId && (
         <CommentSidebar
           documentId={documentId}
+          schoolId={workspaceId ?? ""}
           isOpen={commentSidebarOpen}
           activeCommentId={activeCommentId}
           onClose={() => {
@@ -1071,6 +1101,8 @@ export function TiptapEditor({
           }}
           onCommentFocus={handleCommentFocus}
           onCommentsChange={handleCommentsChange}
+          authorName={user?.name}
+          authorId={user?.id}
         />
       )}
     </div>

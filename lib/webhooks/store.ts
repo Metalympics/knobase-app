@@ -1,3 +1,13 @@
+/**
+ * Workspace webhook store — Supabase-backed.
+ *
+ * Replaces the old localStorage-only implementation.
+ * All functions are async. The `schoolId` comes from the Supabase session
+ * (auth_profiles.last_active_school_id) when not explicitly provided.
+ */
+
+import { createClient } from "@/lib/supabase/client";
+
 export interface Webhook {
   id: string;
   url: string;
@@ -60,72 +70,7 @@ export interface WebhookDelivery {
   timestamp: string;
 }
 
-const LS_PREFIX = "knobase-app:";
-const WEBHOOKS_KEY = `${LS_PREFIX}webhooks`;
-const DELIVERIES_KEY = `${LS_PREFIX}webhook-deliveries`;
-
-function readWebhooks(): Webhook[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(WEBHOOKS_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function writeWebhooks(hooks: Webhook[]): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(WEBHOOKS_KEY, JSON.stringify(hooks));
-}
-
-export function listWebhooks(): Webhook[] {
-  return readWebhooks();
-}
-
-export function getWebhook(id: string): Webhook | null {
-  return readWebhooks().find((w) => w.id === id) ?? null;
-}
-
-export function createWebhook(partial: {
-  url: string;
-  events: WebhookEvent[];
-  secret?: string;
-  active?: boolean;
-}): Webhook {
-  const hooks = readWebhooks();
-  const webhook: Webhook = {
-    id: crypto.randomUUID(),
-    url: partial.url,
-    events: partial.events,
-    secret: partial.secret ?? generateSecret(),
-    active: partial.active ?? true,
-    createdAt: new Date().toISOString(),
-    failureCount: 0,
-  };
-  hooks.push(webhook);
-  writeWebhooks(hooks);
-  return webhook;
-}
-
-export function updateWebhook(
-  id: string,
-  patch: Partial<Pick<Webhook, "url" | "events" | "secret" | "active">>,
-): Webhook | null {
-  const hooks = readWebhooks();
-  const idx = hooks.findIndex((w) => w.id === id);
-  if (idx === -1) return null;
-  Object.assign(hooks[idx], patch);
-  writeWebhooks(hooks);
-  return hooks[idx];
-}
-
-export function deleteWebhook(id: string): boolean {
-  const hooks = readWebhooks();
-  const filtered = hooks.filter((w) => w.id !== id);
-  if (filtered.length === hooks.length) return false;
-  writeWebhooks(filtered);
-  return true;
-}
+// ── Helpers ───────────────────────────────────────────────────────────
 
 function generateSecret(): string {
   const bytes = new Uint8Array(32);
@@ -136,7 +81,118 @@ function generateSecret(): string {
   );
 }
 
-// Delivery log (client-side)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToWebhook(row: any): Webhook {
+  return {
+    id: row.id,
+    url: row.url,
+    events: (row.events ?? []) as WebhookEvent[],
+    secret: row.secret,
+    active: row.is_active,
+    createdAt: row.created_at,
+    lastTriggeredAt: row.last_triggered_at ?? undefined,
+    failureCount: row.failure_count ?? 0,
+  };
+}
+
+/** Returns the active school_id from Supabase auth → auth_profiles. */
+async function getSchoolId(): Promise<string | null> {
+  // Prefer explicit localStorage cache (set when user navigates to a workspace)
+  if (typeof window !== "undefined") {
+    const cached = localStorage.getItem("knobase-app:active-school-id");
+    if (cached) return cached;
+  }
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from("auth_profiles")
+      .select("last_active_school_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    return data?.last_active_school_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────
+
+export async function listWebhooks(schoolId?: string): Promise<Webhook[]> {
+  const sid = schoolId ?? await getSchoolId();
+  if (!sid) return [];
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("workspace_webhooks")
+    .select("*")
+    .eq("school_id", sid)
+    .order("created_at", { ascending: false });
+  return (data ?? []).map(rowToWebhook);
+}
+
+export async function getWebhook(id: string): Promise<Webhook | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("workspace_webhooks")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return data ? rowToWebhook(data) : null;
+}
+
+export async function createWebhook(
+  partial: { url: string; events: WebhookEvent[]; secret?: string; active?: boolean },
+  schoolId?: string,
+): Promise<Webhook | null> {
+  const sid = schoolId ?? await getSchoolId();
+  if (!sid) return null;
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("workspace_webhooks")
+    .insert({
+      school_id: sid,
+      url: partial.url,
+      events: partial.events,
+      secret: partial.secret ?? generateSecret(),
+      is_active: partial.active ?? true,
+    })
+    .select("*")
+    .single();
+  return data ? rowToWebhook(data) : null;
+}
+
+export async function updateWebhook(
+  id: string,
+  patch: Partial<Pick<Webhook, "url" | "events" | "secret" | "active">>,
+): Promise<Webhook | null> {
+  const supabase = createClient();
+  const update: Record<string, unknown> = {};
+  if (patch.url !== undefined) update.url = patch.url;
+  if (patch.events !== undefined) update.events = patch.events;
+  if (patch.secret !== undefined) update.secret = patch.secret;
+  if (patch.active !== undefined) update.is_active = patch.active;
+  const { data } = await supabase
+    .from("workspace_webhooks")
+    .update(update)
+    .eq("id", id)
+    .select("*")
+    .single();
+  return data ? rowToWebhook(data) : null;
+}
+
+export async function deleteWebhook(id: string): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("workspace_webhooks")
+    .delete()
+    .eq("id", id);
+  return !error;
+}
+
+// Delivery logs are kept in localStorage (they're transient diagnostics)
+const DELIVERIES_KEY = "knobase-app:webhook-deliveries";
+
 function readDeliveries(): WebhookDelivery[] {
   if (typeof window === "undefined") return [];
   try {
@@ -144,12 +200,6 @@ function readDeliveries(): WebhookDelivery[] {
   } catch {
     return [];
   }
-}
-
-function writeDeliveries(deliveries: WebhookDelivery[]): void {
-  const trimmed = deliveries.slice(-500);
-  if (typeof window === "undefined") return;
-  localStorage.setItem(DELIVERIES_KEY, JSON.stringify(trimmed));
 }
 
 export function getDeliveries(webhookId: string): WebhookDelivery[] {
@@ -161,5 +211,8 @@ export function getDeliveries(webhookId: string): WebhookDelivery[] {
 export function addDelivery(delivery: WebhookDelivery): void {
   const all = readDeliveries();
   all.push(delivery);
-  writeDeliveries(all);
+  const trimmed = all.slice(-500);
+  if (typeof window !== "undefined") {
+    localStorage.setItem(DELIVERIES_KEY, JSON.stringify(trimmed));
+  }
 }

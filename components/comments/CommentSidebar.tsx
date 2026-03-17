@@ -6,66 +6,80 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Comment } from "@/lib/documents/types";
 import {
   getComments,
-  addComment,
   addReply,
   resolveComment,
   deleteComment,
+  subscribeToComments,
 } from "@/lib/comments/store";
 import { CommentThread } from "./CommentThread";
 
 interface CommentSidebarProps {
   documentId: string;
+  schoolId: string;
   isOpen: boolean;
   activeCommentId: string | null;
   onClose: () => void;
   onCommentFocus: (commentId: string) => void;
   onCommentsChange: (comments: Comment[]) => void;
+  /** Caller can supply the author name + id for new replies */
+  authorName?: string;
+  authorId?: string;
 }
 
 export function CommentSidebar({
   documentId,
+  schoolId,
   isOpen,
   activeCommentId,
   onClose,
   onCommentFocus,
   onCommentsChange,
+  authorName = "You",
+  authorId,
 }: CommentSidebarProps) {
-  const [comments, setComments] = useState<Comment[]>(() =>
-    getComments(documentId),
-  );
+  const [comments, setComments] = useState<Comment[]>([]);
   const [showResolved, setShowResolved] = useState(false);
 
-  const refresh = useCallback(() => {
-    const updated = getComments(documentId);
+  const refresh = useCallback(async () => {
+    const updated = await getComments(documentId);
     setComments(updated);
     onCommentsChange(updated);
   }, [documentId, onCommentsChange]);
 
-  // Refresh when sidebar opens or documentId changes
+  // Load comments when sidebar opens or documentId changes
   useEffect(() => {
     if (isOpen) refresh();
   }, [isOpen, refresh]);
 
+  // Supabase Realtime — push cross-user edits into local state
+  useEffect(() => {
+    const unsub = subscribeToComments(documentId, (updated) => {
+      setComments(updated);
+      onCommentsChange(updated);
+    });
+    return unsub;
+  }, [documentId, onCommentsChange]);
+
   const handleReply = useCallback(
-    (commentId: string, text: string) => {
-      addReply(documentId, commentId, text);
-      refresh();
+    async (commentId: string, text: string) => {
+      await addReply(documentId, schoolId, commentId, text, authorName, authorId);
+      await refresh();
     },
-    [documentId, refresh],
+    [documentId, schoolId, authorName, authorId, refresh],
   );
 
   const handleResolve = useCallback(
-    (commentId: string) => {
-      resolveComment(documentId, commentId);
-      refresh();
+    async (commentId: string) => {
+      await resolveComment(documentId, commentId);
+      await refresh();
     },
     [documentId, refresh],
   );
 
   const handleDelete = useCallback(
-    (commentId: string) => {
-      deleteComment(documentId, commentId);
-      refresh();
+    async (commentId: string) => {
+      await deleteComment(documentId, commentId);
+      await refresh();
     },
     [documentId, refresh],
   );

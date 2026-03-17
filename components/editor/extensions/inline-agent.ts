@@ -384,6 +384,7 @@ export async function createInlineAgentTask(
       openclawEndpoint: openclawConfig.endpoint ?? undefined,
       openclawApiKey: openclawConfig.apiKey ?? undefined,
       schoolId,
+      requestingUserId: userId,
     },
     onSuggestionCallback ?? undefined,
   );
@@ -415,7 +416,8 @@ export function insertHumanMention(
   user: MentionableUser,
   documentId: string,
   documentTitle: string,
-  schoolId: string
+  schoolId: string,
+  currentUserName?: string,
 ): void {
   const mention: HumanMention = {
     type: 'human',
@@ -444,10 +446,29 @@ export function insertHumanMention(
       .run();
   }
 
-  // Get current user's name for the notification
-  const currentUserId = getCurrentUserId();
-  const authorName = "You"; // This could be fetched from workspace members
-  
-  // Create notification for the mentioned user
-  notifyMentionedUser(mention, documentId, documentTitle, authorName);
+  // Persist mention to DB → triggers notification for the mentioned user
+  // (fire-and-forget; uses session cookie for auth)
+  if (documentId && schoolId) {
+    fetch("/api/mentions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        document_id: documentId,
+        school_id: schoolId,
+        target_id: user.userId,
+        target_name: user.displayName,
+        target_type: "human",
+        mention_text: `@${user.displayName}`,
+        context_text: editor.state.doc.textBetween(
+          Math.max(0, from - 100),
+          Math.min(editor.state.doc.content.size, from + 100),
+          " "
+        ),
+        is_agent_generated: false,
+      }),
+    }).catch(() => {});
+  }
+
+  // Local notification gives the current user instant feedback in this session
+  notifyMentionedUser(mention, documentId, documentTitle, currentUserName ?? "You", schoolId);
 }

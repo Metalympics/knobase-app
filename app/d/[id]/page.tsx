@@ -220,36 +220,38 @@ function UniversalDocumentContent() {
     <div className="flex min-h-screen flex-col bg-white">
       {/* Simplified header for shared document view */}
       <header className="document-header sticky top-0 z-50 flex h-12 items-center justify-between border-b border-neutral-200 bg-white/95 px-4 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white">
             <BookOpen className="h-4 w-4 text-neutral-700" />
           </div>
-          <span className="text-sm font-medium text-neutral-900">
+          <span className="truncate text-sm font-medium text-neutral-900">
             {doc?.title || "Untitled"}
           </span>
-          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+          <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
             Shared
           </span>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {!isAuthenticated && (
-            <span className="flex items-center gap-1.5 text-xs text-amber-600">
+            <span className="hidden items-center gap-1.5 text-xs text-amber-600 sm:flex">
               <AlertCircle className="h-3.5 w-3.5" />
-              View-only mode
+              View-only
             </span>
           )}
           {workspaceLink ? (
             <Link href={workspaceLink}>
               <Button variant="ghost" size="sm" className="text-neutral-600">
-                Open in workspace
+                <span className="hidden sm:inline">Open in workspace</span>
+                <span className="sm:hidden">Open</span>
                 <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </Link>
           ) : (
             <Link href="/workspaces">
               <Button variant="ghost" size="sm" className="text-neutral-600">
-                Go to workspaces
+                <span className="hidden sm:inline">Go to workspaces</span>
+                <span className="sm:hidden">Sign in</span>
                 <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </Link>
@@ -258,7 +260,7 @@ function UniversalDocumentContent() {
       </header>
 
       {/* Document content */}
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
         {doc && (
           <TiptapEditor
             initialContent={doc.content}

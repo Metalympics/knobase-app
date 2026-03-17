@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Clock,
   FileText,
+  Menu,
   MessageSquare,
   Info,
   Network,
@@ -78,6 +79,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { getWorkspace } from "@/lib/schools/store";
 import type { Document } from "@/lib/documents/types";
 import { EmojiPicker } from "@/components/editor/emoji-picker";
+import { useSidebar } from "@/lib/ui/sidebar-context";
 
 function getAncestorChain(
   docId: string,
@@ -101,6 +103,7 @@ export default function WorkspaceDocumentPage() {
   const router = useRouter();
   const workspaceId = params.schoolId as string;
   const docId = params.id as string;
+  const { toggle: toggleSidebar } = useSidebar();
 
   const workspace = typeof window !== "undefined" ? getWorkspace(workspaceId) : null;
   const workspaceName = workspace?.name ?? "Workspace";
@@ -213,7 +216,10 @@ export default function WorkspaceDocumentPage() {
     }, [router, workspaceId]),
   });
 
-  const commentCount = getCommentCount(docId);
+  const [commentCount, setCommentCount] = useState(0);
+  useEffect(() => {
+    getCommentCount(docId).then(setCommentCount).catch(() => {});
+  }, [docId]);
 
   const navigateToDoc = useCallback(
     (id: string) => router.push(`/s/${workspaceId}/d/${id}`),
@@ -414,8 +420,16 @@ export default function WorkspaceDocumentPage() {
     <>
       <main className="flex flex-1 flex-col overflow-hidden">
         {/* ── Compact header: breadcrumb + save status + share + presence + overflow ── */}
-        <header className="document-header flex items-center justify-between border-b border-[#f0f0f0] px-6 py-1.5">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="document-header flex items-center justify-between border-b border-[#f0f0f0] px-3 py-1.5 md:px-6">
+          <div className="flex items-center gap-2 min-w-0 md:gap-3">
+            {/* Hamburger — mobile only */}
+            <button
+              onClick={toggleSidebar}
+              className="flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 md:hidden"
+              aria-label="Toggle sidebar"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
             <Breadcrumb
               items={[
                 { id: "ws", label: workspaceName },
@@ -446,23 +460,23 @@ export default function WorkspaceDocumentPage() {
               <>
                 <button
                   onClick={() => setShowShareDialog(true)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100"
+                  className="hidden cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 sm:flex"
                   title="Share document"
                 >
                   <Share2 className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Share</span>
+                  <span className="hidden md:inline">Share</span>
                 </button>
                 <button
                   onClick={() => setShowInviteModal(true)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
+                  className="hidden cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-neutral-800 sm:flex"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
-                  Invite
+                  <span className="hidden md:inline">Invite</span>
                 </button>
               </>
             )}
 
-            <div className="mx-1 h-4 w-px bg-[#e5e5e5]" />
+            <div className="mx-1 hidden h-4 w-px bg-[#e5e5e5] sm:block" />
 
             <PresenceBar
               awareness={provider?.awareness ?? null}
@@ -515,7 +529,7 @@ export default function WorkspaceDocumentPage() {
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          <div className="relative flex-1 overflow-y-auto px-8 py-10">
+          <div className="relative flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-10">
             {showPageSearch && editor && (
               <PageSearch
                 editor={editor}
@@ -540,7 +554,7 @@ export default function WorkspaceDocumentPage() {
                       ref={titleRef}
                       defaultValue={activeDoc.title ?? ""}
                       placeholder="Untitled"
-                      className="flex-1 bg-transparent text-4xl font-bold text-neutral-900 placeholder:text-neutral-300 outline-none border-none pt-0.5"
+                      className="flex-1 bg-transparent text-2xl font-bold text-neutral-900 placeholder:text-neutral-300 outline-none border-none pt-0.5 md:text-4xl"
                       onBlur={handleTitleSubmit}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
@@ -624,57 +638,82 @@ export default function WorkspaceDocumentPage() {
             </div>
           </div>
 
-          {rightPanel === "comments" && (
-            <CommentSidebar
-              documentId={docId}
-              isOpen={rightPanel === "comments"}
-              activeCommentId={null}
-              onClose={() => setRightPanel("none")}
-              onCommentFocus={() => {}}
-              onCommentsChange={() => {}}
-            />
-          )}
-
-          {rightPanel === "history" && !diffVersions && (
-            <div className="w-72 border-l border-[#e5e5e5] bg-white">
-              <VersionTimeline
-                documentId={docId}
-                onRestore={handleRestoreVersion}
-                onCompare={(a, b) => setDiffVersions({ a, b })}
-                onClose={() => setRightPanel("none")}
+          {/* Right panels — side-by-side on md+, full-screen overlay on mobile */}
+          {rightPanel !== "none" && (
+            <>
+              {/* Mobile backdrop */}
+              <div
+                className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden"
+                onClick={() => setRightPanel("none")}
+                aria-hidden="true"
               />
-            </div>
-          )}
+              <div
+                className={[
+                  "bg-white",
+                  // Mobile: fixed full-screen panel sliding up from bottom
+                  "fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] overflow-y-auto rounded-t-2xl shadow-2xl",
+                  // Desktop: inline side panel
+                  "md:relative md:inset-auto md:z-auto md:max-h-none md:rounded-none md:shadow-none md:border-l md:border-[#e5e5e5]",
+                  rightPanel === "comments" ? "md:w-80" : "",
+                  rightPanel === "history" ? (diffVersions ? "md:w-96" : "md:w-72") : "",
+                  rightPanel === "metadata" ? "md:w-72" : "",
+                  rightPanel === "activity" ? "md:w-72" : "",
+                ].join(" ")}
+              >
+                {/* Mobile drag handle */}
+                <div className="sticky top-0 z-10 flex items-center justify-center pb-1 pt-2 md:hidden">
+                  <div className="h-1 w-10 rounded-full bg-neutral-200" />
+                </div>
 
-          {rightPanel === "history" && diffVersions && (
-            <div className="w-96 border-l border-[#e5e5e5] bg-white">
-              <DiffView
-                versionA={diffVersions.a}
-                versionB={diffVersions.b}
-                onClose={() => setDiffVersions(null)}
-                onAccept={(content) => {
-                  handleRestoreVersion(content);
-                  setDiffVersions(null);
-                }}
-              />
-            </div>
-          )}
+                {rightPanel === "comments" && (
+                  <CommentSidebar
+                    documentId={docId}
+                    schoolId={workspaceId}
+                    isOpen={rightPanel === "comments"}
+                    activeCommentId={null}
+                    onClose={() => setRightPanel("none")}
+                    onCommentFocus={() => {}}
+                    onCommentsChange={() => {}}
+                  />
+                )}
 
-          {rightPanel === "metadata" && activeDoc && (
-            <DocumentMetadata
-              document={activeDoc}
-              onClose={() => setRightPanel("none")}
-            />
-          )}
+                {rightPanel === "history" && !diffVersions && (
+                  <VersionTimeline
+                    documentId={docId}
+                    onRestore={handleRestoreVersion}
+                    onCompare={(a, b) => setDiffVersions({ a, b })}
+                    onClose={() => setRightPanel("none")}
+                  />
+                )}
 
-          {rightPanel === "activity" && (
-            <div className="w-72 border-l border-[#e5e5e5] bg-white">
-              <ActivityFeed
-                workspaceId={workspaceId}
-                onClose={() => setRightPanel("none")}
-                onNavigate={navigateToDoc}
-              />
-            </div>
+                {rightPanel === "history" && diffVersions && (
+                  <DiffView
+                    versionA={diffVersions.a}
+                    versionB={diffVersions.b}
+                    onClose={() => setDiffVersions(null)}
+                    onAccept={(content) => {
+                      handleRestoreVersion(content);
+                      setDiffVersions(null);
+                    }}
+                  />
+                )}
+
+                {rightPanel === "metadata" && activeDoc && (
+                  <DocumentMetadata
+                    document={activeDoc}
+                    onClose={() => setRightPanel("none")}
+                  />
+                )}
+
+                {rightPanel === "activity" && (
+                  <ActivityFeed
+                    workspaceId={workspaceId}
+                    onClose={() => setRightPanel("none")}
+                    onNavigate={navigateToDoc}
+                  />
+                )}
+              </div>
+            </>
           )}
         </div>
       </main>

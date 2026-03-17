@@ -28,6 +28,7 @@ import {
   getDocumentLimitInfo,
   getSubscription,
 } from "@/lib/subscription/store";
+import { useSidebar } from "@/lib/ui/sidebar-context";
 import { getSharedDocuments, type SharedDocument } from "@/lib/documents/shared";
 import { createClient } from "@/lib/supabase/client";
 
@@ -273,19 +274,48 @@ export function Sidebar({
   const isNearLimit = docLimit && !isUnlimited && docLimit.percentage >= 80;
   const isAtLimit = docLimit?.isAtLimit ?? false;
 
+  const { isOpen, close } = useSidebar();
+
+  // Close the mobile drawer whenever navigation happens
+  const handleSelect = useCallback(
+    (id: string) => {
+      onSelect(id);
+      close();
+    },
+    [onSelect, close],
+  );
+
   const handleSelectRecent = useCallback(
     (pageId: string) => {
       if (workspace) {
         router.push(`/s/${workspace.id}/d/${pageId}`);
+        close();
       }
     },
-    [router, workspace],
+    [router, workspace, close],
   );
 
   return (
+    <>
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
     <aside
       data-tutorial="sidebar"
-      className="flex h-screen w-60 shrink-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa] [&_a]:cursor-pointer [&_button]:cursor-pointer"
+      className={[
+        "flex h-screen flex-col border-r border-[#e5e5e5] bg-[#fafafa]",
+        "[&_a]:cursor-pointer [&_button]:cursor-pointer",
+        // Desktop: always visible, fixed width in the flex row
+        "md:relative md:w-60 md:shrink-0 md:translate-x-0 md:transition-none",
+        // Mobile: full-height drawer overlaid on content
+        "fixed inset-y-0 left-0 z-50 w-72 shrink-0 transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "-translate-x-full",
+      ].join(" ")}
     >
       {/* ── Top: workspace switcher ── */}
       <div className="flex items-center gap-2 border-b border-[#e5e5e5] px-4 py-3">
@@ -526,7 +556,7 @@ export function Sidebar({
                       doc={doc}
                       allDocs={documents}
                       activeId={activeId}
-                      onSelect={onSelect}
+                      onSelect={handleSelect}
                       onDelete={onDelete}
                     />
                   ))
@@ -611,5 +641,6 @@ export function Sidebar({
         </Link>
       </div>
     </aside>
+    </>
   );
 }

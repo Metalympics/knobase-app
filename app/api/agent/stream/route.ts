@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
     context?: string;
     openclawEndpoint?: string;
     openclawApiKey?: string;
+    requestingUserId?: string;
+    schoolId?: string;
   };
 
   try {
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { taskId, prompt, documentId, documentTitle, agentId, context } = body;
+  const { taskId, prompt, documentId, documentTitle, agentId, context, requestingUserId, schoolId } = body;
 
   if (!taskId || !prompt || !documentId) {
     return NextResponse.json(
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
             sendEvent,
             openclawEndpoint,
             openclawApiKey ?? "",
-            { taskId, prompt, documentId, documentTitle, agentId, context, callbackUrl, mcpEndpoint },
+            { taskId, prompt, documentId, documentTitle, agentId, context, callbackUrl, mcpEndpoint, requestingUserId, schoolId },
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : "OpenClaw stream failed";
@@ -184,9 +186,51 @@ async function streamFromOpenClaw(
     context?: string;
     callbackUrl: string;
     mcpEndpoint: string;
+    requestingUserId?: string;
+    schoolId?: string;
   },
 ): Promise<string> {
   sendEvent(controller, "status", { status: "connecting" });
+
+  // Build explicit instructions so the agent knows how to use Knobase tools
+  // and specifically how to mention the requesting user when done.
+  const knobaseContext = {
+    mcp_endpoint: params.mcpEndpoint,
+    api_key: apiKey || undefined,
+    agent_id: params.agentId,
+    requesting_user_id: params.requestingUserId,
+    school_id: params.schoolId,
+    available_tools: [
+      "list_documents",
+      "read_document",
+      "write_document",
+      "search_documents",
+      "create_document",
+      "delete_document",
+      "list_agents",
+      "get_agent_info",
+      "create_mention",
+    ],
+    instructions: [
+      "You are an AI agent operating inside the Knobase workspace platform.",
+      `You have access to workspace tools via the Knobase MCP endpoint: ${params.mcpEndpoint}`,
+      `Authenticate all MCP calls with the API key provided in this context.`,
+      "",
+      "KEY TOOL — create_mention:",
+      "Use this tool to @mention and notify a user when you complete a task, want their attention, or need to reply.",
+      "Parameters: document_id (required), target_user_id (required), mention_text (e.g. '@Alice'), context_text (summary of your work).",
+      params.requestingUserId
+        ? `The user who requested this task has ID: ${params.requestingUserId}. Use create_mention with their ID to notify them when you are done.`
+        : "Use list_agents or get_agent_info to find the requesting user's ID, then use create_mention to notify them.",
+      "",
+      "OTHER TOOLS:",
+      "• read_document — Read a document's content by ID",
+      "• write_document — Apply block-level edits to a document",
+      "• search_documents — Full-text search across all workspace documents",
+      "• create_document — Create a new document",
+      "• list_documents — List all documents in the workspace",
+    ].join("\n"),
+  };
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -212,6 +256,7 @@ async function streamFromOpenClaw(
           callbackUrl: params.callbackUrl,
           mcpEndpoint: params.mcpEndpoint,
           apiKey: apiKey || undefined,
+          knobase_context: knobaseContext,
         },
       },
     }),

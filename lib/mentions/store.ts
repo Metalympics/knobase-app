@@ -38,27 +38,29 @@ export function searchWorkspaceUsers(
 }
 
 /**
- * Create notification for mentioned user
+ * Create a local-session notification for the current user's device.
+ * The DB trigger handles the cross-device notification for the mentioned user.
  */
 export function notifyMentionedUser(
   mention: HumanMention,
   documentId: string,
   documentTitle: string,
-  authorName: string
+  authorName: string,
+  schoolId?: string,
 ): void {
   addNotification({
     type: 'mention',
     message: `mentioned you in "${documentTitle}"`,
     actorName: authorName,
     documentId,
-    link: `/d/${documentId}`,
+    link: schoolId ? `/s/${schoolId}/d/${documentId}` : `/d/${documentId}`,
   });
 }
 
 /**
  * Generate consistent color from string
  */
-function hashToColor(str: string): string {
+export function hashToColor(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);

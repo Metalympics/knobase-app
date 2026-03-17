@@ -76,7 +76,7 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
     .insert({
       school_id: data.schoolId,
       document_id: data.documentId,
-      agent_id: agentRow.bot_id,
+      bot_id: agentRow.bot_id,
       task_type: "mention",
       prompt: data.message,
       title: `Mention from ${data.userName ?? data.userId}`,
@@ -87,8 +87,8 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
         block_id: data.blockId,
         context: data.context,
       },
-      created_by: data.userId,
-      created_by_type: "user",
+      assigned_by: data.userId,
+      assigned_by_type: "human",
     })
     .select()
     .single();
@@ -101,9 +101,22 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
   const taskRow = task as unknown as { id: string };
 
   // ── 3. Dispatch webhook notification ──
+  // Look up the agent's API key so it can authenticate MCP callbacks
+  const mcpBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.API_BASE_URL || "https://api.knobase.com";
+  const mcpEndpoint = `${mcpBaseUrl}/api/mcp`;
+
+  const { data: agentApiKey } = await supabase
+    .from("agent_api_keys")
+    .select("key_hash")
+    .eq("agent_id", agentRow.id)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   try {
     await dispatchWebhookEvent(
-      agentRow.bot_id,
+      agentRow.id,
       data.schoolId,
       "mention.created",
       {
@@ -116,6 +129,37 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
         mentioned_by_name: data.userName,
         agent_name: agentRow.name,
         timestamp: new Date().toISOString(),
+        // Explicit instructions so the agent knows how to use Knobase tools
+        // and specifically how to mention the requesting user back when done.
+        knobase_context: {
+          mcp_endpoint: mcpEndpoint,
+          api_key: agentApiKey?.key_hash ?? undefined,
+          requesting_user_id: data.userId,
+          requesting_user_name: data.userName ?? data.userId,
+          school_id: data.schoolId,
+          available_tools: [
+            "list_documents",
+            "read_document",
+            "write_document",
+            "search_documents",
+            "create_document",
+            "delete_document",
+            "list_agents",
+            "get_agent_info",
+            "create_mention",
+          ],
+          instructions: [
+            "You are an AI agent operating inside the Knobase workspace platform.",
+            `You have access to workspace tools via the Knobase MCP endpoint: ${mcpEndpoint}`,
+            "Authenticate all MCP calls with the api_key provided in this context.",
+            "",
+            "KEY TOOL — create_mention:",
+            "Use this tool to @mention and notify a user when you complete your work or want to reply in context.",
+            "Parameters: document_id (required), target_user_id (required), mention_text (e.g. '@Alice'), context_text.",
+            `The user who mentioned you is: ${data.userName ?? data.userId} (ID: ${data.userId}).`,
+            `Use create_mention targeting user ID ${data.userId} on document ${data.documentId} to notify them when you are done.`,
+          ].join("\n"),
+        },
       },
     );
   } catch (error) {

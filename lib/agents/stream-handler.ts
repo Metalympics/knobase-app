@@ -33,6 +33,8 @@ export interface StreamHandlerConfig {
   openclawApiKey?: string;
   /** Workspace ID for Supabase coordination */
   schoolId?: string;
+  /** ID of the user who initiated this task (so the agent can mention them back) */
+  requestingUserId?: string;
 }
 
 export interface StreamCallbacks {
@@ -106,6 +108,8 @@ export class AgentStreamHandler {
           context: this.config.selectedText,
           openclawEndpoint: this.config.openclawEndpoint,
           openclawApiKey: this.config.openclawApiKey,
+          requestingUserId: this.config.requestingUserId,
+          schoolId: this.config.schoolId,
         }),
         signal: this.abortController.signal,
       });

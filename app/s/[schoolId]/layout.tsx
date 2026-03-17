@@ -19,6 +19,7 @@ import type { Workspace } from "@/lib/schools/types";
 import { Crown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspacePageSync } from "@/lib/sync/remote-page-sync";
+import { SidebarProvider } from "@/lib/ui/sidebar-context";
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const params = useParams();
@@ -255,6 +256,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const docIdFromUrl = (params as Record<string, string>).id ?? null;
 
   return (
+    <SidebarProvider>
     <div className="flex h-screen overflow-hidden bg-white">
       <Sidebar
         workspaceName={workspace.name}
@@ -320,5 +322,6 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         </div>
       )}
     </div>
+    </SidebarProvider>
   );
 }

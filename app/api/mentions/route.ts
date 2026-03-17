@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 
       const { data: profile, error: profileError } = await supabase
         .from("users")
-        .select("id, type, display_name, name")
+        .select("id, type, name")
         .eq("auth_id", user.id)
         .single();
 
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
       sourceId = profile.id;
       sourceType = profile.type === "agent" ? "agent" : "human";
-      sourceName = profile.display_name || profile.name || user.email || "Unknown";
+      sourceName = profile.name || user.email || "Unknown";
     }
 
     // Parse and validate request body
@@ -197,7 +197,20 @@ export async function POST(request: NextRequest) {
 
     // 4. Dispatch webhook asynchronously (fire-and-forget)
     let dispatched = false;
+    const mcpBaseUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://api.knobase.com";
+    const mcpEndpoint = `${mcpBaseUrl}/api/mcp`;
+
     if (webhookData?.webhook_url && webhookData?.secret) {
+      // Look up the target agent's Knobase API key so it can authenticate MCP calls
+      const { data: agentApiKey } = await adminClient
+        .from("agent_api_keys")
+        .select("key_hash")
+        .eq("agent_id", input.target_id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       dispatchWebhook(webhookData.webhook_url, webhookData.secret, {
         event: "mention.created",
         timestamp: new Date().toISOString(),
@@ -221,7 +234,38 @@ export async function POST(request: NextRequest) {
           created_at: mentionRow.created_at,
         },
         mcp: {
-          endpoint: `${process.env.API_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://api.knobase.com"}/api/mcp`,
+          endpoint: mcpEndpoint,
+        },
+        // knobase_context gives the agent explicit instructions on how to
+        // use MCP tools — especially create_mention to notify the user back.
+        knobase_context: {
+          mcp_endpoint: mcpEndpoint,
+          api_key: agentApiKey?.key_hash ?? undefined,
+          requesting_user_id: mentionRow.source_id,
+          requesting_user_name: mentionRow.source_name,
+          school_id: mentionRow.school_id,
+          available_tools: [
+            "list_documents",
+            "read_document",
+            "write_document",
+            "search_documents",
+            "create_document",
+            "delete_document",
+            "list_agents",
+            "get_agent_info",
+            "create_mention",
+          ],
+          instructions: [
+            "You are an AI agent operating inside the Knobase workspace platform.",
+            `You have access to workspace tools via the Knobase MCP endpoint: ${mcpEndpoint}`,
+            "Authenticate all MCP calls with the api_key provided in this context.",
+            "",
+            "KEY TOOL — create_mention:",
+            "Use this tool to @mention and notify a user when you complete your work, want their attention, or need to reply in context.",
+            "Parameters: document_id (required), target_user_id (required), mention_text (e.g. '@Alice'), context_text (brief summary).",
+            `The user who mentioned you is: ${mentionRow.source_name} (ID: ${mentionRow.source_id}).`,
+            `Use create_mention targeting user ID ${mentionRow.source_id} to notify them when you finish or have a reply.`,
+          ].join("\n"),
         },
       })
         .then((result: { success: boolean; error?: string }) => {
