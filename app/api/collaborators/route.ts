@@ -257,7 +257,7 @@ export async function PATCH(request: NextRequest) {
 
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, school_id, role')
+      .select('id, school_id, role_id')
       .eq('auth_id', user.id)
       .single();
 
@@ -268,7 +268,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (userData.role !== 'admin') {
+    if (userData.role_id !== 'admin') {
       return NextResponse.json(
         { success: false, error: 'Only admins can change roles' },
         { status: 403 }
@@ -291,7 +291,7 @@ export async function PATCH(request: NextRequest) {
 
     const { error: updateError } = await supabase
       .from('users')
-      .update({ role: validated.role })
+      .update({ role_id: validated.role })
       .eq('id', validated.teammate_id)
       .eq('school_id', userData.school_id);
 

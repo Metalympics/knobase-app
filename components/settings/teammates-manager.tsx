@@ -11,11 +11,8 @@ import {
   Trash2,
   RefreshCw,
   AlertCircle,
-  Shield,
   Check,
   Loader2,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import {
   Select,
@@ -34,40 +31,64 @@ interface Teammate {
   name: string | null;
   email: string | null;
   type: "human" | "agent";
-  role: string | null;
+  role_id: string | null;
   avatar_url: string | null;
   bot_id: string | null;
   agent_type: string | null;
   capabilities: string[] | null;
   availability: string | null;
   last_invoked_at: string | null;
-  joined_at: string | null;
   created_at: string;
 }
 
 type Role = "admin" | "editor" | "viewer";
 
-const ROLE_CONFIG: Record<Role, { label: string; badge: string; description: string }> = {
+const ROLE_CONFIG: Record<Role, { label: string; color: string; dot: string; description: string }> = {
   admin: {
     label: "Admin",
-    badge: "bg-red-100 text-red-700 border-red-200",
-    description: "Full workspace control, can invite anyone, manage billing",
+    color: "text-rose-600",
+    dot: "bg-rose-500",
+    description: "Full workspace control",
   },
   editor: {
     label: "Editor",
-    badge: "bg-blue-100 text-blue-700 border-blue-200",
-    description: "Can create and edit documents, invite viewers",
+    color: "text-blue-600",
+    dot: "bg-blue-500",
+    description: "Create and edit documents",
   },
   viewer: {
     label: "Viewer",
-    badge: "bg-neutral-100 text-neutral-600 border-neutral-200",
-    description: "Can view and comment only",
+    color: "text-neutral-500",
+    dot: "bg-neutral-400",
+    description: "View and comment only",
   },
 };
 
 function normalizeRole(role: string | null): Role {
   if (role && role in ROLE_CONFIG) return role as Role;
   return "viewer";
+}
+
+function relativeTime(dateStr: string | null): string {
+  if (!dateStr) return "Never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function getInitials(name: string | null, email: string | null): string {
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (email) return email.slice(0, 2).toUpperCase();
+  return "??";
 }
 
 /* ------------------------------------------------------------------ */
@@ -81,7 +102,6 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
   const [filter, setFilter] = useState<"all" | "human" | "agent">("all");
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
   const [roleSuccessId, setRoleSuccessId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchTeammates = useCallback(async () => {
     if (!workspaceId) return;
@@ -98,14 +118,13 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
           name,
           email,
           type,
-          role,
+          role_id,
           avatar_url,
           bot_id,
           agent_type,
           capabilities,
           availability,
           last_invoked_at,
-          joined_at,
           created_at
         `)
         .eq("school_id", workspaceId)
@@ -155,7 +174,7 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
         if (!res.ok) throw new Error(data.error || "Failed to change role");
 
         setTeammates((prev) =>
-          prev.map((t) => (t.id === teammateId ? { ...t, role: newRole } : t))
+          prev.map((t) => (t.id === teammateId ? { ...t, role_id: newRole } : t))
         );
         setRoleSuccessId(teammateId);
         setTimeout(() => setRoleSuccessId(null), 2000);
@@ -176,121 +195,90 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
   const humans = teammates.filter((t) => t.type === "human");
   const agents = teammates.filter((t) => t.type === "agent");
 
-  function relativeTime(dateStr: string | null): string {
-    if (!dateStr) return "Never";
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return "Just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  }
-
-  function getAvatarIcon(type: string) {
-    if (type === "agent") return <Bot className="h-5 w-5 text-purple-600" />;
-    return <User className="h-5 w-5 text-blue-600" />;
-  }
-
-  function getAvatarBg(type: string) {
-    if (type === "agent") return "bg-purple-50";
-    return "bg-blue-50";
-  }
-
   if (!workspaceId) {
     return (
-      <div className="rounded-lg border border-neutral-200 bg-white px-6 py-8 text-center">
+      <div className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-10 text-center">
         <p className="text-sm text-neutral-500">No workspace selected.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header with stats */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2">
-            <Users className="h-4 w-4 text-neutral-400" />
-            <span className="text-sm font-medium">{teammates.length} total</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2">
-            <User className="h-4 w-4 text-blue-500" />
-            <span className="text-sm font-medium">{humans.length} humans</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2">
-            <Bot className="h-4 w-4 text-purple-500" />
-            <span className="text-sm font-medium">{agents.length} agents</span>
-          </div>
+    <div className="space-y-5">
+      {/* Header bar */}
+      <div className="flex items-center justify-between gap-4">
+        {/* Stats */}
+        <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+          <span className="tabular-nums font-medium text-neutral-800">{teammates.length}</span>
+          members
+          <span className="mx-1 text-neutral-200">·</span>
+          <User className="h-3 w-3 text-blue-400" />
+          <span className="tabular-nums">{humans.length}</span>
+          <span className="mx-1 text-neutral-200">·</span>
+          <Bot className="h-3 w-3 text-purple-400" />
+          <span className="tabular-nums">{agents.length}</span>
         </div>
+
         <div className="flex items-center gap-2">
-          {/* Filter tabs */}
-          <div className="flex rounded-lg border border-neutral-200 bg-white p-1">
-            <button
-              onClick={() => setFilter("all")}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                filter === "all"
-                  ? "bg-neutral-900 text-white"
-                  : "text-neutral-600 hover:bg-neutral-100"
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilter("human")}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                filter === "human"
-                  ? "bg-blue-500 text-white"
-                  : "text-neutral-600 hover:bg-neutral-100"
-              }`}
-            >
-              Humans
-            </button>
-            <button
-              onClick={() => setFilter("agent")}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                filter === "agent"
-                  ? "bg-purple-500 text-white"
-                  : "text-neutral-600 hover:bg-neutral-100"
-              }`}
-            >
-              Agents
-            </button>
+          {/* Filter pills */}
+          <div className="flex rounded-full border border-neutral-200 bg-white p-0.5">
+            {(["all", "human", "agent"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-full px-3 py-1 text-[11px] font-medium capitalize transition-all ${
+                  filter === f
+                    ? "bg-neutral-900 text-white shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-700"
+                }`}
+              >
+                {f === "all" ? "All" : f === "human" ? "Humans" : "Agents"}
+              </button>
+            ))}
           </div>
+
           <button
             onClick={fetchTeammates}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+            className="rounded-full border border-neutral-200 p-1.5 text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 disabled:opacity-50"
+            title="Refresh"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
           </button>
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4" />
+        <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-600">
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading skeletons */}
       {loading && teammates.length === 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg border border-neutral-200 bg-neutral-50" />
+            <div key={i} className="flex items-center gap-3 rounded-xl border border-neutral-100 bg-white p-4">
+              <div className="h-9 w-9 animate-pulse rounded-full bg-neutral-100" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 w-32 animate-pulse rounded bg-neutral-100" />
+                <div className="h-3 w-48 animate-pulse rounded bg-neutral-50" />
+              </div>
+              <div className="h-7 w-20 animate-pulse rounded-md bg-neutral-50" />
+            </div>
           ))}
         </div>
       )}
 
       {/* Empty state */}
       {!loading && filteredTeammates.length === 0 && (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-6 py-12 text-center">
-          <Users className="mx-auto h-10 w-10 text-neutral-300" />
-          <h3 className="mt-3 text-sm font-medium text-neutral-700">
+        <div className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-14 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
+            <Users className="h-5 w-5 text-neutral-400" />
+          </div>
+          <h3 className="mt-4 text-sm font-medium text-neutral-700">
             {filter === "all" ? "No teammates yet" : `No ${filter}s yet`}
           </h3>
           <p className="mt-1 text-xs text-neutral-500">
@@ -300,206 +288,155 @@ export function TeammatesManager({ workspaceId }: { workspaceId: string | null }
       )}
 
       {/* Teammate list */}
-      <AnimatePresence>
-        {filteredTeammates.map((teammate) => {
-          const role = normalizeRole(teammate.role);
-          const config = ROLE_CONFIG[role];
-          const isChanging = changingRoleId === teammate.id;
-          const showSuccess = roleSuccessId === teammate.id;
-          const isExpanded = expandedId === teammate.id;
+      <div className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <AnimatePresence initial={false}>
+          {filteredTeammates.map((teammate) => {
+            const role = normalizeRole(teammate.role_id);
+            const roleConfig = ROLE_CONFIG[role];
+            const isChanging = changingRoleId === teammate.id;
+            const showSuccess = roleSuccessId === teammate.id;
+            const isAgent = teammate.type === "agent";
+            const displayName = teammate.name || teammate.email || teammate.bot_id || "Unknown";
 
-          return (
-            <motion.div
-              key={teammate.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="group rounded-lg border border-neutral-200 bg-white transition-shadow hover:shadow-sm"
-            >
-              <div className="flex items-center gap-4 px-4 py-3">
+            return (
+              <motion.div
+                key={teammate.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                layout
+                className="group relative flex items-center gap-3.5 px-4 py-3.5 transition-colors hover:bg-neutral-50/60"
+              >
                 {/* Avatar */}
-                <div className="relative flex-shrink-0">
+                <div className="relative shrink-0">
                   {teammate.avatar_url ? (
                     <img
                       src={teammate.avatar_url}
-                      alt={teammate.name || ""}
-                      className="h-10 w-10 rounded-full object-cover"
+                      alt={displayName}
+                      className="h-9 w-9 rounded-full object-cover ring-1 ring-neutral-100"
                     />
                   ) : (
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-full ${getAvatarBg(teammate.type)}`}>
-                      {getAvatarIcon(teammate.type)}
-                    </div>
-                  )}
-                  {teammate.type === "agent" && teammate.availability !== "offline" && (
-                    <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-medium text-neutral-900">
-                      {teammate.name || teammate.email || teammate.bot_id || "Unknown"}
-                    </h4>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
-                        teammate.type === "agent"
-                          ? "bg-purple-100 text-purple-600"
-                          : "bg-blue-100 text-blue-600"
+                    <div
+                      className={`flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-semibold ring-1 ring-inset ${
+                        isAgent
+                          ? "bg-purple-50 text-purple-600 ring-purple-100"
+                          : "bg-blue-50 text-blue-600 ring-blue-100"
                       }`}
                     >
-                      {teammate.type}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-3 text-xs text-neutral-400">
-                    {teammate.email && (
-                      <span className="flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {teammate.email}
-                      </span>
-                    )}
-                    {teammate.type === "agent" && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Last active: {relativeTime(teammate.last_invoked_at)}
-                      </span>
-                    )}
-                    {teammate.joined_at && (
-                      <span>Joined {relativeTime(teammate.joined_at)}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Role badge + selector */}
-                <div className="flex items-center gap-2">
-                  {isChanging ? (
-                    <div className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-3 py-1.5">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-neutral-400" />
-                      <span className="text-xs text-neutral-500">Updating…</span>
+                      {isAgent ? <Bot className="h-4 w-4" /> : getInitials(teammate.name, teammate.email)}
                     </div>
-                  ) : showSuccess ? (
-                    <div className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5">
-                      <Check className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="text-xs font-medium text-emerald-700">Updated</span>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Prominent role badge — visible always */}
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold group-hover:hidden ${config.badge}`}
-                        title={config.description}
-                      >
-                        <Shield className="h-3.5 w-3.5" />
-                        {config.label}
-                      </span>
-
-                      {/* Inline role selector — visible on hover */}
-                      <div className="hidden group-hover:block">
-                        <Select
-                          value={role}
-                          onValueChange={(v) => handleRoleChange(teammate.id, v as Role)}
-                        >
-                          <SelectTrigger
-                            size="sm"
-                            className="h-8 gap-1.5 border-neutral-200 bg-white text-xs font-semibold"
-                          >
-                            <Shield className="h-3.5 w-3.5 text-neutral-500" />
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(Object.entries(ROLE_CONFIG) as [Role, typeof config][]).map(
-                              ([key, cfg]) => (
-                                <SelectItem key={key} value={key}>
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{cfg.label}</span>
-                                    <span className="text-[11px] text-neutral-400">
-                                      {cfg.description}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                              )
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
+                  )}
+                  {isAgent && teammate.availability !== "offline" && (
+                    <span className="absolute -bottom-px -right-px block h-2.5 w-2.5 rounded-full border-[1.5px] border-white bg-emerald-400" />
                   )}
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() =>
-                      setExpandedId(isExpanded ? null : teammate.id)
-                    }
-                    className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                    title="Show role details"
-                  >
-                    {isExpanded ? (
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    ) : (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleRemove(teammate.id, teammate.name)}
-                    className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                    title="Remove from workspace"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Expandable role description */}
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="border-t border-neutral-100 px-4 py-3">
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${config.badge}`}
-                        >
-                          <Shield className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-neutral-800">
-                            {config.label} Role
-                          </p>
-                          <p className="mt-0.5 text-xs text-neutral-500">
-                            {config.description}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Capabilities (for agents) */}
-              {teammate.type === "agent" && (teammate.capabilities?.length ?? 0) > 0 && (
-                <div className="border-t border-neutral-100 px-4 py-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {(teammate.capabilities ?? []).map((cap) => (
-                      <span
-                        key={cap}
-                        className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-600"
-                      >
-                        {cap}
+                {/* Name + meta */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[13px] font-medium text-neutral-900">
+                      {displayName}
+                    </span>
+                    {isAgent && (
+                      <span className="shrink-0 rounded bg-purple-50 px-1.5 py-px text-[10px] font-medium text-purple-500">
+                        Agent
                       </span>
-                    ))}
+                    )}
                   </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-neutral-400">
+                    {teammate.email && teammate.name && (
+                      <>
+                        <Mail className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{teammate.email}</span>
+                        <span className="text-neutral-200">·</span>
+                      </>
+                    )}
+                    {isAgent && teammate.last_invoked_at && (
+                      <>
+                        <Clock className="h-3 w-3 shrink-0" />
+                        <span>{relativeTime(teammate.last_invoked_at)}</span>
+                        <span className="text-neutral-200">·</span>
+                      </>
+                    )}
+                    <span>Joined {relativeTime(teammate.created_at)}</span>
+                  </div>
+                  {/* Capabilities */}
+                  {isAgent && (teammate.capabilities?.length ?? 0) > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {(teammate.capabilities ?? []).slice(0, 4).map((cap) => (
+                        <span
+                          key={cap}
+                          className="rounded bg-neutral-100 px-1.5 py-px text-[10px] font-medium text-neutral-500"
+                        >
+                          {cap}
+                        </span>
+                      ))}
+                      {(teammate.capabilities?.length ?? 0) > 4 && (
+                        <span className="rounded bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-400">
+                          +{(teammate.capabilities?.length ?? 0) - 4}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+
+                {/* Role selector — fixed width, no layout shift */}
+                <div className="w-[90px] shrink-0">
+                  {isChanging ? (
+                    <div className="flex h-8 items-center justify-center gap-1.5">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-neutral-400" />
+                    </div>
+                  ) : showSuccess ? (
+                    <div className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-emerald-50">
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-[11px] font-medium text-emerald-600">Saved</span>
+                    </div>
+                  ) : (
+                    <Select
+                      value={role}
+                      onValueChange={(v) => handleRoleChange(teammate.id, v as Role)}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        className="h-8 w-full border-transparent bg-transparent px-2 text-xs font-medium shadow-none hover:border-neutral-200 hover:bg-white data-[state=open]:border-neutral-200 data-[state=open]:bg-white"
+                      >
+                        <span className="flex items-center gap-1.5 overflow-hidden">
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${roleConfig.dot}`} />
+                          <SelectValue />
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        {(Object.entries(ROLE_CONFIG) as [Role, typeof roleConfig][]).map(
+                          ([key, cfg]) => (
+                            <SelectItem key={key} value={key} textValue={cfg.label}>
+                              <span className="flex items-center gap-2">
+                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                                <span className="font-medium">{cfg.label}</span>
+                                <span className="text-[11px] text-neutral-400">
+                                  — {cfg.description}
+                                </span>
+                              </span>
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* Remove button — always in layout, visible on hover via opacity */}
+                <button
+                  onClick={() => handleRemove(teammate.id, teammate.name)}
+                  className="shrink-0 rounded-md p-1.5 text-neutral-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                  title="Remove from workspace"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

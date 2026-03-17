@@ -66,11 +66,26 @@ function SettingsSkeleton() {
   );
 }
 
+const VALID_TABS = new Set<Tab>([
+  "teammates", "import", "export", "marketplace",
+  "apikeys", "subscription", "analytics", "webhooks",
+  "mcp", "credentials",
+]);
+
 function SettingsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab) || "teammates";
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const activeTab: Tab = tabParam && VALID_TABS.has(tabParam) ? tabParam : "teammates";
+
+  const setActiveTab = useCallback(
+    (tab: Tab) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", tab);
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
   const [mcpApiKey, setMcpApiKey] = useState(
     () => (typeof window !== "undefined" ? localStorage.getItem("knobase-app:mcp-api-key") : null) ?? ""
   );
@@ -158,7 +173,7 @@ function SettingsPageInner() {
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-8 py-8">
+        <div className="mx-auto max-w-3xl px-8 py-8">
           <AnimatePresence mode="wait">
             {activeTab === "subscription" && subscription && (
               <motion.div

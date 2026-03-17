@@ -351,7 +351,7 @@ export async function canEditDocument(userId: string, pageId: string) {
 
   const { data: user } = await supabase
     .from("users")
-    .select("school_id, role")
+    .select("school_id, role_id")
     .eq("id", userId)
     .single();
 
@@ -365,7 +365,7 @@ export async function canEditDocument(userId: string, pageId: string) {
 
   if (!page || page.school_id !== user.school_id) return false;
   if (page.created_by === userId) return true;
-  if (user.role === "admin" || user.role === "editor") return true;
+  if ((user as any).role_id === "admin" || (user as any).role_id === "editor") return true;
 
   return false;
 }

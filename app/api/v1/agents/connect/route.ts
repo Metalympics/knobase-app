@@ -166,17 +166,15 @@ export async function POST(request: NextRequest) {
       scopes: ["read", "write", "task"],
     });
 
-    // Mark the device code as completed and delete it
-    await (admin
+    // Mark the device code as completed with agent details (polled by invite modal)
+    const { error: updateError } = await (admin
       .from("oauth_device_codes") as any)
-      .update({ access_token: rawKey })
+      .update({ access_token: rawKey, status: "completed", agent_id: agentId })
       .eq("device_code", deviceCode);
-    
-    // Clean up the device code record
-    await (admin
-      .from("oauth_device_codes") as any)
-      .delete()
-      .eq("device_code", deviceCode);
+
+    if (updateError) {
+      console.error("[AgentConnect] Failed to mark device code completed:", updateError.message);
+    }
 
     console.log("[AgentConnect] Success! Returning agent_id:", agentId);
 

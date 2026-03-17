@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Users, Bot, Copy, Check, Loader2, Zap, Clock, Download, AlertTriangle, RefreshCw } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import {
+  Users, Bot, Copy, Check, Loader2, Zap, Clock, Download,
+  AlertTriangle, RefreshCw, CheckCircle2, PartyPopper, Search,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +38,14 @@ interface InviteModalProps {
   workspaceName?: string;
 }
 
+interface ConnectedAgent {
+  id: string;
+  name: string;
+  bot_id?: string;
+  availability?: string;
+  connected_at: string;
+}
+
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
@@ -58,11 +69,27 @@ export function InviteModal({
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
   const [agentCommand, setAgentCommand] = useState<string | null>(null);
+  const [deviceCode, setDeviceCode] = useState<string | null>(null);
   const [agentExpiresAt, setAgentExpiresAt] = useState<Date | null>(null);
   const [agentCopied, setAgentCopied] = useState(false);
   const [installCopied, setInstallCopied] = useState(false);
   const [agentName, setAgentName] = useState("OpenClaw Agent");
   const [regenerating, setRegenerating] = useState(false);
+
+  // Status polling state
+  const [checking, setChecking] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const [connectedAgent, setConnectedAgent] = useState<ConnectedAgent | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    setIsPolling(false);
+  }, []);
 
   const resetHuman = useCallback(() => {
     setEmail("");
@@ -72,14 +99,24 @@ export function InviteModal({
   }, []);
 
   const resetAgent = useCallback(() => {
+    stopPolling();
     setAgentLoading(false);
     setAgentError(null);
     setAgentCommand(null);
+    setDeviceCode(null);
     setAgentExpiresAt(null);
     setAgentCopied(false);
     setInstallCopied(false);
     setAgentName("OpenClaw Agent");
-  }, []);
+    setChecking(false);
+    setIsPolling(false);
+    setConnectedAgent(null);
+    setStatusMessage(null);
+  }, [stopPolling]);
+
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
 
   /* ── Human invite ────────────────────────────────────────────────── */
 
@@ -122,6 +159,7 @@ export function InviteModal({
     setAgentLoading(true);
     setAgentError(null);
     setAgentCommand(null);
+    setDeviceCode(null);
     setAgentExpiresAt(null);
 
     try {
@@ -140,6 +178,7 @@ export function InviteModal({
 
       const data = await res.json();
       setAgentCommand(data.command);
+      setDeviceCode(data.device_code);
       setAgentExpiresAt(new Date(Date.now() + data.expires_in * 1000));
     } catch (err) {
       setAgentError(err instanceof Error ? err.message : "Something went wrong");
@@ -149,8 +188,11 @@ export function InviteModal({
   }, [agentName]);
 
   const handleRegenerateCode = useCallback(async () => {
+    stopPolling();
     setRegenerating(true);
     setAgentError(null);
+    setStatusMessage(null);
+    setConnectedAgent(null);
 
     try {
       const res = await fetch("/api/agents/invite", {
@@ -168,6 +210,7 @@ export function InviteModal({
 
       const data = await res.json();
       setAgentCommand(data.command);
+      setDeviceCode(data.device_code);
       setAgentExpiresAt(new Date(Date.now() + data.expires_in * 1000));
       setAgentCopied(false);
     } catch (err) {
@@ -175,7 +218,47 @@ export function InviteModal({
     } finally {
       setRegenerating(false);
     }
-  }, [agentName]);
+  }, [agentName, stopPolling]);
+
+  /* ── Status polling ────────────────────────────────────────────────── */
+
+  const checkStatus = useCallback(async () => {
+    if (!deviceCode) return;
+    setChecking(true);
+    setAgentError(null);
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch(
+        `/api/agents/invite/status?device_code=${encodeURIComponent(deviceCode)}`,
+      );
+      const data = await res.json();
+
+      if (data.status === "connected" && data.agent) {
+        stopPolling();
+        setConnectedAgent(data.agent);
+      } else if (data.status === "expired") {
+        stopPolling();
+        setStatusMessage("Device code has expired. Please regenerate.");
+      } else if (data.status === "not_found") {
+        stopPolling();
+        setStatusMessage("Device code not found. Please regenerate.");
+      } else {
+        setStatusMessage("Waiting for agent to connect...");
+      }
+    } catch {
+      setStatusMessage("Could not reach server. Try again.");
+    } finally {
+      setChecking(false);
+    }
+  }, [deviceCode, stopPolling]);
+
+  const startAutoPolling = useCallback(() => {
+    stopPolling();
+    checkStatus();
+    pollRef.current = setInterval(checkStatus, 5000);
+    setIsPolling(true);
+  }, [checkStatus, stopPolling]);
 
   const copyToClipboard = useCallback(async (text: string): Promise<boolean> => {
     const blob = new Blob([text], { type: "text/plain" });
@@ -341,7 +424,61 @@ export function InviteModal({
 
           {/* ── Agent tab ──────────────────────────────────────────── */}
           <TabsContent value="agent" className="space-y-4 pt-4">
-            {agentCommand ? (
+            {/* ── Success view ──────────────────────────────────────── */}
+            {connectedAgent ? (
+              <div className="space-y-5">
+                <div className="flex flex-col items-center gap-3 py-2">
+                  <div className="flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-200 dark:shadow-emerald-900/40">
+                    <CheckCircle2 className="size-8 text-white" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <PartyPopper className="size-4 text-amber-500" />
+                    <h3 className="text-lg font-semibold">Agent Connected!</h3>
+                    <PartyPopper className="size-4 text-amber-500" />
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Your agent has been successfully added to the workspace.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold text-white">
+                      {connectedAgent.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{connectedAgent.name}</p>
+                      <p className="text-xs text-muted-foreground font-mono truncate">
+                        {connectedAgent.id}
+                      </p>
+                    </div>
+                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 border-0">
+                      Online
+                    </Badge>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    resetAgent();
+                    onOpenChange(false);
+                  }}
+                >
+                  <Check className="size-4" />
+                  Done
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={resetAgent}
+                >
+                  Invite another agent
+                </Button>
+              </div>
+
+            ) : agentCommand ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-800 dark:bg-violet-950">
                   <Zap className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
@@ -351,7 +488,7 @@ export function InviteModal({
                   </p>
                 </div>
 
-                {/* Connect to workspace — primary, ready instantly */}
+                {/* Connect to workspace */}
                 <div className="rounded-lg border px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Zap className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
@@ -389,7 +526,7 @@ export function InviteModal({
                   </div>
                 </div>
 
-                {/* Install (optional, always visible) */}
+                {/* Install (optional) */}
                 <div className="rounded-lg border px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Download className="size-4 shrink-0 text-muted-foreground" />
@@ -438,9 +575,59 @@ export function InviteModal({
 
                 <Separator />
 
+                {/* Status check section */}
+                <div className="space-y-2">
+                  {statusMessage && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      {statusMessage}
+                    </p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      variant={isPolling ? "default" : "outline"}
+                      onClick={() => {
+                        if (isPolling) {
+                          stopPolling();
+                          setStatusMessage(null);
+                        } else {
+                          startAutoPolling();
+                        }
+                      }}
+                      disabled={checking && !isPolling}
+                    >
+                      {isPolling ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          Listening... (stop)
+                        </>
+                      ) : (
+                        <>
+                          <Search className="size-4" />
+                          Auto-check connection
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={checkStatus}
+                      disabled={checking}
+                      aria-label="Check once"
+                    >
+                      {checking ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
                 <Button
-                  variant="outline"
-                  className="w-full"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-muted-foreground"
                   onClick={resetAgent}
                 >
                   Start over
@@ -450,8 +637,8 @@ export function InviteModal({
               <div className="space-y-4">
                 <div className="rounded-lg border p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold text-white">
-                      OC
+                    <div className="flex size-10 items-center justify-center overflow-hidden rounded-lg bg-black">
+                      <img src="/openclaw.png" alt="OpenClaw" className="size-full object-contain" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">One-Click Setup</p>

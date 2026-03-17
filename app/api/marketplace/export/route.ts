@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     const { data: membership } = await supabase
       .from("users")
-      .select("role")
+      .select("role_id")
       .eq("workspace_id", workspaceId)
       .eq("user_id", userId)
       .single();

@@ -59,7 +59,7 @@ export async function getUserWorkspaceRole(
 ): Promise<"admin" | "editor" | "viewer" | null> {
   const { data, error } = await supabase
     .from("users")
-    .select("role, school_id")
+    .select("role_id, school_id")
     .eq("id", userId)
     .single();
 
@@ -68,10 +68,10 @@ export async function getUserWorkspaceRole(
     return null;
   }
 
-  const user = data as unknown as { role: string | null; school_id: string | null };
+  const user = data as unknown as { role_id: string | null; school_id: string | null };
   if (user.school_id !== schoolId) return null;
 
-  return (user.role as "admin" | "editor" | "viewer") ?? null;
+  return (user.role_id as "admin" | "editor" | "viewer") ?? null;
 }
 
 export async function canEditDocument(
