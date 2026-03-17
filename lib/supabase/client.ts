@@ -140,6 +140,8 @@ export type Database = {
           logo_url: string | null;
           icon: string | null;
           color: string | null;
+          description: string | null;
+          website: string | null;
           custom_domain: string | null;
           is_public_workspace: boolean;
           created_at: string;
@@ -156,6 +158,8 @@ export type Database = {
           logo_url?: string | null;
           icon?: string | null;
           color?: string | null;
+          description?: string | null;
+          website?: string | null;
           custom_domain?: string | null;
           is_public_workspace?: boolean;
           created_at?: string;
@@ -172,6 +176,8 @@ export type Database = {
           logo_url?: string | null;
           icon?: string | null;
           color?: string | null;
+          description?: string | null;
+          website?: string | null;
           custom_domain?: string | null;
           is_public_workspace?: boolean;
           updated_at?: string;

@@ -22,6 +22,8 @@ export interface School {
   inviteCode: string;
   icon?: string | null;
   color?: string | null;
+  description?: string | null;
+  website?: string | null;
   /** Public URL to icon-logo.png in organization-custom-styles bucket */
   iconUrl?: string | null;
   /** Whether the school has uploaded a custom icon */
@@ -57,6 +59,8 @@ export interface CreateSchoolInput {
 
 export interface UpdateSchoolInput {
   name?: string;
+  description?: string | null;
+  website?: string | null;
   icon?: string | null;
   color?: string | null;
   settings?: Partial<SchoolSettings>;

@@ -76,6 +76,8 @@ function rowToSchoolWithSettings(schoolRow: any, os?: any, userType?: string | n
     inviteCode: schoolRow.invite_code ?? "",
     icon: schoolRow.icon ?? null,
     color: schoolRow.color ?? null,
+    description: schoolRow.description ?? null,
+    website: schoolRow.website ?? null,
     iconUrl: buildIconUrl(schoolRow.id, useCustomIcon),
     useCustomIcon,
     userType: userType ?? null,
@@ -137,6 +139,8 @@ export async function updateSchool(
     }
     if (updates.icon !== undefined) updateData.icon = updates.icon;
     if (updates.color !== undefined) updateData.color = updates.color;
+    if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.website !== undefined) updateData.website = updates.website;
     if (updates.settings !== undefined) {
       const currentSchool = await loadSchool(schoolId);
       if (currentSchool) {
@@ -159,10 +163,86 @@ export async function updateSchool(
       return null;
     }
 
-    return data ? rowToSchool(data) : null;
+    // Keep organization_settings.site_title in sync with the name
+    if (updates.name !== undefined) {
+      await supabase
+        .from("organization_settings")
+        .update({ site_title: updates.name, updated_at: new Date().toISOString() })
+        .eq("school_id", schoolId);
+    }
+
+    return data ? loadSchool(schoolId) : null;
   } catch (error) {
     console.error("Error updating school:", error);
     return null;
+  }
+}
+
+/**
+ * Upload a custom icon image for a workspace.
+ * Stores the file in organization-custom-styles/{schoolId}/icon-logo.png
+ * and sets use_custom_icon = true in organization_settings.
+ */
+export async function uploadWorkspaceIcon(
+  schoolId: string,
+  file: File,
+): Promise<{ iconUrl: string } | null> {
+  try {
+    const supabase = createClient();
+
+    const { error: uploadError } = await supabase.storage
+      .from("organization-custom-styles")
+      .upload(`${schoolId}/icon-logo.png`, file, {
+        upsert: true,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      console.error("Error uploading workspace icon:", uploadError);
+      return null;
+    }
+
+    // Mark use_custom_icon = true in organization_settings (upsert)
+    await supabase
+      .from("organization_settings")
+      .upsert(
+        { school_id: schoolId, use_custom_icon: true, updated_at: new Date().toISOString() },
+        { onConflict: "school_id" },
+      );
+
+    const iconUrl = buildIconUrl(schoolId, true);
+    return iconUrl ? { iconUrl } : null;
+  } catch (error) {
+    console.error("Error uploading workspace icon:", error);
+    return null;
+  }
+}
+
+/**
+ * Remove the custom uploaded icon for a workspace.
+ * Sets use_custom_icon = false so the emoji/color fallback is used.
+ */
+export async function removeWorkspaceIcon(schoolId: string): Promise<boolean> {
+  try {
+    const supabase = createClient();
+
+    // Remove the file from storage (best-effort — ignore errors)
+    await supabase.storage
+      .from("organization-custom-styles")
+      .remove([`${schoolId}/icon-logo.png`]);
+
+    // Disable custom icon flag
+    await supabase
+      .from("organization_settings")
+      .upsert(
+        { school_id: schoolId, use_custom_icon: false, updated_at: new Date().toISOString() },
+        { onConflict: "school_id" },
+      );
+
+    return true;
+  } catch (error) {
+    console.error("Error removing workspace icon:", error);
+    return false;
   }
 }
 

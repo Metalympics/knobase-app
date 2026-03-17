@@ -138,15 +138,19 @@ export function AgentSelector({
       try {
         const supabase = createClient();
 
-        // Agents first (priority in results)
-        const { data: agentData } = await supabase
+        // Agents: match type='agent' or type='ai' to cover both conventions
+        const { data: agentData, error: agentError } = await supabase
           .from("users")
-          .select("id, name, avatar_url, description, agent_type")
-          .eq("type", "agent")
+          .select("id, name, avatar_url, description, agent_type, type")
+          .in("type", ["agent", "ai"])
           .eq("school_id", workspaceId)
           .or("is_deleted.is.null,is_deleted.eq.false")
           .order("name", { ascending: true })
           .limit(20);
+
+        if (agentError) {
+          console.error("[AgentSelector] Failed to fetch agents:", agentError.message, agentError.details);
+        }
 
         if (!cancelled && agentData?.length) {
           const opts: AgentOption[] = agentData.map((row: any) => {
@@ -170,10 +174,12 @@ export function AgentSelector({
             };
           });
           setDbAgentOptions(opts);
+        } else if (!cancelled && !agentError) {
+          console.warn("[AgentSelector] No agents found for workspace:", workspaceId);
         }
 
         // Human members of the same workspace
-        const { data: userData } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from("users")
           .select("id, name, avatar_url")
           .eq("school_id", workspaceId)
@@ -181,6 +187,10 @@ export function AgentSelector({
           .or("is_deleted.is.null,is_deleted.eq.false")
           .order("name", { ascending: true })
           .limit(30);
+
+        if (userError) {
+          console.error("[AgentSelector] Failed to fetch users:", userError.message, userError.details);
+        }
 
         if (!cancelled && userData?.length) {
           const users: MentionableUser[] = userData.map((row: any) => ({
@@ -191,8 +201,8 @@ export function AgentSelector({
           }));
           setDbUserOptions(users);
         }
-      } catch {
-        // best effort
+      } catch (err) {
+        console.error("[AgentSelector] Unexpected error fetching workspace members:", err);
       }
     }
 
