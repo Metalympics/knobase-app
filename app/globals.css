@@ -442,6 +442,90 @@
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* ── KaTeX styles ── */
+@import "katex/dist/katex.min.css";
+
+/* ── Chart block styles ── */
+.tiptap-wrapper .tiptap-editor .chart-block-wrapper {
+  margin: 1em 0;
+}
+
+.tiptap-wrapper .tiptap-editor .chart-block-wrapper .recharts-wrapper {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 12px;
+}
+
+/* ── Math block styles ── */
+.tiptap-wrapper .tiptap-editor .math-block-wrapper {
+  margin: 0.75em 0;
+}
+
+.tiptap-wrapper .tiptap-editor .math-block-wrapper .katex {
+  font-size: 1.1em;
+}
+
+.tiptap-wrapper .tiptap-editor .math-inline-wrapper .katex {
+  font-size: 1em;
+}
+
+/* ── Enhanced code block styles ── */
+.tiptap-wrapper .tiptap-editor .code-block-enhanced {
+  margin: 0.75em 0;
+}
+
+.tiptap-wrapper .tiptap-editor .code-block-enhanced pre {
+  margin: 0;
+  white-space: pre;
+  word-wrap: normal;
+  overflow-x: auto;
+}
+
+.tiptap-wrapper .tiptap-editor .code-block-enhanced pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+/* Prism.js token colors */
+.code-block-enhanced .token.comment,
+.code-block-enhanced .token.prolog,
+.code-block-enhanced .token.doctype,
+.code-block-enhanced .token.cdata { color: #6a737d; }
+.code-block-enhanced .token.punctuation { color: #24292e; }
+.code-block-enhanced .token.property,
+.code-block-enhanced .token.tag,
+.code-block-enhanced .token.boolean,
+.code-block-enhanced .token.number,
+.code-block-enhanced .token.constant,
+.code-block-enhanced .token.symbol { color: #005cc5; }
+.code-block-enhanced .token.selector,
+.code-block-enhanced .token.attr-name,
+.code-block-enhanced .token.string,
+.code-block-enhanced .token.char,
+.code-block-enhanced .token.builtin { color: #032f62; }
+.code-block-enhanced .token.operator,
+.code-block-enhanced .token.entity,
+.code-block-enhanced .token.url { color: #d73a49; }
+.code-block-enhanced .token.atrule,
+.code-block-enhanced .token.attr-value,
+.code-block-enhanced .token.keyword { color: #d73a49; }
+.code-block-enhanced .token.function,
+.code-block-enhanced .token.class-name { color: #6f42c1; }
+.code-block-enhanced .token.regex,
+.code-block-enhanced .token.important,
+.code-block-enhanced .token.variable { color: #e36209; }
+
+/* ── Mermaid block styles ── */
+.tiptap-wrapper .tiptap-editor .mermaid-block-wrapper {
+  margin: 1em 0;
+}
+
+.tiptap-wrapper .tiptap-editor .mermaid-block-wrapper svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* ── Agent response body — scoped markdown rendering ── */
 .agent-response-body p { margin: 0 0 0.5rem; }
 .agent-response-body p:last-child { margin-bottom: 0; }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Editor } from "@tiptap/react";
-import { Bot, Edit2 } from "lucide-react";
+import { Bot, Edit2, AlertCircle } from "lucide-react";
 import { insertHumanMention } from "./inline-agent";
 import { getInitial, hashToColor } from "@/lib/mentions/store";
 import type { MentionableUser } from "@/lib/mentions/types";
@@ -10,6 +10,7 @@ import { listAgents, createAgent, updateAgentName, type Agent } from "@/lib/agen
 import { useDemoSafe } from "@/lib/demo/context";
 import { DEMO_AGENTS, DEMO_PEOPLE } from "@/lib/demo/simulated-agents";
 import { createClient } from "@/lib/supabase/client";
+import { useResolvedAvatars } from "@/lib/ui/use-resolved-avatars";
 import Image from "next/image";
 
 interface AgentOption {
@@ -128,23 +129,25 @@ export function AgentSelector({
   const isDemo = !!demoCtx;
   const [dbAgentOptions, setDbAgentOptions] = useState<AgentOption[]>([]);
   const [dbUserOptions, setDbUserOptions] = useState<MentionableUser[]>([]);
+  const [dbUserAvatarSources, setDbUserAvatarSources] = useState<{ id: string; avatar_url: string | null }[]>([]);
+  const [agentFetchStatus, setAgentFetchStatus] = useState<"idle" | "loading" | "error" | "empty" | "loaded">("idle");
 
-  // Fetch real agent + human users from Supabase when not in demo mode
   useEffect(() => {
     if (isDemo || !workspaceId) return;
     let cancelled = false;
+    setAgentFetchStatus("loading");
 
     async function fetchWorkspaceMembers() {
       try {
         const supabase = createClient();
+        console.log("[AgentSelector] Fetching members for workspace:", workspaceId);
 
-        // Agents: match type='agent' or type='ai' to cover both conventions
-        const { data: agentData, error: agentError } = await supabase
+        let { data: agentData, error: agentError } = await supabase
           .from("users")
           .select("id, name, avatar_url, description, agent_type, type")
-          .in("type", ["agent", "ai"])
+          .eq("type", "agent")
           .eq("school_id", workspaceId)
-          .or("is_deleted.is.null,is_deleted.eq.false")
+          .eq("is_deleted", false)
           .order("name", { ascending: true })
           .limit(20);
 
@@ -152,7 +155,27 @@ export function AgentSelector({
           console.error("[AgentSelector] Failed to fetch agents:", agentError.message, agentError.details);
         }
 
-        if (!cancelled && agentData?.length) {
+        if (!agentError && (!agentData || agentData.length === 0)) {
+          console.log("[AgentSelector] No agents for workspace, trying global fallback");
+          const fallback = await supabase
+            .from("users")
+            .select("id, name, avatar_url, description, agent_type, type")
+            .eq("type", "agent")
+            .eq("is_deleted", false)
+            .order("name", { ascending: true })
+            .limit(10);
+
+          if (fallback.error) {
+            console.error("[AgentSelector] Global agent fallback failed:", fallback.error.message);
+          } else {
+            agentData = fallback.data;
+            console.log("[AgentSelector] Global fallback returned", fallback.data?.length ?? 0, "agents");
+          }
+        }
+
+        if (agentError && !cancelled) {
+          setAgentFetchStatus("error");
+        } else if (!cancelled && agentData?.length) {
           const opts: AgentOption[] = agentData.map((row: any) => {
             const name = row.name ?? "Agent";
             const agent = (() => {
@@ -169,22 +192,24 @@ export function AgentSelector({
                 ? <Image src={row.avatar_url} alt={name} width={32} height={32} className="h-full w-full rounded-md object-cover" unoptimized />
                 : <Bot className="h-4 w-4" />,
               avatarSrc: row.avatar_url ?? undefined,
+              color: row.avatar_url ? undefined : "#8B5CF6",
               description: row.description ?? "Workspace agent",
               agent,
             };
           });
           setDbAgentOptions(opts);
-        } else if (!cancelled && !agentError) {
-          console.warn("[AgentSelector] No agents found for workspace:", workspaceId);
+          setAgentFetchStatus("loaded");
+        } else if (!cancelled) {
+          setAgentFetchStatus("empty");
+          console.warn("[AgentSelector] No agents found (workspace + global)");
         }
 
-        // Human members of the same workspace
         const { data: userData, error: userError } = await supabase
           .from("users")
           .select("id, name, avatar_url")
           .eq("school_id", workspaceId)
-          .eq("type", "human")
-          .or("is_deleted.is.null,is_deleted.eq.false")
+          .in("type", ["human", "teacher", "admin"])
+          .eq("is_deleted", false)
           .order("name", { ascending: true })
           .limit(30);
 
@@ -197,18 +222,21 @@ export function AgentSelector({
             userId: row.id,
             displayName: row.name ?? "User",
             color: hashToColor(row.id),
-            avatarUrl: row.avatar_url ?? undefined,
           }));
           setDbUserOptions(users);
+          setDbUserAvatarSources(userData.map((row: any) => ({ id: row.id, avatar_url: row.avatar_url })));
         }
       } catch (err) {
         console.error("[AgentSelector] Unexpected error fetching workspace members:", err);
+        if (!cancelled) setAgentFetchStatus("error");
       }
     }
 
     fetchWorkspaceMembers();
     return () => { cancelled = true; };
   }, [isDemo, workspaceId]);
+
+  const resolvedUserAvatars = useResolvedAvatars(dbUserAvatarSources);
 
   const AGENT_OPTIONS: AgentOption[] = isDemo
     ? DEMO_AGENT_OPTIONS.map(base => ({ ...base, agent: getOrCreateAgentForModel(base.model, base.provider) }))
@@ -415,14 +443,23 @@ export function AgentSelector({
   if (!isOpen) return null;
 
   if (!hasResults) {
+    const hint =
+      agentFetchStatus === "error"
+        ? "Failed to load agents — check console for details"
+        : agentFetchStatus === "loading"
+          ? "Loading workspace members\u2026"
+          : agentFetchStatus === "empty"
+            ? "No agents registered in this workspace"
+            : "No agents or collaborators found";
     return (
       <div
         ref={menuRef}
         className="fixed z-50 w-80 rounded-lg border border-[#e5e5e5] bg-white shadow-lg"
         style={{ top: position.top + 24, left: position.left }}
       >
-        <div className="px-4 py-3 text-sm text-neutral-400 text-center">
-          No agents or collaborators found
+        <div className="flex items-center justify-center gap-2 px-4 py-3 text-sm text-neutral-400 text-center">
+          {agentFetchStatus === "error" && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />}
+          {hint}
         </div>
       </div>
     );
@@ -440,98 +477,152 @@ export function AgentSelector({
       <div className="px-3 py-2">
         {/* AI Agents Section */}
         {filteredAgents.length > 0 && (
-          <div className="mb-2">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-1.5">
-              AI Agents
+          <div className="mb-1">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Bot className="h-3 w-3 text-purple-400" />
+              <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+                AI Agents
+              </span>
+              <span className="rounded-full bg-purple-50 px-1.5 text-[10px] font-medium text-purple-400">
+                {filteredAgents.length}
+              </span>
             </div>
             <div className="space-y-0.5 max-h-60 overflow-y-auto">
-              {filteredAgents.map((agentOption, index) => (
-                <div
-                  key={agentOption.id}
-                  data-active={isAISelected(index)}
-                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm rounded-md transition-colors cursor-pointer ${
-                    isAISelected(index)
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "text-neutral-600 hover:bg-neutral-50"
-                  }`}
-                  onClick={() => selectAIAgent(agentOption)}
-                  onMouseEnter={() => setSelected({ type: 'ai', index })}
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#e5e5e5] bg-white">
-                    {agentOption.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {!isDemo && editingAgentId === agentOption.agent!.id ? (
-                      <input
-                        ref={nameInputRef}
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        onBlur={() => handleSaveName(agentOption.agent!.id)}
-                        className="w-full px-1 py-0.5 text-sm font-medium border border-blue-500 rounded focus:outline-none"
-                      />
-                    ) : (
-                      <>
-                        <div className="font-medium text-neutral-900">
-                          {isDemo ? agentOption.provider : agentOption.agent!.name}
-                        </div>
-                        <div className="text-xs text-neutral-400">{agentOption.description}</div>
-                      </>
+              {filteredAgents.map((agentOption, index) => {
+                const agentColor = agentOption.color ?? agentOption.agent?.color ?? "#8B5CF6";
+                return (
+                  <div
+                    key={agentOption.id}
+                    data-active={isAISelected(index)}
+                    className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm rounded-md transition-colors cursor-pointer ${
+                      isAISelected(index)
+                        ? "bg-purple-50/60 text-neutral-900"
+                        : "text-neutral-600 hover:bg-neutral-50"
+                    }`}
+                    onClick={() => selectAIAgent(agentOption)}
+                    onMouseEnter={() => setSelected({ type: 'ai', index })}
+                  >
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border-2 bg-white"
+                      style={{ borderColor: agentColor }}
+                    >
+                      {agentOption.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {!isDemo && editingAgentId === agentOption.agent!.id ? (
+                        <input
+                          ref={nameInputRef}
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onBlur={() => handleSaveName(agentOption.agent!.id)}
+                          className="w-full px-1 py-0.5 text-sm font-medium border border-blue-500 rounded focus:outline-none"
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-neutral-900">
+                              {isDemo ? agentOption.provider : agentOption.agent!.name}
+                            </span>
+                            <span
+                              className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none text-white"
+                              style={{ backgroundColor: agentColor }}
+                            >
+                              AI
+                            </span>
+                          </div>
+                          <div className="text-xs text-neutral-400 truncate">{agentOption.description}</div>
+                        </>
+                      )}
+                    </div>
+                    {!isDemo && !editingAgentId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingAgentId(agentOption.agent!.id);
+                          setEditName(agentOption.agent!.name);
+                        }}
+                        className="p-1 hover:bg-neutral-200 rounded text-neutral-400 hover:text-neutral-600"
+                        title="Rename agent"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
                     )}
                   </div>
-                  {!isDemo && !editingAgentId && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingAgentId(agentOption.agent!.id);
-                        setEditName(agentOption.agent!.name);
-                      }}
-                      className="p-1 hover:bg-neutral-200 rounded text-neutral-400 hover:text-neutral-600"
-                      title="Rename agent"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
+        {/* Agent error/empty hints */}
+        {!isDemo && filteredAgents.length === 0 && agentFetchStatus === "error" && (
+          <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-400">
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            Failed to load agents
+          </div>
+        )}
+        {!isDemo && filteredAgents.length === 0 && agentFetchStatus === "empty" && (
+          <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-neutral-400">
+            <Bot className="h-3 w-3 shrink-0" />
+            No agents in this workspace
+          </div>
+        )}
+
+        {/* Divider between sections */}
+        {filteredAgents.length > 0 && filteredUsers.length > 0 && (
+          <div className="my-1.5 border-t border-[#e5e5e5]" />
+        )}
+
         {/* Human Collaborators Section */}
         {filteredUsers.length > 0 && (
-          <div className="mb-2">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-1.5">
-              Collaborators
+          <div className="mb-1">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="flex h-3 w-3 items-center justify-center rounded-full bg-neutral-300">
+                <span className="text-[6px] font-bold text-white">P</span>
+              </div>
+              <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+                People
+              </span>
+              <span className="rounded-full bg-neutral-100 px-1.5 text-[10px] font-medium text-neutral-400">
+                {filteredUsers.length}
+              </span>
             </div>
             <div className="space-y-0.5 max-h-48 overflow-y-auto">
-              {filteredUsers.map((user, index) => (
-                <button
-                  key={user.userId}
-                  data-active={isHumanSelected(index)}
-                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm rounded-md transition-colors ${
-                    isHumanSelected(index)
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "text-neutral-600 hover:bg-neutral-50"
-                  }`}
-                  onClick={() => executeCommand({ type: 'human', index })}
-                  onMouseEnter={() => setSelected({ type: 'human', index })}
-                >
-                  <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white"
-                    style={{ backgroundColor: user.color }}
+              {filteredUsers.map((user, index) => {
+                const avatarSrc = resolvedUserAvatars[user.userId];
+                return (
+                  <button
+                    key={user.userId}
+                    data-active={isHumanSelected(index)}
+                    className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm rounded-md transition-colors ${
+                      isHumanSelected(index)
+                        ? "bg-neutral-100 text-neutral-900"
+                        : "text-neutral-600 hover:bg-neutral-50"
+                    }`}
+                    onClick={() => executeCommand({ type: 'human', index })}
+                    onMouseEnter={() => setSelected({ type: 'human', index })}
                   >
-                    {getInitial(user.displayName)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-neutral-900">{user.displayName}</div>
-                    {user.role && (
-                      <div className="text-xs text-neutral-400 capitalize">{user.role}</div>
-                    )}
-                  </div>
-                </button>
-              ))}
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
+                      style={{ backgroundColor: avatarSrc ? undefined : (user.color ?? "#9CA3AF") }}
+                    >
+                      {avatarSrc ? (
+                        <img src={avatarSrc} alt={user.displayName} className="h-full w-full object-cover" />
+                      ) : (
+                        getInitial(user.displayName)
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-neutral-900">{user.displayName}</div>
+                      {user.role && (
+                        <div className="text-xs text-neutral-400 capitalize">{user.role}</div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

@@ -17,6 +17,8 @@ import {
   Quote,
   Highlighter,
   FileText,
+  BarChart3,
+  GitBranch,
 } from "lucide-react";
 
 interface SlashCommandContext {
@@ -136,22 +138,30 @@ const COMMANDS: SlashCommandItem[] = [
     command: (editor) => editor.chain().focus().toggleTaskList().run(),
   },
   {
-    title: "Math",
-    description: "LaTeX math expression",
-    icon: <span className="flex h-4 w-4 items-center justify-center text-xs font-bold">∑</span>,
-    keywords: ["math", "latex", "equation", "formula"],
+    title: "Chart",
+    description: "Interactive chart (bar, line, pie, area)",
+    icon: <BarChart3 className="h-4 w-4" />,
+    keywords: ["chart", "graph", "bar", "line", "pie", "area", "data", "visualization"],
     command: (editor) => {
-      const latex = window.prompt("LaTeX expression (e.g. E = mc^2):");
-      if (latex) {
-        editor
-          .chain()
-          .focus()
-          .insertContent({
-            type: "paragraph",
-            content: [{ type: "text", text: `$$${latex}$$` }],
-          })
-          .run();
-      }
+      editor.commands.insertChart();
+    },
+  },
+  {
+    title: "Math",
+    description: "LaTeX math expression with live preview",
+    icon: <span className="flex h-4 w-4 items-center justify-center text-xs font-bold">∑</span>,
+    keywords: ["math", "latex", "equation", "formula", "katex"],
+    command: (editor) => {
+      editor.commands.insertMathBlock();
+    },
+  },
+  {
+    title: "Mermaid Diagram",
+    description: "Flowcharts, sequence, Gantt, and more",
+    icon: <GitBranch className="h-4 w-4" />,
+    keywords: ["mermaid", "diagram", "flowchart", "sequence", "gantt", "graph"],
+    command: (editor) => {
+      editor.commands.insertMermaid();
     },
   },
   {

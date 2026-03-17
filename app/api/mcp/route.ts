@@ -4,6 +4,10 @@ import {
   applyBlockOperations,
   formatBlockWriteResult,
   handleCreateMention,
+  handleUpdateTaskStatus,
+  handleStreamEdit,
+  handleListApis,
+  handleGetApiKey,
   type MCPToolResult,
 } from "@/lib/mcp/tools";
 import { validateApiKey as validateApiKeyFromHeader, ApiKeyError } from "@/lib/auth/api-key";
@@ -536,6 +540,31 @@ async function executeTool(
       };
     }
 
+    case "update_task_status":
+      return handleUpdateTaskStatus(
+        {
+          task_id: args.task_id as string,
+          status: args.status as "working" | "completed" | "failed" | undefined,
+          current_action: typeof args.current_action === "string" ? args.current_action : undefined,
+          progress_percent: typeof args.progress_percent === "number" ? args.progress_percent : undefined,
+          result_summary: typeof args.result_summary === "string" ? args.result_summary : undefined,
+          error_message: typeof args.error_message === "string" ? args.error_message : undefined,
+        },
+        { agentId: ctx.agentId, userId: ctx.userId, schoolId: ctx.schoolId },
+      );
+
+    case "stream_edit":
+      return handleStreamEdit(
+        {
+          document_id: args.document_id as string,
+          operation: args.operation as string,
+          content: typeof args.content === "string" ? args.content : undefined,
+          block_id: typeof args.block_id === "string" ? args.block_id : undefined,
+          task_id: typeof args.task_id === "string" ? args.task_id : undefined,
+        },
+        { agentId: ctx.agentId, userId: ctx.userId, schoolId: ctx.schoolId },
+      );
+
     case "create_mention":
       return handleCreateMention(
         {
@@ -544,6 +573,22 @@ async function executeTool(
           mention_text: args.mention_text as string,
           context_text: typeof args.context_text === "string" ? args.context_text : undefined,
           block_id: typeof args.block_id === "string" ? args.block_id : undefined,
+        },
+        { agentId: ctx.agentId, userId: ctx.userId, schoolId: ctx.schoolId },
+      );
+
+    case "knobase_list_apis":
+      return handleListApis({
+        agentId: ctx.agentId,
+        userId: ctx.userId,
+        schoolId: ctx.schoolId,
+      });
+
+    case "knobase_get_api_key":
+      return handleGetApiKey(
+        {
+          env_name: args.env_name as string,
+          purpose: typeof args.purpose === "string" ? args.purpose : undefined,
         },
         { agentId: ctx.agentId, userId: ctx.userId, schoolId: ctx.schoolId },
       );

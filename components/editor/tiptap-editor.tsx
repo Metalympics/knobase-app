@@ -27,6 +27,10 @@ import { InlineAgent, setOnSuggestionCallback } from "./extensions/inline-agent"
 import { MentionNode } from "./extensions/mention-node";
 import { BlockId } from "@/lib/editor/extensions/block-id";
 import { ChildPage } from "@/lib/editor/extensions/child-page";
+import { ChartExtension } from "@/lib/editor/extensions/chart-extension";
+import { MathExtension, InlineMathExtension } from "@/lib/editor/extensions/math-extension";
+import { CodeBlockEnhanced } from "@/lib/editor/extensions/code-block-enhanced";
+import { MermaidExtension } from "@/lib/editor/extensions/mermaid-extension";
 // AgentMention removed — its `@` suggestion plugin conflicted with InlineAgent,
 // causing double @@ and orphaned "No agents found" popups. The file is kept
 // for parseHTML compatibility with existing documents.
@@ -240,9 +244,10 @@ export function TiptapEditor({
       extensions: [
         StarterKit.configure({
           heading: { levels: [1, 2, 3] },
-          codeBlock: { HTMLAttributes: { class: "tiptap-code-block" } },
+          codeBlock: false,
           ...(ydoc ? { undoRedo: false } : {}),
         }),
+        CodeBlockEnhanced,
         Placeholder.configure({
           placeholder: ({ node }) => {
             if (node.type.name === "heading") return "Heading";
@@ -285,6 +290,10 @@ export function TiptapEditor({
         }),
         MentionNode,
         BlockId,
+        ChartExtension,
+        MathExtension,
+        InlineMathExtension,
+        MermaidExtension,
         selectionAgentExt,
         commentHighlightExt,
         ...(ydoc

@@ -148,8 +148,7 @@ export async function createWebhook(
   const sid = schoolId ?? await getSchoolId();
   if (!sid) return null;
   const supabase = createClient();
-  const { data } = await supabase
-    .from("workspace_webhooks")
+  const { data } = await (supabase.from("workspace_webhooks") as any)
     .insert({
       school_id: sid,
       url: partial.url,
@@ -172,8 +171,7 @@ export async function updateWebhook(
   if (patch.events !== undefined) update.events = patch.events;
   if (patch.secret !== undefined) update.secret = patch.secret;
   if (patch.active !== undefined) update.is_active = patch.active;
-  const { data } = await supabase
-    .from("workspace_webhooks")
+  const { data } = await (supabase.from("workspace_webhooks") as any)
     .update(update)
     .eq("id", id)
     .select("*")

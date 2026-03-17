@@ -19,6 +19,8 @@ import {
   Building2,
   ChevronDown,
   Clock,
+  Bot,
+  Users,
 } from "lucide-react";
 import type { DocumentMeta } from "@/lib/documents/types";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
@@ -29,6 +31,7 @@ import {
   getSubscription,
 } from "@/lib/subscription/store";
 import { useSidebar } from "@/lib/ui/sidebar-context";
+import { useResolvedAvatars } from "@/lib/ui/use-resolved-avatars";
 import { getSharedDocuments, type SharedDocument } from "@/lib/documents/shared";
 import { createClient } from "@/lib/supabase/client";
 
@@ -267,6 +270,58 @@ export function Sidebar({
     return () => { cancelled = true; };
   }, [workspace?.id]);
 
+  interface SidebarMember { id: string; name: string; avatar_url: string | null }
+  const [wsAgents, setWsAgents] = useState<SidebarMember[]>([]);
+  const [wsCollaborators, setWsCollaborators] = useState<SidebarMember[]>([]);
+  const [agentsExpanded, setAgentsExpanded] = useState(true);
+  const [collaboratorsExpanded, setCollaboratorsExpanded] = useState(true);
+
+  useEffect(() => {
+    if (!workspace) return;
+    let cancelled = false;
+    const supabase = createClient();
+
+    (async () => {
+      let { data } = await supabase
+        .from("users")
+        .select("id, name, avatar_url")
+        .eq("type", "agent")
+        .eq("school_id", workspace.id)
+        .eq("is_deleted", false)
+        .order("name");
+
+      if (!data?.length) {
+        const fallback = await supabase
+          .from("users")
+          .select("id, name, avatar_url")
+          .eq("type", "agent")
+          .eq("is_deleted", false)
+          .order("name")
+          .limit(10);
+        data = fallback.data;
+      }
+
+      if (!cancelled && data) setWsAgents(data as SidebarMember[]);
+    })();
+
+    supabase
+      .from("users")
+      .select("id, name, avatar_url")
+      .in("type", ["human", "teacher", "admin"])
+      .eq("school_id", workspace.id)
+      .eq("is_deleted", false)
+      .order("name")
+      .limit(50)
+      .then(({ data }) => {
+        if (!cancelled && data) setWsCollaborators(data as SidebarMember[]);
+      });
+
+    return () => { cancelled = true; };
+  }, [workspace?.id]);
+
+  const resolvedAgentAvatars = useResolvedAvatars(wsAgents);
+  const resolvedCollabAvatars = useResolvedAvatars(wsCollaborators);
+
   const docLimit = workspace ? getDocumentLimitInfo(workspace.id) : null;
   const currentTier = workspace ? getSubscription(workspace.id).tier : "free";
   const isPro = currentTier === "pro" || currentTier === "enterprise";
@@ -419,6 +474,94 @@ export function Sidebar({
       {/* ── Scrollable pages area ──                                    */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto border-t border-[#e5e5e5]">
+
+        {/* ── Agents ── */}
+        {wsAgents.length > 0 && (
+          <div>
+            <SectionHeader
+              label="Agents"
+              icon={<Bot className="h-3 w-3" />}
+              count={wsAgents.length}
+              expanded={agentsExpanded}
+              onToggle={() => setAgentsExpanded((p) => !p)}
+            />
+            {agentsExpanded && (
+              <div className="px-2 pb-1 space-y-0.5">
+                {wsAgents.map((agent) => {
+                  const isOnline = onlineUsers.some((u) => u.id === agent.id);
+                  const avatarSrc = resolvedAgentAvatars[agent.id];
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => {
+                        if (workspace) {
+                          router.push(`/s/${workspace.id}/agent/${agent.id}`);
+                          close();
+                        }
+                      }}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-50"
+                    >
+                      <div className="relative flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-md bg-purple-100">
+                        {avatarSrc ? (
+                          <img src={avatarSrc} alt={agent.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <Bot className="h-3 w-3 text-purple-600" />
+                        )}
+                        {isOnline && (
+                          <span className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-[#fafafa] bg-emerald-400" />
+                        )}
+                      </div>
+                      <span className="flex-1 truncate text-left">{agent.name}</span>
+                      <span className="shrink-0 rounded-full bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-500">
+                        AI
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Collaborators ── */}
+        {wsCollaborators.length > 0 && (
+          <div>
+            <SectionHeader
+              label="People"
+              icon={<Users className="h-3 w-3" />}
+              count={wsCollaborators.length}
+              expanded={collaboratorsExpanded}
+              onToggle={() => setCollaboratorsExpanded((p) => !p)}
+            />
+            {collaboratorsExpanded && (
+              <div className="px-2 pb-1 space-y-0.5">
+                {wsCollaborators.map((member) => {
+                  const initial = (member.name ?? "?").charAt(0).toUpperCase();
+                  const isOnline = onlineUsers.some((u) => u.id === member.id);
+                  const avatarSrc = resolvedCollabAvatars[member.id];
+                  return (
+                    <div
+                      key={member.id}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600"
+                    >
+                      <div className="relative flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-200 text-[9px] font-bold text-neutral-500">
+                        {avatarSrc ? (
+                          <img src={avatarSrc} alt={member.name ?? "User"} className="h-full w-full object-cover" />
+                        ) : (
+                          initial
+                        )}
+                        {isOnline && (
+                          <span className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-[#fafafa] bg-emerald-400" />
+                        )}
+                      </div>
+                      <span className="flex-1 truncate">{member.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Recent ── */}
         {recentPages.length > 0 && (

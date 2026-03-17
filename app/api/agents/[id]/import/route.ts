@@ -35,7 +35,7 @@ async function verifyAgent(agentId: string, schoolId: string) {
 
   const { data: existing, error } = await supabase
     .from("users")
-    .select("id, type, school_id, is_suspended")
+    .select("id, type, school_id, is_suspended, display_name, name")
     .eq("id", agentId)
     .single();
 
@@ -48,6 +48,8 @@ async function verifyAgent(agentId: string, schoolId: string) {
     type: string | null;
     school_id: string | null;
     is_suspended: boolean;
+    display_name: string | null;
+    name: string | null;
   };
 
   if (row.type !== "agent") {
@@ -60,7 +62,7 @@ async function verifyAgent(agentId: string, schoolId: string) {
     return { ok: false as const, response: apiError("Agent is suspended", "FORBIDDEN", 403) };
   }
 
-  return { ok: true as const };
+  return { ok: true as const, agentName: row.display_name || row.name || "Agent" };
 }
 
 function isValidFilename(name: string): boolean {
@@ -208,6 +210,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
 
+  const { agentName } = check;
+  const stripExt = (f: string) => f.replace(/\.[^/.]+$/, "");
+
   for (const file of filesToImport) {
     if (!isValidFilename(file.filename)) {
       errors.push({ filename: file.filename, error: "Invalid filename" });
@@ -225,17 +230,63 @@ export async function POST(request: NextRequest, context: RouteContext) {
       continue;
     }
 
-    const { error } = await supabase
+    const { data: existingLink } = await supabase
       .from("agent_files")
-      .upsert(
-        { agent_id: agentId, filename: file.filename, content: file.content, updated_at: now },
-        { onConflict: "agent_id,filename" },
-      );
+      .select("id, page_id")
+      .eq("agent_id", agentId)
+      .eq("filename", file.filename)
+      .maybeSingle();
 
-    if (error) {
-      console.error(`[Agent Import] Error saving ${file.filename}:`, error);
-      errors.push({ filename: file.filename, error: "Failed to save" });
-      continue;
+    if (existingLink) {
+      const { error: updateErr } = await supabase
+        .from("pages")
+        .update({ content_md: file.content })
+        .eq("id", existingLink.page_id);
+
+      if (updateErr) {
+        console.error(`[Agent Import] Page update error for ${file.filename}:`, updateErr);
+        errors.push({ filename: file.filename, error: "Failed to save" });
+        continue;
+      }
+
+      await supabase
+        .from("agent_files")
+        .update({ updated_at: now })
+        .eq("id", existingLink.id);
+    } else {
+      const pageTitle = `${stripExt(file.filename)} - ${agentName}`;
+      const { data: page, error: pageErr } = await supabase
+        .from("pages")
+        .insert({
+          school_id,
+          created_by: agentId,
+          title: pageTitle,
+          content_md: file.content,
+          visibility: "shared",
+        })
+        .select("id")
+        .single();
+
+      if (pageErr || !page) {
+        console.error(`[Agent Import] Page creation error for ${file.filename}:`, pageErr);
+        errors.push({ filename: file.filename, error: "Failed to save" });
+        continue;
+      }
+
+      const { error: linkErr } = await supabase
+        .from("agent_files")
+        .insert({
+          agent_id: agentId,
+          page_id: page.id,
+          filename: file.filename,
+          updated_at: now,
+        });
+
+      if (linkErr) {
+        console.error(`[Agent Import] Link creation error for ${file.filename}:`, linkErr);
+        errors.push({ filename: file.filename, error: "Failed to save" });
+        continue;
+      }
     }
 
     imported.push({ filename: file.filename, size });

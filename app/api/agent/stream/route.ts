@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
+import { DOCUMENT_FORMAT_GUIDE } from "@/lib/agents/document-format-guide";
 
 /**
  * SSE streaming endpoint for OpenClaw agent responses.
@@ -204,31 +205,47 @@ async function streamFromOpenClaw(
       "list_documents",
       "read_document",
       "write_document",
+      "stream_edit",
       "search_documents",
       "create_document",
       "delete_document",
       "list_agents",
       "get_agent_info",
       "create_mention",
+      "update_task_status",
     ],
     instructions: [
       "You are an AI agent operating inside the Knobase workspace platform.",
       `You have access to workspace tools via the Knobase MCP endpoint: ${params.mcpEndpoint}`,
       `Authenticate all MCP calls with the API key provided in this context.`,
       "",
-      "KEY TOOL — create_mention:",
+      "PROGRESS & STATUS — update_task_status:",
+      `Your current task ID is: ${params.taskId}. Use update_task_status to report your progress in real-time.`,
+      "Call it with status='working' and a current_action string (e.g. 'Reading document...', 'Analyzing content...') so the user sees live feedback.",
+      "Call it with status='completed' and result_summary when you're done, or status='failed' and error_message if something goes wrong.",
+      "",
+      "STREAMING EDITS — stream_edit:",
+      "Use stream_edit to apply incremental edits to a document during your response. Each call applies one operation.",
+      "This is preferred over write_document when making progressive changes that should be visible to the user in real-time.",
+      "Supported operations: append, prepend, replace_block, insert_after_block, insert_before_block, delete_block.",
+      "Pass your task_id so the user sees 'Editing document...' in the status bar.",
+      "",
+      "MENTIONS — create_mention:",
       "Use this tool to @mention and notify a user when you complete a task, want their attention, or need to reply.",
       "Parameters: document_id (required), target_user_id (required), mention_text (e.g. '@Alice'), context_text (summary of your work).",
       params.requestingUserId
         ? `The user who requested this task has ID: ${params.requestingUserId}. Use create_mention with their ID to notify them when you are done.`
         : "Use list_agents or get_agent_info to find the requesting user's ID, then use create_mention to notify them.",
       "",
-      "OTHER TOOLS:",
+      "DOCUMENT TOOLS:",
       "• read_document — Read a document's content by ID",
-      "• write_document — Apply block-level edits to a document",
+      "• write_document — Apply block-level edits atomically (all-or-nothing)",
+      "• stream_edit — Apply a single incremental edit (preferred for real-time feedback)",
       "• search_documents — Full-text search across all workspace documents",
       "• create_document — Create a new document",
       "• list_documents — List all documents in the workspace",
+      "",
+      DOCUMENT_FORMAT_GUIDE,
     ].join("\n"),
   };
 
@@ -280,54 +297,199 @@ async function streamFromOpenClaw(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let fullText = "";
-  let buffer = "";
+  let sseBuffer = "";
+  let currentSseEvent = ""; // Tracks the `event:` field for SSE frames
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+    sseBuffer += decoder.decode(value, { stream: true });
 
-    // Parse SSE lines from the OpenClaw response
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+    const lines = sseBuffer.split("\n");
+    sseBuffer = lines.pop() ?? "";
 
     for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
+      // Track SSE event type (e.g. `event: response.output_text.delta`)
+      if (line.startsWith("event: ")) {
+        currentSseEvent = line.slice(7).trim();
+        continue;
+      }
 
-          if (data.type === "delta" || data.content) {
-            const content = data.content ?? data.delta ?? "";
-            fullText += content;
-            sendEvent(controller, "delta", { content });
-          } else if (data.type === "suggestion") {
-            sendEvent(controller, "suggestion", {
-              original: data.original ?? "",
-              proposed: data.proposed ?? data.content ?? "",
-              explanation: data.explanation ?? "",
-            });
-          } else if (data.type === "cursor") {
-            sendEvent(controller, "cursor", {
-              anchor: data.anchor,
-              head: data.head,
-              status: data.status ?? "editing",
-            });
-          } else if (data.type === "done" || data.type === "complete") {
-            fullText = data.result ?? data.content ?? fullText;
-          } else if (data.type === "error") {
-            const errMsg = data.message ?? "Unknown error";
-            sendEvent(controller, "error", { message: errMsg });
-            throw new Error(errMsg as string);
-          }
-        } catch {
-          // Non-JSON data line — treat as raw text delta
-          const content = line.slice(6);
-          if (content && content !== "[DONE]") {
-            fullText += content;
-            sendEvent(controller, "delta", { content });
-          }
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6);
+      if (raw === "[DONE]") continue;
+
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        // Non-JSON data line — treat as raw text delta
+        if (raw) {
+          fullText += raw;
+          sendEvent(controller, "delta", { content: raw });
         }
+        continue;
+      }
+
+      // Derive a canonical event key from either the SSE `event:` line,
+      // the JSON `type` field, or the `stream` field (AgentEventPayload).
+      const eventType =
+        currentSseEvent ||
+        (data.type as string) ||
+        (data.stream as string) ||
+        "";
+      currentSseEvent = ""; // Consume once
+
+      // ── OpenResponses API events ───────────────────────────────
+      if (eventType === "response.output_text.delta") {
+        const delta = (data.delta as string) ?? "";
+        fullText += delta;
+        sendEvent(controller, "delta", { content: delta });
+        continue;
+      }
+      if (eventType === "response.output_text.done") {
+        const text = (data.text as string) ?? fullText;
+        fullText = text;
+        continue;
+      }
+      if (eventType === "response.created") {
+        sendEvent(controller, "lifecycle", { phase: "start" });
+        continue;
+      }
+      if (eventType === "response.completed") {
+        // Final text may come from the nested response object
+        continue;
+      }
+      if (
+        eventType === "response.function_call_arguments.delta" ||
+        eventType === "response.function_call.delta"
+      ) {
+        sendEvent(controller, "tool_call", {
+          name: (data.name as string) ?? (data.tool as string) ?? "function",
+          delta: (data.delta as string) ?? "",
+        });
+        continue;
+      }
+      if (eventType === "response.output_item.added") {
+        const item = data.item as Record<string, unknown> | undefined;
+        if (item?.type === "function_call") {
+          sendEvent(controller, "tool_call", {
+            name: (item.name as string) ?? "function",
+            params: item.arguments ?? null,
+          });
+        }
+        continue;
+      }
+      if (eventType === "response.output_item.done") {
+        const item = data.item as Record<string, unknown> | undefined;
+        if (item?.type === "function_call") {
+          sendEvent(controller, "tool_result", {
+            name: (item.name as string) ?? "function",
+            result: item.output ?? null,
+          });
+        }
+        continue;
+      }
+
+      // ── AgentEventPayload stream types ─────────────────────────
+      const payload = (data.data ?? data) as Record<string, unknown>;
+      if (eventType === "lifecycle") {
+        sendEvent(controller, "lifecycle", { phase: payload.phase ?? "start" });
+        if (payload.phase === "error") {
+          const errMsg = (payload.error as string) ?? "Agent run failed";
+          sendEvent(controller, "error", { message: errMsg });
+          throw new Error(errMsg);
+        }
+        continue;
+      }
+      if (eventType === "assistant") {
+        const delta = (payload.delta as string) ?? "";
+        if (delta) {
+          fullText += delta;
+          sendEvent(controller, "delta", { content: delta });
+        }
+        continue;
+      }
+      if (eventType === "tool") {
+        const toolType = (payload.type as string) ?? "";
+        if (toolType === "tool.call") {
+          sendEvent(controller, "tool_call", {
+            name: (payload.tool as string) ?? "function",
+            params: payload.params ?? null,
+          });
+        } else if (toolType === "tool.result") {
+          sendEvent(controller, "tool_result", {
+            name: (payload.tool as string) ?? "function",
+            result: payload.result ?? null,
+          });
+        }
+        continue;
+      }
+      if (eventType === "error") {
+        const errMsg = (payload.message as string) ?? (data.message as string) ?? "Unknown error";
+        sendEvent(controller, "error", { message: errMsg });
+        throw new Error(errMsg);
+      }
+
+      // ── Gateway chat events ────────────────────────────────────
+      if (eventType === "chat.delta") {
+        const delta = (payload.delta as string) ?? (data.delta as string) ?? "";
+        if (delta) {
+          fullText += delta;
+          sendEvent(controller, "delta", { content: delta });
+        }
+        continue;
+      }
+      if (eventType === "chat.done" || eventType === "chat.final") {
+        continue; // lifecycle:end + done event below will finalize
+      }
+
+      // ── Thinking / reasoning ───────────────────────────────────
+      if (
+        eventType === "thinking" ||
+        eventType === "reasoning" ||
+        eventType === "response.reasoning.delta"
+      ) {
+        const content = (payload.delta as string) ?? (payload.content as string) ?? (data.delta as string) ?? "";
+        if (content) {
+          sendEvent(controller, "thinking", { content });
+        }
+        continue;
+      }
+
+      // ── Legacy / simple event format (original handler) ────────
+      if (eventType === "delta" || data.content || data.delta) {
+        const content = (data.content as string) ?? (data.delta as string) ?? "";
+        if (content) {
+          fullText += content;
+          sendEvent(controller, "delta", { content });
+        }
+        continue;
+      }
+      if (eventType === "suggestion" || data.type === "suggestion") {
+        sendEvent(controller, "suggestion", {
+          original: (data.original as string) ?? "",
+          proposed: (data.proposed as string) ?? (data.content as string) ?? "",
+          explanation: (data.explanation as string) ?? "",
+        });
+        continue;
+      }
+      if (eventType === "cursor" || data.type === "cursor") {
+        sendEvent(controller, "cursor", {
+          anchor: data.anchor,
+          head: data.head,
+          status: data.status ?? "editing",
+        });
+        continue;
+      }
+      if (eventType === "done" || eventType === "complete" || data.type === "done" || data.type === "complete") {
+        fullText = (data.result as string) ?? (data.content as string) ?? fullText;
+        continue;
+      }
+      if (eventType === "status") {
+        sendEvent(controller, "status", { status: (data.status as string) ?? "" });
+        continue;
       }
     }
   }
@@ -350,12 +512,31 @@ async function streamLocalDemo(
   prompt: string,
   taskId: string,
 ): Promise<string> {
+  sendEvent(controller, "lifecycle", { phase: "start" });
   sendEvent(controller, "status", { status: "thinking" });
-  await sleep(400);
 
+  // Simulate thinking phase with streamed reasoning
+  const thinkingSteps = [
+    "Let me analyze the document context... ",
+    "Considering the prompt and what would be most helpful... ",
+    "Formulating a comprehensive response.",
+  ];
+  for (const step of thinkingSteps) {
+    await sleep(200 + Math.random() * 150);
+    sendEvent(controller, "thinking", { content: step });
+  }
+
+  await sleep(200);
   sendEvent(controller, "status", { status: "responding" });
 
-  // Generate a contextual response based on the prompt
+  // Simulate a tool call for richer demo experience
+  if (prompt.toLowerCase().includes("document") || prompt.toLowerCase().includes("review")) {
+    sendEvent(controller, "tool_call", { name: "read_document", params: { documentId: taskId } });
+    await sleep(600 + Math.random() * 400);
+    sendEvent(controller, "tool_result", { name: "read_document", result: { success: true } });
+    await sleep(150);
+  }
+
   const response = generateDemoResponse(prompt);
   const words = response.split(" ");
   let fullText = "";
@@ -365,11 +546,11 @@ async function streamLocalDemo(
     fullText += word;
     sendEvent(controller, "delta", { content: word });
 
-    // Simulate varying speed — faster for common words, slower for longer ones
     const delay = 30 + Math.min(words[i].length * 8, 80) + Math.random() * 40;
     await sleep(delay);
   }
 
+  sendEvent(controller, "lifecycle", { phase: "end" });
   sendEvent(controller, "done", { result: fullText });
   return fullText;
 }

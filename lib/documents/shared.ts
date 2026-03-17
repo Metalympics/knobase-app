@@ -15,7 +15,7 @@ export interface SharedDocument {
 
 /**
  * Returns the role string for a users.type value.
- * The real DB column is `type` (values: 'admin', 'student', …), not `role`.
+ * The real DB column is `type` (values: 'admin', 'human', …), not `role`.
  */
 function typeToRole(type: string | null | undefined): "viewer" | "editor" | "admin" {
   if (type === "admin") return "admin";

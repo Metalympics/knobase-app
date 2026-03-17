@@ -8,6 +8,11 @@ import {
   type BlockMutationResult,
   applyOperations,
 } from "@/lib/mcp/block-operations";
+import { transformAgentContent } from "@/lib/editor/content-transformer";
+import {
+  listVaultKeys,
+  decryptVaultKeyByEnvName,
+} from "@/lib/vault/store";
 
 export interface MCPToolDefinition {
   name: string;
@@ -163,6 +168,76 @@ export const TOOL_DEFINITIONS: MCPToolDefinition[] = [
     },
   },
   {
+    name: "update_task_status",
+    description:
+      "Update the status of a Knobase agent task. Use this to report progress, change the current action label (shown to the user), or mark a task as completed/failed. This allows the user to see real-time feedback about what the agent is doing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: {
+          type: "string",
+          description: "The ID of the agent task to update",
+        },
+        status: {
+          type: "string",
+          description:
+            "Task status: 'working' (in progress), 'completed' (done), or 'failed' (error). Use 'working' to send progress updates while still processing.",
+        },
+        current_action: {
+          type: "string",
+          description:
+            "A short human-readable label describing what the agent is currently doing, e.g. 'Reading document...', 'Analyzing content...', 'Writing response...'. Shown to the user in real time.",
+        },
+        progress_percent: {
+          type: "number",
+          description: "Optional progress percentage (0-100)",
+        },
+        result_summary: {
+          type: "string",
+          description:
+            "A short summary of the result when status is 'completed'. Shown to the user.",
+        },
+        error_message: {
+          type: "string",
+          description: "Error message when status is 'failed'.",
+        },
+      },
+      required: ["task_id"],
+    },
+  },
+  {
+    name: "stream_edit",
+    description:
+      "Apply an incremental edit to a document during a streaming response. Unlike write_document which is atomic, stream_edit is designed for progressive edits where the agent appends or modifies content as it generates output. Each call applies a single operation. Use this when you want the user to see edits appear in real time.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        document_id: {
+          type: "string",
+          description: "The ID of the document to edit",
+        },
+        operation: {
+          type: "string",
+          description:
+            "The edit operation: 'append' (add to end), 'prepend' (add to start), 'replace_block' (replace a specific block), 'insert_after_block', 'insert_before_block', 'delete_block'",
+        },
+        content: {
+          type: "string",
+          description: "The HTML content for the edit (not required for delete_block)",
+        },
+        block_id: {
+          type: "string",
+          description: "The data-block-id to target (required for block-targeted operations)",
+        },
+        task_id: {
+          type: "string",
+          description: "Optional task ID — if provided, the task's current_action will be updated to reflect the edit",
+        },
+      },
+      required: ["document_id", "operation"],
+    },
+  },
+  {
     name: "create_mention",
     description:
       "Create a @mention in a document, targeting a specific user or agent. Automatically triggers a notification for the mentioned user via the database trigger.",
@@ -191,6 +266,34 @@ export const TOOL_DEFINITIONS: MCPToolDefinition[] = [
         },
       },
       required: ["document_id", "target_user_id", "mention_text"],
+    },
+  },
+  {
+    name: "knobase_list_apis",
+    description:
+      "List all available API keys in the workspace vault with their environment variable names and descriptions. Does NOT return secret values — use knobase_get_api_key for that.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "knobase_get_api_key",
+    description:
+      "Retrieve a decrypted API key from the workspace vault by its environment variable name. The key value is returned for immediate use and expires in 5 minutes. Access is logged for audit.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        env_name: {
+          type: "string",
+          description: "The environment variable name of the key to retrieve, e.g. OPENAI_API_KEY",
+        },
+        purpose: {
+          type: "string",
+          description: "Short description of why this key is being accessed, for the audit log",
+        },
+      },
+      required: ["env_name"],
     },
   },
 ];
@@ -594,6 +697,302 @@ export function formatCreateMentionResult(mention: Mention): MCPToolResult {
             mention_text: mention.mention_text,
             resolution_status: mention.resolution_status,
             created_at: mention.created_at,
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* update_task_status handler                                          */
+/* ------------------------------------------------------------------ */
+
+export interface UpdateTaskStatusInput {
+  task_id: string;
+  status?: "working" | "completed" | "failed";
+  current_action?: string;
+  progress_percent?: number;
+  result_summary?: string;
+  error_message?: string;
+}
+
+export async function handleUpdateTaskStatus(
+  input: UpdateTaskStatusInput,
+  ctx: { agentId?: string; userId?: string; schoolId?: string | null },
+): Promise<MCPToolResult> {
+  const { task_id, status, current_action, progress_percent, result_summary, error_message } =
+    input;
+
+  if (!task_id) {
+    return {
+      content: [{ type: "text", text: "Missing required field: task_id" }],
+      isError: true,
+    };
+  }
+
+  const adminClient = createAdminClient();
+
+  const patch: Record<string, unknown> = {
+    last_activity_at: new Date().toISOString(),
+  };
+
+  if (status === "completed") {
+    patch.status = "completed";
+    patch.completed_at = new Date().toISOString();
+    if (result_summary) patch.result = result_summary;
+  } else if (status === "failed") {
+    patch.status = "failed";
+    if (error_message) patch.result = error_message;
+  } else if (status === "working") {
+    patch.status = "working";
+  }
+
+  if (current_action) {
+    patch.current_action = current_action;
+  }
+
+  if (typeof progress_percent === "number") {
+    patch.progress_percent = Math.max(0, Math.min(100, progress_percent));
+  }
+
+  const { error } = await adminClient
+    .from("agent_tasks")
+    .update(patch)
+    .eq("id", task_id);
+
+  if (error) {
+    return {
+      content: [{ type: "text", text: `Failed to update task: ${error.message}` }],
+      isError: true,
+    };
+  }
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            status: "updated",
+            task_id,
+            task_status: patch.status ?? "unchanged",
+            current_action: current_action ?? null,
+            progress_percent: progress_percent ?? null,
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* stream_edit handler                                                  */
+/* ------------------------------------------------------------------ */
+
+export interface StreamEditInput {
+  document_id: string;
+  operation: string;
+  content?: string;
+  block_id?: string;
+  task_id?: string;
+}
+
+export async function handleStreamEdit(
+  input: StreamEditInput,
+  ctx: { agentId?: string; userId?: string; schoolId?: string | null },
+): Promise<MCPToolResult> {
+  const { document_id, operation, content, block_id, task_id } = input;
+
+  if (!document_id || !operation) {
+    return {
+      content: [{ type: "text", text: "Missing required fields: document_id and operation" }],
+      isError: true,
+    };
+  }
+
+  const adminClient = createAdminClient();
+
+  const { data: page, error: fetchErr } = await adminClient
+    .from("pages")
+    .select("id, content_md, school_id")
+    .eq("id", document_id)
+    .single();
+
+  if (fetchErr || !page) {
+    return {
+      content: [{ type: "text", text: "Page not found" }],
+      isError: true,
+    };
+  }
+
+  if (ctx.schoolId && page.school_id !== ctx.schoolId) {
+    return {
+      content: [{ type: "text", text: "Access denied" }],
+      isError: true,
+    };
+  }
+
+  const op: BlockOperation = {
+    type: operation as BlockOperation["type"],
+    block_id: block_id,
+    content: content ? transformAgentContent(content) : content,
+  };
+
+  const result = applyOperations(page.content_md ?? "", [op]);
+
+  if (!result.success) {
+    return {
+      content: [{ type: "text", text: `Edit failed: ${result.error}` }],
+      isError: true,
+    };
+  }
+
+  const { error: updateErr } = await adminClient
+    .from("pages")
+    .update({ content_md: result.content })
+    .eq("id", document_id);
+
+  if (updateErr) {
+    return {
+      content: [{ type: "text", text: `Failed to save: ${updateErr.message}` }],
+      isError: true,
+    };
+  }
+
+  if (task_id) {
+    await adminClient
+      .from("agent_tasks")
+      .update({
+        last_activity_at: new Date().toISOString(),
+        current_action: `Editing document (${operation})`,
+      })
+      .eq("id", task_id)
+      .then(() => {});
+  }
+
+  if (ctx.agentId && block_id) {
+    adminClient
+      .from("page_blocks")
+      .update({
+        modified_by: ctx.agentId,
+        modified_by_type: "agent",
+        modified_at: new Date().toISOString(),
+      })
+      .eq("block_id", block_id)
+      .eq("page_id", document_id)
+      .then(({ error: blockErr }) => {
+        if (blockErr) console.error("[MCP] stream_edit block attribution error:", blockErr.message);
+      });
+  }
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            status: "applied",
+            document_id,
+            operation,
+            block_id: block_id ?? null,
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Vault tool handlers                                                  */
+/* ------------------------------------------------------------------ */
+
+export async function handleListApis(
+  ctx: { agentId?: string; userId?: string; schoolId?: string | null },
+): Promise<MCPToolResult> {
+  if (!ctx.schoolId) {
+    return {
+      content: [{ type: "text", text: "No workspace context — school_id is required" }],
+      isError: true,
+    };
+  }
+
+  const keys = await listVaultKeys(ctx.schoolId);
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            apis: keys.map((k) => ({
+              env_name: k.env_name,
+              description: k.description,
+            })),
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  };
+}
+
+export interface GetApiKeyInput {
+  env_name: string;
+  purpose?: string;
+}
+
+export async function handleGetApiKey(
+  input: GetApiKeyInput,
+  ctx: { agentId?: string; userId?: string; schoolId?: string | null },
+): Promise<MCPToolResult> {
+  if (!ctx.schoolId) {
+    return {
+      content: [{ type: "text", text: "No workspace context — school_id is required" }],
+      isError: true,
+    };
+  }
+
+  if (!input.env_name) {
+    return {
+      content: [{ type: "text", text: "Missing required field: env_name" }],
+      isError: true,
+    };
+  }
+
+  const result = await decryptVaultKeyByEnvName(ctx.schoolId, input.env_name, {
+    agentId: ctx.agentId,
+    purpose: input.purpose,
+  });
+
+  if (!result) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `API key "${input.env_name}" not found in the workspace vault. Use knobase_list_apis to see available keys.`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            env_name: result.env_name,
+            description: result.description,
+            value: result.value,
+            expires_in: 300,
           },
           null,
           2,

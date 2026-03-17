@@ -64,6 +64,7 @@ import {
   type VersionAuthor,
 } from "@/lib/history/versions";
 import { getCommentCount } from "@/lib/comments/store";
+import { transformAgentContent } from "@/lib/editor/content-transformer";
 
 import { DocumentContextProvider } from "@/contexts/DocumentContext";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -205,10 +206,12 @@ export default function WorkspaceDocumentPage() {
           : prev,
       );
 
-      // If the editor is live, push the new content in
+      // If the editor is live, push the new content in.
+      // Transform agent-produced markdown patterns ($$math$$, ```mermaid, etc.)
+      // into Tiptap-compatible node HTML before applying.
       const ed = editorRef.current;
       if (ed && !ed.isDestroyed && !ed.isFocused) {
-        ed.commands.setContent(remote.content_md ?? "");
+        ed.commands.setContent(transformAgentContent(remote.content_md ?? ""));
       }
     }, []),
     onDeleted: useCallback(() => {

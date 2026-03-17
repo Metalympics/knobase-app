@@ -164,9 +164,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const supabase = createAdminClient();
 
-  const { data: files, error } = await supabase
+  const { data: rows, error } = await supabase
     .from("agent_files")
-    .select("filename, content, updated_at")
+    .select("filename, updated_at, pages!inner(content_md)")
     .eq("agent_id", agentId)
     .order("filename");
 
@@ -175,7 +175,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return apiError("Failed to fetch agent files", "INTERNAL_ERROR", 500);
   }
 
-  const agentFiles = (files ?? []) as AgentFile[];
+  const agentFiles: AgentFile[] = (rows ?? []).map((row) => {
+    const page = row.pages as unknown as { content_md: string };
+    return {
+      filename: row.filename,
+      content: page?.content_md ?? "",
+      updated_at: row.updated_at,
+    };
+  });
 
   if (agentFiles.length === 0) {
     return apiError("Agent has no files to export", "NOT_FOUND", 404);

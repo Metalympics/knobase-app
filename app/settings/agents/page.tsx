@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SettingsSubNav } from "@/components/settings/settings-sub-nav";
 import { getActiveWorkspaceId, getOrCreateDefaultWorkspace } from "@/lib/schools/store";
-import { AgentFiles } from "@/components/agent/agent-files";
 
 type DetailTab = "overview" | "files" | "settings";
 

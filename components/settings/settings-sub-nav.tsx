@@ -2,11 +2,12 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Bot, Globe, Key, Webhook } from "lucide-react";
+import { ArrowLeft, Bot, Globe, Key, Shield, Webhook } from "lucide-react";
 
 const settingsSubPages = [
   { href: "/settings/agents", label: "Agents", icon: Bot },
   { href: "/settings/api-keys", label: "API Keys", icon: Key },
+  { href: "/settings/vault", label: "Vault", icon: Shield },
   { href: "/settings/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/settings/domain", label: "Domain", icon: Globe },
 ];

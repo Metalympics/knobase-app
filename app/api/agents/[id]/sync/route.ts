@@ -23,7 +23,7 @@ async function verifyAgent(agentId: string, schoolId: string) {
 
   const { data: existing, error } = await supabase
     .from("users")
-    .select("id, type, school_id, is_suspended")
+    .select("id, name, display_name, type, school_id, is_suspended")
     .eq("id", agentId)
     .single();
 
@@ -33,6 +33,8 @@ async function verifyAgent(agentId: string, schoolId: string) {
 
   const row = existing as unknown as {
     id: string;
+    name: string | null;
+    display_name: string | null;
     type: string | null;
     school_id: string | null;
     is_suspended: boolean;
@@ -48,7 +50,10 @@ async function verifyAgent(agentId: string, schoolId: string) {
     return { ok: false as const, response: apiError("Agent is suspended", "FORBIDDEN", 403) };
   }
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    agentName: row.display_name || row.name || "Agent",
+  };
 }
 
 /**
@@ -92,10 +97,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const supabase = createAdminClient();
+  const { agentName } = check;
 
-  const { data: serverFiles, error: fetchErr } = await supabase
+  const { data: serverRows, error: fetchErr } = await supabase
     .from("agent_files")
-    .select("filename, content, updated_at")
+    .select("filename, updated_at, page_id, pages!inner(content_md)")
     .eq("agent_id", agentId);
 
   if (fetchErr) {
@@ -103,22 +109,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return apiError("Failed to fetch server files", "INTERNAL_ERROR", 500);
   }
 
-  const serverMap = new Map(
-    (serverFiles ?? []).map((f: { filename: string; content: string; updated_at: string }) => [f.filename, f]),
-  );
+  const serverFiles = (serverRows ?? []).map((r) => {
+    const page = r.pages as unknown as { content_md: string };
+    return {
+      filename: r.filename,
+      content: page?.content_md ?? "",
+      updated_at: r.updated_at,
+    };
+  });
+
+  const serverMap = new Map(serverFiles.map((f) => [f.filename, f]));
 
   const clientFiles = body.files;
   const clientFilenames = new Set(clientFiles.map((f) => f.filename));
 
   const result: SyncResult = { uploaded: [], downloaded: [], conflicts: [] };
-  const upserts: { agent_id: string; filename: string; content: string; updated_at: string }[] = [];
+  const toUpsert: Array<{ filename: string; content: string; updated_at: string }> = [];
 
   for (const clientFile of clientFiles) {
     const serverFile = serverMap.get(clientFile.filename);
 
     if (!serverFile) {
-      upserts.push({
-        agent_id: agentId,
+      toUpsert.push({
         filename: clientFile.filename,
         content: clientFile.content,
         updated_at: clientFile.updated_at,
@@ -135,8 +147,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     if (clientTime > serverTime) {
-      upserts.push({
-        agent_id: agentId,
+      toUpsert.push({
         filename: clientFile.filename,
         content: clientFile.content,
         updated_at: clientFile.updated_at,
@@ -167,14 +178,63 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
   }
 
-  if (upserts.length > 0) {
-    const { error: upsertErr } = await supabase
-      .from("agent_files")
-      .upsert(upserts, { onConflict: "agent_id,filename" });
+  const stripExt = (f: string) => f.replace(/\.[^/.]+$/, "");
 
-    if (upsertErr) {
-      console.error("[Agent Sync] Upsert error:", upsertErr);
-      return apiError("Failed to sync files to server", "INTERNAL_ERROR", 500);
+  for (const item of toUpsert) {
+    const { data: existingLink } = await supabase
+      .from("agent_files")
+      .select("id, page_id")
+      .eq("agent_id", agentId)
+      .eq("filename", item.filename)
+      .maybeSingle();
+
+    if (existingLink) {
+      const { error: updateErr } = await supabase
+        .from("pages")
+        .update({ content_md: item.content })
+        .eq("id", existingLink.page_id);
+
+      if (updateErr) {
+        console.error("[Agent Sync] Page update error:", updateErr);
+        return apiError("Failed to sync files to server", "INTERNAL_ERROR", 500);
+      }
+
+      await supabase
+        .from("agent_files")
+        .update({ updated_at: item.updated_at })
+        .eq("id", existingLink.id);
+    } else {
+      const pageTitle = `${stripExt(item.filename)} - ${agentName}`;
+      const { data: page, error: pageErr } = await supabase
+        .from("pages")
+        .insert({
+          school_id,
+          created_by: agentId,
+          title: pageTitle,
+          content_md: item.content,
+          visibility: "shared",
+        })
+        .select("id")
+        .single();
+
+      if (pageErr || !page) {
+        console.error("[Agent Sync] Page creation error:", pageErr);
+        return apiError("Failed to sync files to server", "INTERNAL_ERROR", 500);
+      }
+
+      const { error: linkErr } = await supabase
+        .from("agent_files")
+        .insert({
+          agent_id: agentId,
+          page_id: page.id,
+          filename: item.filename,
+          updated_at: item.updated_at,
+        });
+
+      if (linkErr) {
+        console.error("[Agent Sync] Link creation error:", linkErr);
+        return apiError("Failed to sync files to server", "INTERNAL_ERROR", 500);
+      }
     }
   }
 

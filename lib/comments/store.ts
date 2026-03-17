@@ -121,7 +121,7 @@ export async function addComment(
       selection_to: selection?.to ?? null,
       selected_text: selection?.selectedText ?? null,
       mentions,
-    })
+    } as never)
     .select("id, document_id, school_id, parent_id, block_id, content, author_id, author_name, selection_from, selection_to, selected_text, resolved, mentions, created_at")
     .single();
 
@@ -166,16 +166,18 @@ export async function addReply(
 
   const { data, error } = await supabase
     .from("page_comments")
-    .insert({
-      document_id: documentId,
-      school_id: schoolId,
-      parent_id: parentId,
-      block_id: "reply",
-      content: text,
-      author_id: authorId ?? null,
-      author_name: author,
-      mentions,
-    })
+    .insert(
+      {
+        document_id: documentId,
+        school_id: schoolId,
+        parent_id: parentId,
+        block_id: "reply",
+        content: text,
+        author_id: authorId ?? null,
+        author_name: author,
+        mentions,
+      } as any,
+    )
     .select("id, document_id, school_id, parent_id, block_id, content, author_id, author_name, selection_from, selection_to, selected_text, resolved, mentions, created_at")
     .single();
 
@@ -207,8 +209,7 @@ export async function resolveComment(
   }
 
   const supabase = createClient();
-  await supabase
-    .from("page_comments")
+  await (supabase.from("page_comments") as any)
     .update({ resolved: newResolved })
     .eq("id", commentId);
 }

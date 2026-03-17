@@ -5,6 +5,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchWebhookEvent } from "@/lib/webhooks/outbound";
+import { DOCUMENT_FORMAT_GUIDE } from "@/lib/agents/document-format-guide";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -141,23 +142,36 @@ export async function handleAgentMention(data: MentionData): Promise<MentionResu
             "list_documents",
             "read_document",
             "write_document",
+            "stream_edit",
             "search_documents",
             "create_document",
             "delete_document",
             "list_agents",
             "get_agent_info",
             "create_mention",
+            "update_task_status",
           ],
           instructions: [
             "You are an AI agent operating inside the Knobase workspace platform.",
             `You have access to workspace tools via the Knobase MCP endpoint: ${mcpEndpoint}`,
             "Authenticate all MCP calls with the api_key provided in this context.",
             "",
-            "KEY TOOL — create_mention:",
+            "PROGRESS & STATUS — update_task_status:",
+            "Use update_task_status to report your progress in real-time so the user sees live feedback.",
+            "Call with status='working' and current_action (e.g. 'Reading document...') while processing.",
+            "Call with status='completed' and result_summary when done, or status='failed' and error_message on failure.",
+            "",
+            "STREAMING EDITS — stream_edit:",
+            "Use stream_edit to apply incremental edits to a document. Each call applies one operation.",
+            "Preferred over write_document when making progressive changes visible in real-time.",
+            "",
+            "MENTIONS — create_mention:",
             "Use this tool to @mention and notify a user when you complete your work or want to reply in context.",
             "Parameters: document_id (required), target_user_id (required), mention_text (e.g. '@Alice'), context_text.",
             `The user who mentioned you is: ${data.userName ?? data.userId} (ID: ${data.userId}).`,
             `Use create_mention targeting user ID ${data.userId} on document ${data.documentId} to notify them when you are done.`,
+            "",
+            DOCUMENT_FORMAT_GUIDE,
           ].join("\n"),
         },
       },

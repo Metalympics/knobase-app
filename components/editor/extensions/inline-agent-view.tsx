@@ -2,7 +2,12 @@
 
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { DOMParser as ProseDOMParser } from "@tiptap/pm/model";
-import { useMemo, useCallback, useEffect } from "react";
+import { useMemo, useCallback, useEffect, useState } from "react";
+import {
+  subscribeTaskStream,
+  getTaskStreamState,
+  type TaskStreamState,
+} from "@/lib/agents/task-stream-store";
 
 /* ------------------------------------------------------------------ */
 /* Markdown → HTML converter for agent response rendering/insertion     */
@@ -142,6 +147,16 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
   // in the same order on every render regardless of which branch we render.
   const { tasks: supabaseTasks, cancel: cancelSupabaseTask } = useDocumentTasks(documentId);
   const { pending: pendingProposals, accept: acceptProposal, reject: rejectProposal } = useDocumentProposals(documentId);
+
+  // Subscribe to live streaming state from the SSE stream handler
+  const [streamState, setStreamState] = useState<TaskStreamState | null>(
+    () => taskId ? getTaskStreamState(taskId) : null,
+  );
+  useEffect(() => {
+    if (!taskId) return;
+    setStreamState(getTaskStreamState(taskId));
+    return subscribeTaskStream(taskId, setStreamState);
+  }, [taskId]);
 
   // In demo mode, resolve task status from the simulated task list.
   // This gives us queued/processing/completed states without Supabase.
@@ -333,6 +348,7 @@ export function InlineAgentNodeView({ node, deleteNode, editor, updateAttributes
             currentAction={task?.currentAction ?? undefined}
             state={isFailed ? "failed" : isQueued ? "queued" : "running"}
             error={task?.error}
+            streamState={streamState}
             onCancel={() => handleCancelTask(task?.id ?? taskId ?? "")}
             onEdit={handleEdit}
           />

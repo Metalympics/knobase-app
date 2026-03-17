@@ -76,9 +76,9 @@ function RoleBadge({ userType }: { userType?: string | null }) {
     admin: "bg-red-100 text-red-700",
     owner: "bg-purple-100 text-purple-700",
     teacher: "bg-emerald-100 text-emerald-700",
-    student: "bg-blue-100 text-blue-700",
+    human: "bg-blue-100 text-blue-700",
   };
-  const cls = styles[userType.toLowerCase()] ?? styles.student;
+  const cls = styles[userType.toLowerCase()] ?? styles.human;
   const label =
     userType.charAt(0).toUpperCase() + userType.slice(1).toLowerCase();
 

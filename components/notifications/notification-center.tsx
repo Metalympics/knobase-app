@@ -144,13 +144,13 @@ export function NotificationCenter({
         .order("created_at", { ascending: false })
         .limit(20);
 
-      if (existing?.length) {
+      const rows = (existing ?? []) as Record<string, unknown>[];
+      if (rows.length > 0) {
         const stored = listNotifications();
         const storedIds = new Set(stored.map((n) => n.id));
-        for (const row of existing) {
-          if (!storedIds.has(row.id as string)) {
-            // Silently add to localStorage without showing a toast (already existed)
-            addNotification(dbRowToNotification(row as Record<string, unknown>));
+        for (const row of rows) {
+          if (!storedIds.has((row.id as string) ?? "")) {
+            addNotification(dbRowToNotification(row));
           }
         }
         refresh();

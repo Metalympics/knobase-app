@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users,
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { InviteModal } from "@/components/invitation/invite-modal";
 import { createClient } from "@/lib/supabase/client";
+import { useResolvedAvatars } from "@/lib/ui/use-resolved-avatars";
 
 /* ------------------------------------------------------------------ */
 /* Types & Constants                                                    */
@@ -93,78 +94,6 @@ function getInitials(name: string | null, email: string | null): string {
   return "??";
 }
 
-function isFullUrl(url: string): boolean {
-  return url.startsWith("http://") || url.startsWith("https://");
-}
-
-/**
- * Resolves avatar URLs: full URLs are used directly, storage paths are
- * downloaded from Supabase Storage and converted to blob URLs.
- * Returns a map of teammate id → resolved URL, and handles cleanup of
- * blob URLs when they are no longer needed.
- */
-function useResolvedAvatars(teammates: Teammate[]) {
-  const [resolved, setResolved] = useState<Record<string, string>>({});
-  const blobUrlsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    let cancelled = false;
-    const newBlobUrls = new Set<string>();
-
-    async function resolve() {
-      const supabase = createClient();
-      const result: Record<string, string> = {};
-
-      await Promise.all(
-        teammates.map(async (t) => {
-          if (!t.avatar_url) return;
-
-          if (isFullUrl(t.avatar_url)) {
-            result[t.id] = t.avatar_url;
-            return;
-          }
-
-          try {
-            const { data, error } = await supabase.storage
-              .from("avatars")
-              .download(t.avatar_url);
-            if (error || !data) return;
-            const url = URL.createObjectURL(data);
-            newBlobUrls.add(url);
-            result[t.id] = url;
-          } catch {
-            // Storage download failed — fall back to initials
-          }
-        }),
-      );
-
-      if (cancelled) {
-        newBlobUrls.forEach((u) => URL.revokeObjectURL(u));
-        return;
-      }
-
-      // Revoke previous blob URLs that are no longer in use
-      blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-      blobUrlsRef.current = newBlobUrls;
-      setResolved(result);
-    }
-
-    resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [teammates]);
-
-  // Clean up all blob URLs on unmount
-  useEffect(() => {
-    return () => {
-      blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-      blobUrlsRef.current.clear();
-    };
-  }, []);
-
-  return resolved;
-}
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */

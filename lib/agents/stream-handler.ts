@@ -11,6 +11,16 @@ import type { InlineSuggestionData } from "@/components/agent/inline-suggestion"
 import { detectMentions, type DetectedMention } from "@/lib/mentions/detector";
 import { addNotification } from "@/lib/notifications/store";
 import type { AgentToHumanMention, AgentToAgentMention } from "@/lib/mentions/types";
+import {
+  streamSetPhase,
+  streamAppendText,
+  streamAppendThinking,
+  streamToolStart,
+  streamToolEnd,
+  streamComplete,
+  streamError,
+  streamCleanup,
+} from "@/lib/agents/task-stream-store";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -39,6 +49,10 @@ export interface StreamHandlerConfig {
 
 export interface StreamCallbacks {
   onDelta?: (content: string, fullText: string) => void;
+  onThinking?: (content: string, fullThinking: string) => void;
+  onToolCall?: (name: string, params?: unknown) => void;
+  onToolResult?: (name: string, result?: unknown) => void;
+  onLifecycle?: (phase: string) => void;
   onSuggestion?: (suggestion: InlineSuggestionData) => void;
   onCursor?: (cursor: { anchor: number; head: number; status: string }) => void;
   onStatus?: (status: string) => void;
@@ -61,6 +75,7 @@ export interface StreamCallbacks {
 export class AgentStreamHandler {
   private abortController: AbortController | null = null;
   private fullText = "";
+  private thinkingText = "";
   private config: StreamHandlerConfig;
   private callbacks: StreamCallbacks;
 
@@ -214,12 +229,36 @@ export class AgentStreamHandler {
 
   private handleEvent(event: string, data: Record<string, unknown>) {
     switch (event) {
-      case "delta":
-        this.fullText += (data.content as string) ?? "";
-        this.callbacks.onDelta?.(
-          (data.content as string) ?? "",
-          this.fullText,
+      case "delta": {
+        const content = (data.content as string) ?? "";
+        this.fullText += content;
+        this.callbacks.onDelta?.(content, this.fullText);
+        break;
+      }
+
+      case "thinking": {
+        const content = (data.content as string) ?? "";
+        this.thinkingText += content;
+        this.callbacks.onThinking?.(content, this.thinkingText);
+        break;
+      }
+
+      case "tool_call":
+        this.callbacks.onToolCall?.(
+          (data.name as string) ?? "function",
+          data.params ?? data.delta,
         );
+        break;
+
+      case "tool_result":
+        this.callbacks.onToolResult?.(
+          (data.name as string) ?? "function",
+          data.result,
+        );
+        break;
+
+      case "lifecycle":
+        this.callbacks.onLifecycle?.((data.phase as string) ?? "");
         break;
 
       case "suggestion": {
@@ -238,7 +277,6 @@ export class AgentStreamHandler {
         };
         this.callbacks.onSuggestion?.(suggestion);
 
-        // Persist as Supabase proposal
         createProposal({
           task_id: this.config.taskId,
           document_id: this.config.documentId,
@@ -303,19 +341,20 @@ export function createEditorStreamHandler(
     }
   });
 
+  // Initialize the stream store for this task
+  streamSetPhase(config.taskId, "connecting");
+
   return new AgentStreamHandler(config, {
     onDelta(content, fullText) {
+      streamAppendText(config.taskId, content);
       if (!editor || editor.isDestroyed) return;
 
-      // On first delta, delete the inline agent node and place cursor there
       if (!streamNodeDeleted && nodePos !== null) {
         try {
-          // Delete the inline-agent node
           const tr = editor.state.tr;
           const node = tr.doc.nodeAt(nodePos);
           if (node && node.type.name === "inlineAgent") {
             tr.delete(nodePos, nodePos + node.nodeSize);
-            // Insert the full text so far at that position
             tr.insertText(fullText, nodePos);
             editor.view.dispatch(tr);
             streamNodeDeleted = true;
@@ -326,7 +365,6 @@ export function createEditorStreamHandler(
         }
       }
 
-      // Subsequent deltas: append at the end of the running text
       if (streamNodeDeleted && nodePos !== null) {
         try {
           const insertAt = nodePos + fullText.length - content.length;
@@ -339,20 +377,40 @@ export function createEditorStreamHandler(
       }
     },
 
+    onThinking(content) {
+      streamAppendThinking(config.taskId, content);
+    },
+
+    onToolCall(name, params) {
+      streamToolStart(config.taskId, name, params);
+    },
+
+    onToolResult(name) {
+      streamToolEnd(config.taskId, name);
+    },
+
+    onLifecycle(phase) {
+      if (phase === "start") streamSetPhase(config.taskId, "responding");
+      else if (phase === "end") streamComplete(config.taskId);
+      else if (phase === "error") streamError(config.taskId, "Agent run failed");
+    },
+
     onSuggestion(suggestion) {
       onSuggestion?.(suggestion);
     },
 
-    onCursor(cursor) {
-      // Forward cursor updates to awareness if provider is available
-      // This is handled by the inline-agent.ts caller
+    onCursor() {
+      // Cursor updates forwarded to awareness by inline-agent.ts caller
     },
 
     onStatus(status) {
-      // Could be used to update the pending block UI
+      if (status === "thinking") streamSetPhase(config.taskId, "thinking");
+      else if (status === "connecting") streamSetPhase(config.taskId, "connecting");
+      else if (status === "responding") streamSetPhase(config.taskId, "responding");
     },
 
     async onDone(result) {
+      streamComplete(config.taskId, result);
       // If we never got deltas (e.g., suggestion-only flow), insert the result
       if (!streamNodeDeleted && nodePos !== null && result) {
         try {
@@ -424,7 +482,7 @@ export function createEditorStreamHandler(
 
     onError(message) {
       console.error("[AgentStream] Error:", message);
-      // The task store update is handled by the stream handler itself
+      streamError(config.taskId, message);
     },
   });
 }
